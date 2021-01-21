@@ -17,7 +17,9 @@ def mask_bdy(scalar):
 
         ds.to_netcdf('BdyData/bdy_'+ scalar +'_' + bearing + '_masked.nc')
 
+mask_bdy('V')
 mask_bdy('T')
+mask_bdy('U')
 
 #def pad_bounds(scalar):
 #    ds[scalar][:,:,-1] = ds[scalar][:,:,-2]

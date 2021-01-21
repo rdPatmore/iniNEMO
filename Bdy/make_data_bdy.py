@@ -2,36 +2,46 @@ import xarray as xr
 import numpy  as np
 
 def get_side(data, side, pos, offset=0):
+    vel_block=0
     print ('SIDE: ', side)
     mesh_mask = xr.open_dataset('mesh_mask.nc').rename({
-                      'x':'X', 'y':'Y','time_counter':'tc'})
+        'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     if side == 'west':
-        arrayX = data.isel(X=0 + offset).reset_coords('X', drop=True)
-        mesh_mask = mesh_mask.isel(X=0 + offset).isel(
-                    Y=slice(1,int(arrayX.attrs['bdy_end'])))
+                           #Y=slice(2+offset,-1-offset)
+        arrayX = data.isel(X=0 + offset, 
+                          Y=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+                          ).reset_coords('X', drop=True)
+        mesh_mask = mesh_mask.isel(X=1 + offset,
+                    Y=slice(1+offset,int(arrayX.attrs['bdy_end'] - offset)))
         dim='Y'
         bdy_pos = int(arrayX.attrs['bdy_deb'] + offset)
     if side == 'east':
         if pos == 'U':
-            offset = offset + 1
-        arrayX = data.isel(X=0 + offset).reset_coords('X', drop=True)  
-        mesh_mask = mesh_mask.isel(X=-1 - offset).isel(
-                    Y=slice(1,int(arrayX.attrs['bdy_end'])))
-        bdy_pos = int(arrayX.attrs['bdy_ind']+ 1 - offset)
+            vel_block=1 
+        arrayX = data.isel(X=0 + offset + vel_block,
+                          Y=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+                           ).reset_coords('X', drop=True)  
+        mesh_mask = mesh_mask.isel(X=-2 - offset - vel_block,
+                    Y=slice(1+ offset,int(arrayX.attrs['bdy_end'])-offset))
+        bdy_pos = int(arrayX.attrs['bdy_ind']+ 1 - offset - vel_block)
         dim='Y'
     if side == 'south':
-        arrayX = data.isel(Y=0 + offset).reset_coords('Y', drop=True)
-        mesh_mask = mesh_mask.isel(Y=1 + offset).isel(
-                    X=slice(1,int(arrayX.attrs['bdy_end'])))
+        arrayX = data.isel(Y=0 + offset,
+                           X=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+                          ).reset_coords('Y', drop=True)
+        mesh_mask = mesh_mask.isel(Y=1 + offset,
+                    X=slice(1+offset,int(arrayX.attrs['bdy_end'])-offset))
         dim='X'
         bdy_pos = int(arrayX.attrs['bdy_deb'] + offset)
     if side == 'north':
         if pos == 'V':
-            offset = offset + 1
-        arrayX = data.isel(Y=0 + offset).reset_coords('Y', drop=True)
-        mesh_mask = mesh_mask.isel(Y=-1 - offset).isel(
-                    X=slice(1,int(arrayX.attrs['bdy_end'])))
-        bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset)
+            vel_block=1
+        arrayX = data.isel(Y=0 + offset + vel_block,
+                           X=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+                           ).reset_coords('Y', drop=True)
+        mesh_mask = mesh_mask.isel(Y=-2 - offset - vel_block,
+                    X=slice(1+offset,int(arrayX.attrs['bdy_end'])-offset))
+        bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset - vel_block)
         dim='X'
     if pos == 'T':
         arrayX['gdept'] = mesh_mask['gdept_0']
@@ -46,15 +56,16 @@ def get_side(data, side, pos, offset=0):
             arrayX = arrayX.sortby('X', ascending=False)
         if side in ['west']:
             arrayX = arrayX.sortby('Y', ascending=False)
+        arrayX = arrayX.swap_dims({'T':'time_counter'})
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbt'], arrayX[dim].values + 1),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrt': (['xbt'], np.full(arrayX[dim].shape, 1)),
+                         'nbrt': (['xbt'], np.full(arrayX[dim].shape, 1 + offset)),
                          'deptht':(['deptht'], arrayX.deptht.values),
                          'nav_lon':(['xbt'], arrayX.nav_lon.values),
                          'nav_lat':(['xbt'], arrayX.nav_lat.values),
-                 'gdept':(['time_counter','deptht','xbt'], arrayX.gdept.values),
-                     'e3t':(['time_counter','deptht','xbt'], arrayX.e3t.values),
+                 'gdept':(['deptht','xbt'], arrayX.gdept.values),
+                     'e3t':(['deptht','xbt'], arrayX.e3t.values),
               'sossheig':  (['time_counter','xbt'], arrayX.sossheig.values),
          'vosaline':  (['time_counter','deptht','xbt'], arrayX.vosaline.values),
          'votemper':  (['time_counter','deptht','xbt'], arrayX.votemper.values)}
@@ -86,15 +97,16 @@ def get_side(data, side, pos, offset=0):
             arrayX = arrayX.isel(X=slice(None,None,-1))
         if side in ['west']:
             arrayX = arrayX.isel(Y=slice(None,None,-1))
+        arrayX = arrayX.swap_dims({'T':'time_counter'})
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbu'], arrayX[dim].values + 1),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbru': (['xbu'], np.full(arrayX[dim].shape, 1)),
+                         'nbru': (['xbu'], np.full(arrayX[dim].shape, 1 + offset)),
                          'depthu':(['depthu'], arrayX.depthu.values),
                          'nav_lat':(['xbu'], arrayX.nav_lat.values),
                          'nav_lon':(['xbu'], arrayX.nav_lon.values),
-              'gdepu':(['time_counter','depthu','xbu'], arrayX.gdepu.values),
-                  'e3u':(['time_counter','depthu','xbu'], arrayX.e3u.values),
+              'gdepu':(['depthu','xbu'], arrayX.gdepu.values),
+                  'e3u':(['depthu','xbu'], arrayX.e3u.values),
         'vozocrtx':  (['time_counter','depthu','xbu'], arrayX.vozocrtx.values)}
                         ).expand_dims('yb')
         ds.depthu.attrs['long_name']='Vertical U levels'
@@ -124,15 +136,16 @@ def get_side(data, side, pos, offset=0):
             arrayX = arrayX.isel(X=slice(None,None,-1))
         if side in ['west']:
             arrayX = arrayX.isel(Y=slice(None,None,-1))
+        arrayX = arrayX.swap_dims({'T':'time_counter'})
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbv'], arrayX[dim].values + 1),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrv': (['xbv'], np.full(arrayX[dim].shape, 1)),
+                         'nbrv': (['xbv'], np.full(arrayX[dim].shape, 1 + offset)),
                          'depthv':(['depthv'], arrayX.depthv.values),
                          'nav_lon':(['xbv'], arrayX.nav_lon.values),
                          'nav_lat':(['xbv'], arrayX.nav_lat.values),
-                'gdepv':(['time_counter','depthv','xbv'], arrayX.gdepv.values),
-                    'e3v':(['time_counter','depthv','xbv'], arrayX.e3v.values),
+                'gdepv':(['depthv','xbv'], arrayX.gdepv.values),
+                    'e3v':(['depthv','xbv'], arrayX.e3v.values),
         'vomecrty':  (['time_counter','depthv','xbv'], arrayX.vomecrty.values)}
                        ).expand_dims('yb')
         ds.depthv.attrs['long_name']='Vertical V levels'
@@ -163,35 +176,38 @@ def single_bound(data, mesh_mask, side, pos, width=1):
         ds = xr.concat(segments, dim=('xb' + pos).lower())
     return ds
 
-def get_ring(pos, offset):
+def get_ring(pos, width):
     segments = []
-    for side in ['east', 'north', 'west', 'south']:
-        if pos == 'T':
-            data_pathT = '../Masks/BdyData/bdy_T_' + side + '_masked.nc'
-            data = xr.open_dataset(data_pathT, decode_times=False)
-        if pos == 'U':
-            data_pathU = '../Masks/BdyData/bdy_U_' + side + '_masked.nc'
-            data = xr.open_dataset(data_pathU, decode_times=False)
-        if pos == 'V':
-            data_pathV = '../Masks/BdyData/bdy_V_' + side + '_masked.nc'
-            data = xr.open_dataset(data_pathV, decode_times=False)
-        orcaT_path = '../processORCA12/DataIn/ORCA0083-N06_20150105d05T.nc'
-        orca_time = xr.open_dataset(orcaT_path).time_counter
-        data['time_counter'] = orca_time
-        segments.append(get_side(data, side, pos, offset=offset))
+    for ring in range(0,width):
+        print ('RING', ring)
+        for side in ['east', 'north', 'west', 'south']:
+            if pos == 'T':
+                data_pathT = '../Masks/BdyData/bdy_T_' + side + '_masked.nc'
+                data = xr.open_dataset(data_pathT, decode_times=False)
+            if pos == 'U':
+                data_pathU = '../Masks/BdyData/bdy_U_' + side + '_masked.nc'
+                data = xr.open_dataset(data_pathU, decode_times=False)
+            if pos == 'V':
+                data_pathV = '../Masks/BdyData/bdy_V_' + side + '_masked.nc'
+                data = xr.open_dataset(data_pathV, decode_times=False)
+            #orcaT_path = '../processORCA12/DataIn/ORCA0083-N06_20150105d05T.nc'
+            #orca_time = xr.open_dataset(orcaT_path).time_counter
+            #print (data)
+            #data['time_counter'] = orca_time
+            segments.append(get_side(data, side, pos, offset=ring))
     return xr.concat(segments, dim=('xb' + pos).lower())
 
-def full_bounds(offset):
+def full_bounds(width):
     #mesh_mask = xr.open_dataset('mesh_mask.nc')#.isel(
     #              x=slice(None,10), y=slice(1,99)).rename(
     #            {'x':'X','y':'Y'}).rename({'time_counter':'tc'})
-    dsT = get_ring('T', offset=offset)
-    dsU = get_ring('U', offset=offset)
-    dsV = get_ring('V', offset=offset)
+    dsT = get_ring('T', width=width)
+    dsU = get_ring('U', width=width)
+    dsV = get_ring('V', width=width)
     dsT.to_netcdf('BdyOut/bdy_T_ring.nc', unlimited_dims='time_counter')
     dsU.to_netcdf('BdyOut/bdy_U_ring.nc', unlimited_dims='time_counter')
     dsV.to_netcdf('BdyOut/bdy_V_ring.nc', unlimited_dims='time_counter')
-full_bounds(0)
+full_bounds(5)
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'
@@ -217,9 +233,9 @@ def all_pos_one_side(side, width=1):
     dsT = single_bound(dataT, side, 'T', width=width)
     dsU = single_bound(dataU, side, 'U', width=width)
     dsV = single_bound(dataV, side, 'V', width=width)
-    #print (dsT)
-    #print (dsU)
-    #print (dsV)
+    print (dsT)
+    print (dsU)
+    print (dsV)
     dsT.to_netcdf('BdyOut/bdy_T_west_masked.nc', unlimited_dims='time_counter')
     dsU.to_netcdf('BdyOut/bdy_U_west_masked.nc', unlimited_dims='time_counter')
     dsV.to_netcdf('BdyOut/bdy_V_west_masked.nc', unlimited_dims='time_counter')

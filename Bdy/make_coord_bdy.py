@@ -4,25 +4,29 @@ import numpy  as np
 coords = xr.open_dataset('coordinates.nc', decode_times=False)
 
 def get_side(side, pos, offset=0):
+    vel_block=0
+    print ('SIDE: ', side)
     if side == 'west':
-        arrayX = coords.isel(X=0 + offset, Y=slice(1,-1))
+        arrayX = coords.isel(X=1 + offset, Y=slice(1+offset,-1-offset))
         dim='Y'
         bdy_pos = 2 + offset
     if side == 'east':
         if pos == 'U':
-            offset = offset + 1
-        arrayX = coords.isel(X=-1 - offset, Y=slice(1,-1))
-        bdy_pos = 50 - offset
+            vel_block=1
+        arrayX = coords.isel(X=-2 - offset -vel_block,
+                             Y=slice(1+offset,-1-offset))
+        bdy_pos = 50 - offset - vel_block
         dim='Y'
     if side == 'south':
-        arrayX = coords.isel(Y=0 + offset, X=slice(1,-1))
+        arrayX = coords.isel(Y=1 + offset, X=slice(1+offset,-1-offset))
         dim='X'
         bdy_pos = 2 + offset
     if side == 'north':
         if pos == 'V':
-            offset = offset + 1
-        arrayX = coords.isel(Y=-1 - offset, X=slice(1,-1))
-        bdy_pos = 99 - offset
+            vel_block=1
+        arrayX = coords.isel(Y=-2 - offset - vel_block,
+                             X=slice(1+offset,-1-offset))
+        bdy_pos = 99 - offset - vel_block
         dim='X'
 
     if pos == 'T':
@@ -38,7 +42,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbt'], arrayX[dim].values),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrt': (['xbt'], np.full(arrayX[dim].shape, 1)),
+                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,1 + offset)),
                          'glamt':(['xbt'], arrayX.glamt.values),
                          'gphit':(['xbt'], arrayX.gphit.values),
                          'e1t':  (['xbt'], arrayX.e1t.values),
@@ -66,7 +70,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.isel(Y=slice(None,None,-1))
         ds = xr.Dataset({nba: (['xbu'], arrayX[dim].values),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbru': (['xbu'], np.full(arrayX[dim].shape, 1)),
+                         'nbru': (['xbu'], np.full(arrayX[dim].shape,1+offset)),
                          'glamu':(['xbu'], arrayX.glamu.values),
                          'gphiu':(['xbu'], arrayX.gphiu.values),
                          'e1u':  (['xbu'], arrayX.e1u.values),
@@ -94,7 +98,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.isel(Y=slice(None,None,-1))
         ds = xr.Dataset({nba: (['xbv'], arrayX[dim].values),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrv': (['xbv'], np.full(arrayX[dim].shape, 1)),
+                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,1+offset)),
                          'glamv':(['xbv'], arrayX.glamv.values),
                          'gphiv':(['xbv'], arrayX.gphiv.values),
                          'e1v':  (['xbv'], arrayX.e1v.values),
@@ -110,51 +114,6 @@ def get_side(side, pos, offset=0):
     ds.attrs['history'] = 'Created using RDPs NEMO config on SCIHUB'
     return ds
 
-#def get_side(side, pos, offset=0):
-#    if side == 'west':
-#        arrayX = coords.isel(X=0 + offset, Y=slice(1,99))  
-#    if side == 'east':
-#        arrayX = coords.isel(X=-1 - offset)  
-#    if side == 'south':
-#        arrayX = coords.isel(Y=0 + offset)  
-#    if side == 'north':
-#        arrayX = coords.isel(Y=-1 - offset)  
-#
-#    dim='Y'
-#    if pos == 'T':
-#        ds = xr.Dataset({'nbjt': (['xbt'], arrayX[dim].values),
-#                         'nbit': (['xbt'], np.full(arrayX[dim].shape,
-#                                                   arrayX.X.values+1)),
-#                         'nbrt': (['xbt'], np.full(arrayX[dim].shape, 1)),
-#                         'glamt':(['xbt'], arrayX.glamt.values),
-#                         'gphit':(['xbt'], arrayX.gphit.values),
-#                         'e1t':  (['xbt'], arrayX.e1t.values),
-#                         'e2t':  (['xbt'], arrayX.e2t.values)}
-#                       ).expand_dims('yb')
-#    if pos == 'U':
-#        ds = xr.Dataset({'nbju': (['xbu'], arrayX[dim].values),
-#                         'nbiu': (['xbu'], np.full(arrayX[dim].shape,
-#                                                   arrayX.X.values +1)),
-#                         'nbru': (['xbu'], np.full(arrayX[dim].shape, 1)),
-#                         'glamu':(['xbu'], arrayX.glamu.values),
-#                         'gphiu':(['xbu'], arrayX.gphiu.values),
-#                         'e1u':  (['xbu'], arrayX.e1u.values),
-#                         'e2u':  (['xbu'], arrayX.e2u.values)}
-#                        ).expand_dims('yb')
-#    if pos == 'V':
-#        arrayX = arrayX.isel(Y=slice(None,-1))
-#        print (arrayX)
-#        ds = xr.Dataset({'nbjv': (['xbv'], arrayX[dim].values),
-#                         'nbiv': (['xbv'], np.full(arrayX[dim].shape,
-#                                                   arrayX.X.values+1)),
-#                         'nbrv': (['xbv'], np.full(arrayX[dim].shape, 1)),
-#                         'glamv':(['xbv'], arrayX.glamv.values),
-#                         'gphiv':(['xbv'], arrayX.gphiv.values),
-#                         'e1v':  (['xbv'], arrayX.e1v.values),
-#                         'e2v':  (['xbv'], arrayX.e2v.values)}
-#                       ).expand_dims('yb')
-#    return ds
-
 def single_bound(side, pos, width=1):
     if width == 1:
         ds = get_side(side, pos, offset=0)
@@ -165,20 +124,23 @@ def single_bound(side, pos, width=1):
         ds = xr.concat(segments, dim=('xb' + pos).lower())
     return ds
 
-def get_ring(pos, offset):
+def get_ring(pos, width):
     segments = []
-    for side in ['east', 'north', 'west', 'south']:
-        segments.append(get_side(side, pos, offset=offset))
+    for ring in range(0,width):
+        print ('RING', ring)
+        for side in ['east', 'north', 'west', 'south']:
+            segments.append(get_side(side, pos, offset=ring))
     return xr.concat(segments, dim=('xb' + pos).lower())
 
-def full_bounds(offset=0):
-    dsT = get_ring('T', offset=offset)
-    dsU = get_ring('U', offset=offset)
-    dsV = get_ring('V', offset=offset)
+
+def full_bounds(width=0):
+    dsT = get_ring('T', width=width)
+    dsU = get_ring('U', width=width)
+    dsV = get_ring('V', width=width)
     ds = xr.merge([dsT, dsU, dsV])
     print (ds)
     ds.to_netcdf('coordinates.bdy.nc')
-full_bounds(offset=0)
+full_bounds(width=5)
 
 def merge_pos(side, width=1):
     dsT = single_bound(side, 'T', width=width)
