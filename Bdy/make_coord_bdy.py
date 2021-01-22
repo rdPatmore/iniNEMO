@@ -4,12 +4,19 @@ import numpy  as np
 coords = xr.open_dataset('coordinates.nc', decode_times=False)
 
 def get_side(side, pos, offset=0):
+    '''
+    process a SIREN bdy file
+    '''
+
+    # no u and v into east and north bounds
     vel_block=0
+
     print ('SIDE: ', side)
     if side == 'west':
         arrayX = coords.isel(X=1 + offset, Y=slice(1+offset,-1-offset))
         dim='Y'
         bdy_pos = 2 + offset
+
     if side == 'east':
         if pos == 'U':
             vel_block=1
@@ -17,10 +24,12 @@ def get_side(side, pos, offset=0):
                              Y=slice(1+offset,-1-offset))
         bdy_pos = 50 - offset - vel_block
         dim='Y'
+
     if side == 'south':
         arrayX = coords.isel(Y=1 + offset, X=slice(1+offset,-1-offset))
         dim='X'
         bdy_pos = 2 + offset
+
     if side == 'north':
         if pos == 'V':
             vel_block=1
@@ -125,6 +134,12 @@ def single_bound(side, pos, width=1):
     return ds
 
 def get_ring(pos, width):
+    '''
+    two loops:
+        1. join sides to create a full boundary={east, north, west, south}
+        2. loop over width of boundary conditions
+    '''
+
     segments = []
     for ring in range(0,width):
         print ('RING', ring)
@@ -134,12 +149,17 @@ def get_ring(pos, width):
 
 
 def full_bounds(width=0):
+    '''
+    write coordinates.bdy.nc
+    full boundary condition coordinates of width=width for {T,U,V}
+    '''
+
     dsT = get_ring('T', width=width)
     dsU = get_ring('U', width=width)
     dsV = get_ring('V', width=width)
     ds = xr.merge([dsT, dsU, dsV])
-    print (ds)
     ds.to_netcdf('coordinates.bdy.nc')
+
 full_bounds(width=5)
 
 def merge_pos(side, width=1):
