@@ -7,7 +7,7 @@ import numpy as np
 coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
 ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
-def regrid(ds, var):
+def regrid(ds, coord, var):
     print ('variable: ', var)
     print ('time length', ds[var].time.values.shape)
     ds_new_grid = []
@@ -82,7 +82,7 @@ def correct_units(ds):
     return ds
 
 for var in ECMWF.keys():
-    ECMWF = regrid(ECMWF, var)
+    ECMWF = regrid(ECMWF, coord, var)
 ECMWF = clean_coords(ECMWF)
 ECMWF = correct_units(ECMWF)
 ECMWF = calc_specific_humidity(ECMWF)

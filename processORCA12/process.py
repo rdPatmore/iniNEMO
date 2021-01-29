@@ -1,5 +1,6 @@
 import xarray as xr
 import numpy as np
+import gridding
 
 
 def process(pos='T'):
@@ -81,6 +82,29 @@ def subset_coords():
     encoding = {var: comp for var in ds.data_vars}
     ds.to_netcdf(outdir + 'coordinates_subset.nc', encoding=encoding)
 
-process('T')
-process('U')
-process('V')
+def cut_orca(pos):
+   '''
+   regrid orca to chosen model grid
+   pos can be in {T,U,V}
+   '''
+
+   indir  = 'DataIn/'
+   outdir = 'DataOut/'
+   
+   #if pos == 'T':
+   #    chunk = {'deptht':1}
+
+   coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
+   ds    = xr.open_dataset(outdir + 'ORCA0083-N06_' + pos + '_conform.nc',
+                           mask_and_scale=False, decode_cf=False)
+   
+   #ds = ds.load()
+   var_keys = ['votemper', 'vosaline', 'sossheig']
+   for var in var_keys: 
+       ds = gridding.regrid(ds, coord, var)
+
+   #comp = dict(zlib=True, complevel=9)
+   #encoding = {var: comp for var in ds.data_vars}
+   ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc')# encoding=encoding)
+
+cut_orca('T')
