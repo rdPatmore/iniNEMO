@@ -33,13 +33,14 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     sochic = xr.decode_cf(sochic)
     orca = xr.decode_cf(orca)
     sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
-    print (orca.time_counter)
-    print (sochic.time_counter)
+    #print (orca.time_counter)
+    #print (sochic.time_counter)
                                                 #  time_counter=slice(None, -2))
 
     # align time steps
-    sochic = interp_to_orca(orca, sochic)
-    #print (sochic.votemper)
+    #sochic = interp_to_orca(orca, sochic)
+    sochic = sochic.isel(time_counter=slice(7,19,2))
+    print (sochic)
   
     if model == 'orca':
         m = orca
@@ -73,10 +74,10 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     for ax in axs[1,1:]:
         ax.set_yticks([])
 
-    plt.savefig('temp_' + model + '_compare.png')
+    plt.savefig('temp_' + model + '_EXP01_short_compare.png')
 
 if __name__ == '__main__':
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
-    sochic_path = '../Output/EXP01/SOCHIC_PATCH_20ts_20150101_20150131_grid_T.nc'
-    plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
+    sochic_path = '../Output/EXP02/SOCHIC_PATCH_20ts_20150101_20150131_grid_T.nc'
+    #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
     plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)

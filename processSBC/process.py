@@ -81,10 +81,39 @@ def correct_units(ds):
                     'sp': p, 'mslp': mslp})
     return ds
 
+def daily_average(ds, var_keys):
+    ''' 
+    return two datasets of differeing time scales
+    one on original time frame
+    one of daily averages
+    '''
+
+    # get list of averaged quanitities
+    arr_list = []
+    for var in day_keys:
+        day_mean = ds[var].groupby('time.day').sum('time', keep_attrs=True)
+        arr_list.append(day_mean)
+
+    # merge data arrays
+    ds_24 = xr.merge(arr_list)
+    ds_24 = ds_24.rename({'day':'time'})
+    ds_24['time'] = (ds_24.time * 24 - 12.)
+    ds_24.time.attrs = {'long_name': 'time', 'units': 'hours since 2015-01-01',
+                        'calendar': 'gregorian'}
+
+    # drop averaged keys from original dataset
+    ds_short = ds.drop(var_keys)
+        
+    return ds_short, ds_24
+
 for var in ECMWF.keys():
     ECMWF = regrid(ECMWF, coord, var)
 ECMWF = clean_coords(ECMWF)
 ECMWF = correct_units(ECMWF)
 ECMWF = calc_specific_humidity(ECMWF)
 
-ECMWF.to_netcdf('ECMWF_conform.nc')
+day_keys = ['sf', 'tp', 'ssrd', 'strd']
+ECMWF_3, ECMWF_24 = daily_average(ECMWF, day_keys)
+
+ECMWF_3.to_netcdf('ECMWF_3_conform.nc')
+ECMWF_24.to_netcdf('ECMWF_24_conform.nc')
