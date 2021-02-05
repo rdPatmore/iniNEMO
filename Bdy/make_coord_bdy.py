@@ -160,7 +160,7 @@ def full_bounds(width=0):
     ds = xr.merge([dsT, dsU, dsV])
     ds.to_netcdf('coordinates.bdy.nc')
 
-full_bounds(width=5)
+full_bounds(width=8)
 
 def merge_pos(side, width=1):
     dsT = single_bound(side, 'T', width=width)

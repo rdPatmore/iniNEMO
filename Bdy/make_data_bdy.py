@@ -207,7 +207,7 @@ def full_bounds(width):
     dsT.to_netcdf('BdyOut/bdy_T_ring.nc', unlimited_dims='time_counter')
     dsU.to_netcdf('BdyOut/bdy_U_ring.nc', unlimited_dims='time_counter')
     dsV.to_netcdf('BdyOut/bdy_V_ring.nc', unlimited_dims='time_counter')
-full_bounds(5)
+full_bounds(8)
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'

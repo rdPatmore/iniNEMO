@@ -3,6 +3,7 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime
+import pandas as pd
 
 
 coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
@@ -127,17 +128,60 @@ def daily_average(ds, var_keys):
     # merge data arrays
     ds_24 = xr.merge(arr_list)
     ds_24 = ds_24.rename({'dayofyear':'time'})
-    ds_24['time'] = (ds_24.time * 24 - 12.)
+    ds_24['time'] = (ds_24.time * 24. - 12.)
     ds_24.time.attrs = {'long_name': 'time', 'units': 'hours since 2015-01-01',
                         'calendar': 'gregorian'}
-    ds_24['nav_lon'] = ds.nav_lon
-    ds_24['nav_lat'] = ds.nav_lat
+    #ds_24['nav_lon'] = ds.nav_lon
+    #ds_24['nav_lat'] = ds.nav_lat
     ds_24 = xr.decode_cf(ds_24)
 
     # drop averaged keys from original dataset
     ds_short = ds.drop(var_keys)
         
     return ds_short, ds_24
+
+def five_day_average(ds, var_keys):
+    ''' 
+    return two datasets of differeing time scales
+    one on original time frame
+    one of five day averages
+    '''
+    ds_short, ds_24 = daily_average(ds, var_keys)
+
+    time = pd.date_range("2015-01-03 12:00:00", freq="5D", periods=6)
+    ds_5d = ds_24.interp(time=time)
+    ds_5d.time.encoding['dtype'] = np.float64
+    return ds_short, ds_5d
+
+def five_day_average_all(ds, var_keys):
+    ''' 
+    five day averages of all quantities
+    '''
+
+    ds_short, ds_24 = daily_average(ds, var_keys)
+
+    def interpolate(ds):
+        time = pd.date_range("2015-01-03 12:00:00", freq="5D", periods=6)
+        ds = ds.interp(time=time)
+        ds.time.encoding['dtype'] = np.float64
+        return ds
+
+    ds_short = interpolate(ds_short)
+    ds_24 = interpolate(ds_24)
+    ds = xr.merge([ds_short, ds_24])
+
+    return ds
+
+def daily_average_all(ds, var_keys):
+    ''' 
+    daily averages of all quantities
+    '''
+
+    ds_short, ds_24 = daily_average(ds, var_keys)
+
+    ds_short = ds_short.interp(time=ds_24.time)
+    ds = xr.merge([ds_short, ds_24])
+    return ds
 
 for var in ECMWF.keys():
     ECMWF = regrid(ECMWF, coord, var)
@@ -146,7 +190,12 @@ ECMWF = correct_units(ECMWF)
 ECMWF = calc_specific_humidity(ECMWF)
 
 day_keys = ['sf', 'tp', 'ssrd', 'strd']
-ECMWF_3, ECMWF_24 = daily_average(ECMWF, day_keys)
+#ECMWF_3, ECMWF_24 = daily_average(ECMWF, day_keys)
+#ECMWF_3, ECMWF_5d = five_day_average(ECMWF, day_keys)
+#ECMWF_5d_all = five_day_average_all(ECMWF, day_keys)
+ECMWF_24_all = daily_average_all(ECMWF, day_keys)
 
-ECMWF_3.to_netcdf('ECMWF_3_conform.nc', unlimited_dims='time')
-ECMWF_24.to_netcdf('ECMWF_24_conform.nc', unlimited_dims='time')
+#ECMWF_3.to_netcdf('ECMWF_3_conform.nc', unlimited_dims='time')
+#ECMWF_5d.to_netcdf('ECMWF_5d_conform.nc', unlimited_dims='time')
+#ECMWF_5d_all.to_netcdf('ECMWF_5d_all_conform.nc', unlimited_dims='time')
+ECMWF_24_all.to_netcdf('ECMWF_24_all_conform.nc', unlimited_dims='time')
