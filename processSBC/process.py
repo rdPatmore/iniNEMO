@@ -116,7 +116,7 @@ def daily_average(ds, var_keys):
     # get list of averaged quanitities
     arr_list = []
     ds = xr.decode_cf(ds)
-    for var in day_keys:
+    for var in var_keys:
         midday = ds[var].sel(time=datetime.time(12))
         midnight = ds[var].sel(time=datetime.time(0))
         midnight['time'] = midnight.time - 1
@@ -183,19 +183,94 @@ def daily_average_all(ds, var_keys):
     ds = xr.merge([ds_short, ds_24])
     return ds
 
-for var in ECMWF.keys():
-    ECMWF = regrid(ECMWF, coord, var)
-ECMWF = clean_coords(ECMWF)
-ECMWF = correct_units(ECMWF)
-ECMWF = calc_specific_humidity(ECMWF)
+def calc_ecmwf_bulk():
+    ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')
+    for var in ECMWF.keys():
+        ECMWF = regrid(ECMWF, coord, var)
+    ECMWF = clean_coords(ECMWF)
+    ECMWF = correct_units(ECMWF)
+    ECMWF = calc_specific_humidity(ECMWF)
+    
+    day_keys = ['sf', 'tp', 'ssrd', 'strd']
+    ECMWF_3, ECMWF_24 = daily_average(ECMWF, day_keys)
+    #ECMWF_3, ECMWF_5d = five_day_average(ECMWF, day_keys)
+    #ECMWF_5d_all = five_day_average_all(ECMWF, day_keys)
+    #ECMWF_24_all = daily_average_all(ECMWF, day_keys)
+    
+    ECMWF_3.to_netcdf('ECMWF_03_conform.nc', unlimited_dims='time')
+    ECMWF_24.to_netcdf('ECMWF_24_conform.nc', unlimited_dims='time')
+    #ECMWF_5d_all.to_netcdf('ECMWF_5d_all_conform.nc', unlimited_dims='time')
+    #ECMWF_24_all.to_netcdf('ECMWF_24_all_conform.nc', unlimited_dims='time')
 
-day_keys = ['sf', 'tp', 'ssrd', 'strd']
-#ECMWF_3, ECMWF_24 = daily_average(ECMWF, day_keys)
-#ECMWF_3, ECMWF_5d = five_day_average(ECMWF, day_keys)
-#ECMWF_5d_all = five_day_average_all(ECMWF, day_keys)
-ECMWF_24_all = daily_average_all(ECMWF, day_keys)
+def calc_noc_surface_resoring():
+    ''' 
+    calculate surface restoring based on the NOC ORCA12 model output
+    restoring is a month average from 5 day averaged output
+    '''
+    
+    # load orca
+    ds = xr.open_dataset('../processORCA12/DataOut/ORCA_PATCH_T.nc')
 
-#ECMWF_3.to_netcdf('ECMWF_3_conform.nc', unlimited_dims='time')
-#ECMWF_5d.to_netcdf('ECMWF_5d_conform.nc', unlimited_dims='time')
-#ECMWF_5d_all.to_netcdf('ECMWF_5d_all_conform.nc', unlimited_dims='time')
-ECMWF_24_all.to_netcdf('ECMWF_24_all_conform.nc', unlimited_dims='time')
+    # surface slice and month average
+    ds = ds.isel(deptht=0)
+    ds = ds.mean('time_counter')
+
+    # save
+    ds.to_netcdf('orca_sbc_restore_y2015m01.nc')
+
+def regrid_dfs(variables, year, period):
+    ''' target year of dfs data cut to patch and regrid '''
+    
+    if period == 3:
+        freq = '3H'
+        #start = year + '-01-01 00:00:00'
+        time_origin = '03:00:00'
+    if period == 24:
+        freq = '1D'
+        start = year + '-01-01 12:00:00'
+        time_origin = '12:00:00'
+
+    # source data
+    path = ('https://ige-meom-opendap.univ-grenoble-alpes.fr/thredds/dodsC/'
+            'meomopendap/extract/FORCING_ATMOSPHERIQUE/DFS5.2/ALL/')
+
+    ds = []
+    for var in variables:
+        if var == 'msl':
+            url = path + 'drowned_msl_ERAinterim_y' + year + '.nc'
+        else:
+            url = path + 'drowned_' + var + '_DFS5.2_y' + year + '.nc'
+        data = xr.open_dataset(url)
+        if var == 'msl':
+            data = data.rename({'lon': 'lon0', 'lat': 'lat0'})
+        data = data.assign_coords(lon0=(((data.lon0 + 180) % 360) - 180))
+        data = data.sortby('lon0', ascending=True)
+        data = data.sortby('lat0', ascending=True)
+        time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
+                             periods=365 * 24 / period)
+        data = data.assign_coords(time=time)
+        data.time.encoding['dtype'] = np.float64
+        data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54),
+                        time=slice('2015-01-01', '2015-01-31'))
+        data = data.rename({'lon0': 'longitude', 'lat0': 'latitude'})
+        data = regrid(data, coord, var)
+        ds.append(data)
+
+
+    ds = xr.merge(ds)
+    ds = clean_coords(ds)
+    #ds.time.attrs = {'calendar': 'gregorian'}
+
+    ds.to_netcdf('DFS5.2_' + str(period).zfill(2) + '.nc',
+                 unlimited_dims='time')
+
+def process_dfs(year):
+
+    data_list_24 = ['snow', 'radsw', 'radlw', 'precip']
+    data_list_03 = ['u10', 'v10', 't2', 'q2','msl']
+
+    regrid_dfs(data_list_24, '2015', 24)
+    regrid_dfs(data_list_03, '2015', 3)
+
+process_dfs('2015')
+#calc_ecmwf_bulk()

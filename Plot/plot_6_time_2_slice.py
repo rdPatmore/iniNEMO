@@ -33,16 +33,14 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     sochic = xr.decode_cf(sochic)
     orca = xr.decode_cf(orca)
     sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
-    #print (orca.time_counter)
-    #print (sochic.time_counter)
                                                 #  time_counter=slice(None, -2))
 
     # align time steps
-    #sochic = interp_to_orca(orca, sochic)
-    sochic = sochic.isel(time_counter=slice(7,19,2))
-    print (sochic)
+    sochic = interp_to_orca(orca, sochic)#.load()
+    print (orca.time_counter)
+    print (sochic.time_counter)
   
-    if model == 'orca':
+    if model == 'orca': 
         m = orca
         x = 'X'
         y = 'Y'
@@ -53,10 +51,12 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
   
     # plot six time steps at depth0
     for i, ax in enumerate(axs[0]):
+        print ('a', i)
         add_slice(ax, m, i, depth0, x, y)
 
     # plot six time steps at depth1
     for i, ax in enumerate(axs[1]):
+        print ('b', i)
         p = add_slice(ax, m, i, depth1, x, y)
 
     pos = axs[0,1].get_position()
@@ -74,10 +74,10 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     for ax in axs[1,1:]:
         ax.set_yticks([])
 
-    plt.savefig('temp_' + model + '_EXP01_short_compare.png')
+    plt.savefig('temp_' + model + '_EXP07.png')
 
 if __name__ == '__main__':
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
-    sochic_path = '../Output/EXP02/SOCHIC_PATCH_20ts_20150101_20150131_grid_T.nc'
+    sochic_path = '../Output/EXP07/SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
     #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
     plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)

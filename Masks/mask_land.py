@@ -6,7 +6,7 @@ def mask_bdy(scalar):
         ds = xr.load_dataset('BdyData/bdy_'+ scalar +'_' + bearing + '.nc')
 
         if scalar is 'T':
-            ds['vosaline'] = ds.vosaline.fillna(0.0)
+            ds['vosaline'] = ds.vosaline.fillna(34.0)
             ds['votemper'] = ds.votemper.fillna(0.0)
 #        if scalar is 'Tsurf':
             ds['sossheig'] = ds.sossheig.fillna(0.0)

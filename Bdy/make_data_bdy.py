@@ -4,7 +4,7 @@ import numpy  as np
 def get_side(data, side, pos, offset=0):
     vel_block=0
     print ('SIDE: ', side)
-    mesh_mask = xr.open_dataset('mesh_mask.nc').rename({
+    mesh_mask = xr.open_dataset('../SourceData/mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     if side == 'west':
                            #Y=slice(2+offset,-1-offset)
@@ -39,9 +39,16 @@ def get_side(data, side, pos, offset=0):
         arrayX = data.isel(Y=0 + offset + vel_block,
                            X=slice(offset,int(data.attrs['bdy_end'])-1-offset)
                            ).reset_coords('Y', drop=True)
+        #print (mesh_mask.isel(Y=-2-offset-vel_block).nav_lon)
         mesh_mask = mesh_mask.isel(Y=-2 - offset - vel_block,
                     X=slice(1+offset,int(arrayX.attrs['bdy_end'])-offset))
         bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset - vel_block)
+        #print (mesh_mask.nav_lon)
+        ##print (arrayX.nav_lon)
+        #print (mesh_mask.nav_lat)
+        #print (arrayX.nav_lat)
+        #print ((mesh_mask.nav_lon - arrayX.nav_lon).round(4))
+        #print ((mesh_mask.nav_lat - arrayX.nav_lat).round(4))
         dim='X'
     if pos == 'T':
         arrayX['gdept'] = mesh_mask['gdept_0']
@@ -207,7 +214,7 @@ def full_bounds(width):
     dsT.to_netcdf('BdyOut/bdy_T_ring.nc', unlimited_dims='time_counter')
     dsU.to_netcdf('BdyOut/bdy_U_ring.nc', unlimited_dims='time_counter')
     dsV.to_netcdf('BdyOut/bdy_V_ring.nc', unlimited_dims='time_counter')
-full_bounds(8)
+full_bounds(20)
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'

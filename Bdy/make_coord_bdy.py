@@ -1,7 +1,7 @@
 import xarray as xr
 import numpy  as np
 
-coords = xr.open_dataset('coordinates.nc', decode_times=False)
+coords = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
 
 def get_side(side, pos, offset=0):
     '''
@@ -22,7 +22,7 @@ def get_side(side, pos, offset=0):
             vel_block=1
         arrayX = coords.isel(X=-2 - offset -vel_block,
                              Y=slice(1+offset,-1-offset))
-        bdy_pos = 50 - offset - vel_block
+        bdy_pos = 98 - offset - vel_block
         dim='Y'
 
     if side == 'south':
@@ -35,7 +35,7 @@ def get_side(side, pos, offset=0):
             vel_block=1
         arrayX = coords.isel(Y=-2 - offset - vel_block,
                              X=slice(1+offset,-1-offset))
-        bdy_pos = 99 - offset - vel_block
+        bdy_pos = 196 - offset - vel_block
         dim='X'
 
     if pos == 'T':
@@ -160,7 +160,7 @@ def full_bounds(width=0):
     ds = xr.merge([dsT, dsU, dsV])
     ds.to_netcdf('coordinates.bdy.nc')
 
-full_bounds(width=8)
+full_bounds(width=20)
 
 def merge_pos(side, width=1):
     dsT = single_bound(side, 'T', width=width)

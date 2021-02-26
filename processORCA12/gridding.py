@@ -10,10 +10,12 @@ def regrid(ds, coord, var):
     print (dims)
     if list(dims & depth_labels):
         depth_name = list(dims & depth_labels)[0]
-    time_name = list(dims & time_labels)[0]
+    if list(dims & time_labels):
+        print (list(dims & time_labels))
+        time_name = list(dims & time_labels)[0]
+        nav_lon = ds.nav_lon#.isel({time_name:0})
+        nav_lat = ds.nav_lat#.isel({time_name:0})
     ds_new_grid = []
-    nav_lon = ds.nav_lon.isel({time_name:0})
-    nav_lat = ds.nav_lat.isel({time_name:0})
     for i, ds_iter in enumerate(ds[var]):
         ds_new_lev = []
         if list(dims & depth_labels):
