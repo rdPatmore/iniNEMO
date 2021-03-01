@@ -27,18 +27,23 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
                         wspace=0.05, hspace=0.05)
 
     # load data
+    time_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
     orca   = xr.open_dataset(orca_path, decode_cf=False)
     sochic = xr.open_dataset(sochic_path, decode_cf=False)#.drop_attrs()#.isel(
-    #sochic.time_counter.attrs['calendar'] = 'gregorian'
-    sochic = xr.decode_cf(sochic)
-    orca = xr.decode_cf(orca)
-    sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
+    #time = xr.open_dataset(time_path, decode_cf=False)#.drop_attrs()#.isel(
+    #sochic.time_counter.attrs['calendar'] = 'noleap'
+    #orca.time_counter.attrs['calendar'] = 'noleap'
+    print (orca.time_counter)
+    print (sochic.time_counter)
+    #sochic = xr.decode_cf(sochic)
+    #orca = xr.decode_cf(orca)
+    #sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
                                                 #  time_counter=slice(None, -2))
 
     # align time steps
-    sochic = interp_to_orca(orca, sochic)#.load()
-    print (orca.time_counter)
-    print (sochic.time_counter)
+    #sochic = interp_to_orca(orca, sochic)#.load()
+    #print (orca.time_counter)
+    #print (sochic.time_counter)
   
     if model == 'orca': 
         m = orca
@@ -74,10 +79,14 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     for ax in axs[1,1:]:
         ax.set_yticks([])
 
-    plt.savefig('temp_' + model + '_EXP07.png')
+    plt.savefig('temp_' + model + '_bigorca.png')
 
 if __name__ == '__main__':
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
-    sochic_path = '../Output/EXP07/SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
-    #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
-    plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)
+    #orca_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
+    sochic_path = '../Output/EXP50/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
+    #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
+
+    #SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
+    plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
+    #plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)

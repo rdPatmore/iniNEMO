@@ -1,6 +1,22 @@
 import xarray as xr
+import gsw
 
-def de_nan_and_name():
+def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline'):
+    '''
+    converts T and S to conform with TESO10
+     -> potential temperature to conservative temperature
+     -> practical salinity to absolute salinity
+    '''
+
+    ds[salinity] = gsw.conversions.SA_from_SP(ds.salinity, sbc.slp,
+                                              ds.nav_lon, ds.nav_lat)
+    ds[salinity].attrs['long_name'] = 'Absolute Salinity'
+    ds[temperature] = gsw.conversions.CT_from_pt(da[salinity], ds[temperature])
+    ds[temperature].attrs['long_name'] = 'Conservative Temperature'
+    
+    return ds
+
+def de_nan_and_name(TEOS10=False):
     zps = 1
     ds = xr.open_dataset('DataIn/restart.nc')
     cfg = xr.open_dataset('../SourceData/domain_cfg.nc')
@@ -9,11 +25,15 @@ def de_nan_and_name():
     ds = ds.fillna(0.0)
     #ds = ds.squeeze('T')
     ds = ds.drop('deptht')
+
+    if TEOS10:
+        convert_to_TEOS10(ds)
+
     if zps:
         ds['nav_lev'] = cfg.nav_lev.rename({'z':'Z'})
         ds = ds.set_coords('nav_lev')
         ds = ds.swap_dims({'Z':'nav_lev'}).drop('Z')
-    print (ds)
+
     ds = ds.rename({'sossheig':'sshn',
                     'votemper':'tn',
                     'vosaline':'sn',

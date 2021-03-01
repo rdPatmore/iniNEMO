@@ -9,14 +9,27 @@ import pandas as pd
 coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
 ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
-def regrid(ds, coord, var):
+def regrid(ds, coord, var, nav=False):
+    '''
+    regrid a data array to supplied coordinates containing
+    nav_lon and nav_lat
+    nav: 
+        True  - nav_lon and nav_lat are supplied for original data
+        False - 1d lon and lat fields are supplied for original data
+    '''
+
     print ('variable: ', var)
-    print ('time length', ds[var].time.values.shape)
+    print ('time length', ds[var].time_counter.values.shape)
+    #print ('time length', ds[var].time.values.shape)
     ds_new_grid = []
     for i, ds_iter in enumerate(ds[var]):
         print ('time', i)
-        xi, xj = np.meshgrid(ds_iter.longitude.values,
-                             ds_iter.latitude.values)
+        if nav:
+            xi = ds.nav_lon.values
+            xj = ds.nav_lat.values
+        else:
+            xi, xj = np.meshgrid(ds_iter.longitude.values,
+                                 ds_iter.latitude.values)
         points = np.squeeze(np.dstack((xi.ravel(), xj.ravel())))
         values = ds_iter.values.ravel()
         grid_x = coord.nav_lon.values
@@ -272,5 +285,20 @@ def process_dfs(year):
     regrid_dfs(data_list_24, '2015', 24)
     regrid_dfs(data_list_03, '2015', 3)
 
-process_dfs('2015')
+def regrid_sea_surface_restoring():
+    ''' cut sea surface restoring to patch and regrid '''
+    
+    # source data
+    path = '../SourceData/sss_1m.nc'
+    data = xr.open_dataset(path)
+
+    # regrid
+    data = data.sel(x=slice(3321,3568), y=slice(296,803)).load()
+    data = regrid(data, coord, 'vosaline', nav=True)
+
+    # save
+    data.to_netcdf('ssr_1m_conform.nc', unlimited_dims='time_counter')
+
+regrid_sea_surface_restoring()
+#process_dfs('2015')
 #calc_ecmwf_bulk()

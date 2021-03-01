@@ -142,13 +142,14 @@ def cut_orca(pos):
        ds = gridding.regrid(ds, coord, var)
    ds['nav_lat'] = coord.nav_lat
    ds['nav_lon'] = coord.nav_lon
+   ds['time_counter'] = ds.time_counter
 
    #comp = dict(zlib=True, complevel=9)
    #encoding = {var: comp for var in ds.data_vars}
    ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc')# encoding=encoding)
 
-process(pos='T')
-process(pos='U')
-process(pos='V')
-subset_coords()
-#cut_orca('T')
+#process(pos='T')
+#process(pos='U')
+#process(pos='V')
+#subset_coords()
+cut_orca('T')
