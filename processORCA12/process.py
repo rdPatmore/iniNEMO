@@ -10,8 +10,7 @@ def process(pos='T'):
 
     if pos == 'T':
         chunk={'deptht':1}
-        drop = ['tos', 'tossq','sos','zossq','wfo','rsntds','tohfls',
-                'taum','mldkz5','mldr10_1']
+        drop = ['tos', 'tossq','sos','zossq', 'taum','mldkz5','mldr10_1']
         ds = xr.open_mfdataset(indir + 'ORCA0083-N06_201501*d05T.nc',
                                mask_and_scale=False, chunks=chunk,
                                drop_variables=drop, combine='by_coords',
@@ -20,16 +19,27 @@ def process(pos='T'):
         ds = ds.set_coords(['time_counter_bounds','time_centered',
                             'time_centered_bounds'])
         ds = cut(ds)
+
+        # reverse water flux
+        ds['wfo'] = - ds.wfo
+
+        # conform names
         ds = ds.rename({'so':    'vosaline',
                         'thetao':'votemper',
-                        'zos'   :'sossheig'})
+                        'zos'   :'sossheig',
+                        'wfo'   :'sowaflup',
+                        'rsntds':'soshfldo',
+                        'tohfls':'sohefldo'})
+
         ds['vosaline'] = ds.vosaline.fillna(40)
         ds['votemper'] = ds.votemper.fillna(40)
-        ds['sossheig'] = ds.sossheig.fillna(0)
         ds['vosaline'] = xr.where(ds.vosaline > 40, 40, ds.vosaline)
         ds['votemper'] = xr.where(ds.votemper > 40, 40, ds.votemper)
-        ds['sossheig'] = xr.where(ds.sossheig > 40,   0, ds.sossheig)
 
+        for var in ['sossheig', 'sowaflup', 'soshfldo', 'soshfldo']:
+            ds[var] = ds[var].fillna(0)
+            ds[var] = xr.where(ds[var] > 40,   0, ds[var])
+        
     if pos == 'U':
         drop = ['tauuo','uos']
         chunk={'depthu':1}
@@ -148,8 +158,8 @@ def cut_orca(pos):
    #encoding = {var: comp for var in ds.data_vars}
    ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc')# encoding=encoding)
 
-#process(pos='T')
+process(pos='T')
 #process(pos='U')
 #process(pos='V')
 #subset_coords()
-cut_orca('T')
+#cut_orca('T')

@@ -285,20 +285,26 @@ def process_dfs(year):
     regrid_dfs(data_list_24, '2015', 24)
     regrid_dfs(data_list_03, '2015', 3)
 
-def regrid_sea_surface_restoring():
+def regrid_sea_surface_restoring(coord):
     ''' cut sea surface restoring to patch and regrid '''
     
     # source data
     path = '../SourceData/sss_1m.nc'
     data = xr.open_dataset(path)
 
+    coord = coord.drop('time')
+
     # regrid
     data = data.sel(x=slice(3321,3568), y=slice(296,803)).load()
     data = regrid(data, coord, 'vosaline', nav=True)
+    
+    data = data.drop_dims(['time_counter','x','y'])
+    data = data.assign({'nav_lon': coord.nav_lon, 'nav_lat': coord.nav_lat})
+    data = data.rename_dims({'time':'time_counter', 'X':'x', 'Y':'y'})
 
     # save
-    data.to_netcdf('ssr_1m_conform.nc', unlimited_dims='time_counter')
+    data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
 
-regrid_sea_surface_restoring()
+regrid_sea_surface_restoring(coord)
 #process_dfs('2015')
 #calc_ecmwf_bulk()

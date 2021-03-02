@@ -1,17 +1,19 @@
 import xarray as xr
 import gsw
 
-def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline'):
+def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline',
+                      ssh='sossheig'):
     '''
     converts T and S to conform with TESO10
      -> potential temperature to conservative temperature
      -> practical salinity to absolute salinity
     '''
 
-    ds[salinity] = gsw.conversions.SA_from_SP(ds.salinity, sbc.slp,
+    p = gsw.p_from_z(ds[ssh], ds.nav_lat)
+    ds[salinity] = gsw.conversions.SA_from_SP(ds[salinity], p,
                                               ds.nav_lon, ds.nav_lat)
     ds[salinity].attrs['long_name'] = 'Absolute Salinity'
-    ds[temperature] = gsw.conversions.CT_from_pt(da[salinity], ds[temperature])
+    ds[temperature] = gsw.conversions.CT_from_pt(ds[salinity], ds[temperature])
     ds[temperature].attrs['long_name'] = 'Conservative Temperature'
     
     return ds
@@ -43,4 +45,4 @@ def de_nan_and_name(TEOS10=False):
 
     ds.to_netcdf('DataOut/restart_conform.nc')
     
-de_nan_and_name()
+de_nan_and_name(TEOS10=True)
