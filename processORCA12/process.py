@@ -20,8 +20,8 @@ def process(pos='T'):
                             'time_centered_bounds'])
         ds = cut(ds)
 
-        # reverse water flux
-        ds['wfo'] = - ds.wfo
+        ## reverse water flux
+        #ds['wfo'] = - ds.wfo
 
         # conform names
         ds = ds.rename({'so':    'vosaline',
@@ -36,9 +36,9 @@ def process(pos='T'):
         ds['vosaline'] = xr.where(ds.vosaline > 40, 40, ds.vosaline)
         ds['votemper'] = xr.where(ds.votemper > 40, 40, ds.votemper)
 
-        for var in ['sossheig', 'sowaflup', 'soshfldo', 'soshfldo']:
+        for var in ['sossheig', 'sowaflup', 'soshfldo', 'sohefldo']:
             ds[var] = ds[var].fillna(0)
-            ds[var] = xr.where(ds[var] > 40,   0, ds[var])
+            #ds[var] = xr.where(ds[var] > 40,   0, ds[var])
         
     if pos == 'U':
         drop = ['tauuo','uos']
@@ -139,27 +139,29 @@ def cut_orca(pos):
    indir  = 'DataIn/'
    outdir = 'DataOut/'
    
-   #if pos == 'T':
-   #    chunk = {'deptht':1}
+   if pos == 'T':
+       chunk = {'deptht':1}
+       var_keys = ['votemper', 'vosaline', 'sossheig',
+                   'sowaflup', 'soshfldo', 'sohefldo']
 
    coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
    ds    = xr.open_dataset(outdir + 'ORCA0083-N06_' + pos + '_conform.nc',
                            mask_and_scale=False, decode_cf=False)
    
-   #ds = ds.load()
-   var_keys = ['votemper', 'vosaline', 'sossheig']
+   coord = coord.drop('time')
+
    for var in var_keys: 
        ds = gridding.regrid(ds, coord, var)
    ds['nav_lat'] = coord.nav_lat
    ds['nav_lon'] = coord.nav_lon
    ds['time_counter'] = ds.time_counter
 
-   #comp = dict(zlib=True, complevel=9)
-   #encoding = {var: comp for var in ds.data_vars}
-   ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc')# encoding=encoding)
+   comp = dict(zlib=True, complevel=9)
+   encoding = {var: comp for var in ds.data_vars}
+   ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc', encoding=encoding)
 
 process(pos='T')
 #process(pos='U')
 #process(pos='V')
 #subset_coords()
-#cut_orca('T')
+cut_orca('T')

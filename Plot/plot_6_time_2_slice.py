@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 import datetime as datetime
+from common import time_mean_to_orca
 
 def add_slice(ax, ds, time, depth, x, y):
 
@@ -25,7 +26,6 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
                         wspace=0.05, hspace=0.05)
 
     # load data
-    time_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
     orca   = xr.open_dataset(orca_path, decode_cf=False)
     sochic = xr.open_dataset(sochic_path, decode_cf=True)
 
@@ -37,15 +37,13 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
 
     sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
 
-    # align time steps
-    sochic = time_mean_to_orca(orca, sochic)
-  
     if model == 'orca': 
         m = orca
         x = 'X'
         y = 'Y'
     if model == 'sochic':
-        m = sochic
+        # align time steps
+        m = time_mean_to_orca(orca, sochic)
         x = 'x'
         y = 'y'
   
