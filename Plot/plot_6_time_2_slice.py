@@ -5,12 +5,12 @@ from matplotlib import ticker
 import datetime as datetime
 from common import time_mean_to_orca
 
-def add_slice(ax, ds, time, depth, x, y):
+def add_slice(ax, ds, time, depth):
 
     ds = ds.isel(time_counter=time, deptht=depth)
     
     lev = np.linspace(-2,2,11)
-    p = ax.pcolor(ds[x], ds[y], ds.votemper, vmin=-1.2, vmax=1.2,
+    p = ax.pcolor(ds.nav_lon, ds.nav_lat, ds.votemper, vmin=-1.2, vmax=1.2,
                   cmap=plt.cm.inferno)
 
     return p
@@ -21,9 +21,9 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     '''
 
     # intialise plots
-    fig, axs = plt.subplots(2,6, figsize=(6.5, 3.5))
-    plt.subplots_adjust(bottom=0.1, top=0.98, right=0.86, left=0.1,
-                        wspace=0.05, hspace=0.05)
+    fig, axs = plt.subplots(2,6, figsize=(6.5, 2), dpi=300)
+    plt.subplots_adjust(bottom=0.15, top=0.98, right=0.90, left=0.10,
+                        wspace=0.1, hspace=0.1)
 
     # load data
     orca   = xr.open_dataset(orca_path, decode_cf=False)
@@ -32,38 +32,33 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     # translate orca dates to cf
     orca.time_counter.attrs['units'] = 'seconds since 1900-01-01'
     orca.time_centered.attrs['units'] = 'seconds since 1900-01-01'
-    orca = orca.drop('time')
     orca = xr.decode_cf(orca)
 
     sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
 
     if model == 'orca': 
         m = orca
-        x = 'X'
-        y = 'Y'
     if model == 'sochic':
         # align time steps
         m = time_mean_to_orca(orca, sochic)
-        x = 'x'
-        y = 'y'
   
     # plot six time steps at depth0
     for i, ax in enumerate(axs[0]):
         print ('a', i)
-        add_slice(ax, m, i, depth0, x, y)
+        add_slice(ax, m, i, depth0)
 
     # plot six time steps at depth1
     for i, ax in enumerate(axs[1]):
         print ('b', i)
-        p = add_slice(ax, m, i, depth1, x, y)
+        p = add_slice(ax, m, i, depth1)
 
     pos = axs[0,1].get_position()
-    cbar_ax = fig.add_axes([0.88, pos.y0, 0.02, pos.y1 - pos.y0])
+    cbar_ax = fig.add_axes([0.91, pos.y0, 0.02, pos.y1 - pos.y0])
     cbar = fig.colorbar(p, cax=cbar_ax)
     #cbar.locator = ticker.MaxNLocator(nbins=3)
     #cbar.update_ticks()
     #cbar.ax.text(4.5, 0.5, labels[i], fontsize=8, rotation=90,
-    cbar.ax.text(4.5, 0.5, 'tempurature', fontsize=8, rotation=90,
+    cbar.ax.text(4.5, 0.5, 'temperature', fontsize=8, rotation=90,
                  transform=cbar.ax.transAxes, va='center', ha='right')
     for ax in axs[0,:]:
         ax.set_xticks([])
@@ -71,15 +66,17 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
         ax.set_yticks([])
     for ax in axs[1,1:]:
         ax.set_yticks([])
+    for ax in axs.flatten():
+        ax.set_aspect('equal')
 
-    plt.savefig('temp_' + model + '_EXP50_orca_mean.png')
+    plt.savefig('temp_' + model + '_orca_mean.png')
 
 if __name__ == '__main__':
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
     #orca_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
-    sochic_path = '../Output/EXP50/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
+    sochic_path = '../Output/EXP52/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
     #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
 
     #SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
     #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
-    plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)
+    plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
