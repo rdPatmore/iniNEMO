@@ -21,11 +21,13 @@ def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline',
 def de_nan_and_name(TEOS10=False):
     zps = 1
     ds = xr.open_dataset('DataIn/restart.nc')
-    cfg = xr.open_dataset('../SourceData/domain_cfg.nc')
+    cfg = xr.open_dataset('../SourceData/ORCA12/domain_cfg.nc')
     # shift up ssh
     ds['sossheig'] = ds.sossheig - ds.sossheig.mean(skipna=True)
+    ds = ds.squeeze('T')
+    ds = ds.drop('time_counter')
+    #ds = ds.set_coords('time_counter')
     ds = ds.fillna(0.0)
-    #ds = ds.squeeze('T')
     ds = ds.drop('deptht')
 
     if TEOS10:
@@ -45,4 +47,4 @@ def de_nan_and_name(TEOS10=False):
 
     ds.to_netcdf('DataOut/restart_conform.nc')
     
-de_nan_and_name(TEOS10=True)
+de_nan_and_name(TEOS10=False)

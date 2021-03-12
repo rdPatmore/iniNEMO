@@ -1,42 +1,67 @@
 import xarray as xr
 import numpy  as np
 
-coords = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
+coords = xr.open_dataset('../SourceData/ORCA24/coordinates.nc',
+                         decode_times=False)#.rename({
+       # 'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
+coords = coords.isel(X=slice(1,-1),Y=slice(1,-1))
+print (coords.sizes)
 
 def get_side(side, pos, offset=0):
     '''
     process a SIREN bdy file
     '''
 
-    # no u and v into east and north bounds
-    vel_block=0
+    xlen = coords.sizes['X']
+    ylen = coords.sizes['Y'] 
+    print (xlen)
+    print (ylen)
 
     print ('SIDE: ', side)
+    vel_shift=0
     if side == 'west':
-        arrayX = coords.isel(X=1 + offset, Y=slice(1+offset,-1-offset))
+        print (coords.isel(X=offset).sizes)
+        arrayX = coords.isel(X=1+offset, Y=slice(0+offset, ylen-offset))
         dim='Y'
         bdy_pos = 2 + offset
+        print (arrayX.sizes)
 
     if side == 'east':
         if pos == 'U':
-            vel_block=1
-        arrayX = coords.isel(X=-2 - offset -vel_block,
-                             Y=slice(1+offset,-1-offset))
-        bdy_pos = 98 - offset - vel_block
+            vel_shift=1
+        arrayX = coords.isel(X=-1-offset-vel_shift,
+                             Y=slice(0+offset, ylen-offset))
+        bdy_pos = xlen +1- offset - vel_shift
+        print (arrayX.sizes)
         dim='Y'
 
     if side == 'south':
-        arrayX = coords.isel(Y=1 + offset, X=slice(1+offset,-1-offset))
+        arrayX = coords.isel(Y=1+offset, X=slice(0+offset, xlen-offset))
         dim='X'
         bdy_pos = 2 + offset
 
     if side == 'north':
         if pos == 'V':
-            vel_block=1
-        arrayX = coords.isel(Y=-2 - offset - vel_block,
-                             X=slice(1+offset,-1-offset))
-        bdy_pos = 196 - offset - vel_block
+            vel_shift=1
+        arrayX = coords.isel(Y=-1-offset-vel_shift, 
+                             X=slice(0+offset, xlen-offset))
+        bdy_pos = ylen + 1 - offset - vel_shift
         dim='X'
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ****** offset *****: ', offset)
+        print (arrayX.nav_lat)
+        print (' ')
+        print (' ')
+        print (' ****** offset *****: ', offset)
+        print (arrayX.nav_lon)
+        print (' ')
+        print (' ')
+        #print (' ')
+        #print (' ')
+        #print (' ')
 
     if pos == 'T':
         if side in ['north', 'south']:
@@ -51,7 +76,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbt'], arrayX[dim].values),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,1 + offset)),
+                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,1+offset)),
                          'glamt':(['xbt'], arrayX.glamt.values),
                          'gphit':(['xbt'], arrayX.gphit.values),
                          'e1t':  (['xbt'], arrayX.e1t.values),
@@ -67,16 +92,15 @@ def get_side(side, pos, offset=0):
 
     if pos == 'U':
         if side in ['north', 'south']:
-            arrayX = arrayX.isel(X=slice(None,-1))
             nba = 'nbiu'
             nbb = 'nbju'
         if side in ['east', 'west']:
             nba = 'nbju'
             nbb = 'nbiu'
         if side in ['north']:
-            arrayX = arrayX.isel(X=slice(None,None,-1))
+            arrayX = arrayX.sortby('X', ascending=False)
         if side in ['west']:
-            arrayX = arrayX.isel(Y=slice(None,None,-1))
+            arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbu'], arrayX[dim].values),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
                          'nbru': (['xbu'], np.full(arrayX[dim].shape,1+offset)),
@@ -95,16 +119,16 @@ def get_side(side, pos, offset=0):
 
     if pos == 'V':
         if side in ['west', 'east']:
-            arrayX = arrayX.isel(Y=slice(None,-1))
+            #arrayX = arrayX.isel(Y=slice(None,-1))
             nba = 'nbjv'
             nbb = 'nbiv'
         if side in ['north', 'south']:
             nba = 'nbiv'
             nbb = 'nbjv'
         if side in ['north']:
-            arrayX = arrayX.isel(X=slice(None,None,-1))
+            arrayX = arrayX.sortby('X', ascending=False)
         if side in ['west']:
-            arrayX = arrayX.isel(Y=slice(None,None,-1))
+            arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbv'], arrayX[dim].values),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
                          'nbrv': (['xbv'], np.full(arrayX[dim].shape,1+offset)),

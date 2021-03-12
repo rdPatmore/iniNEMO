@@ -69,14 +69,14 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     for ax in axs.flatten():
         ax.set_aspect('equal')
 
-    plt.savefig('temp_' + model + '_orca_mean.png')
+    plt.savefig('temp_' + model + '_EXP54_orca_mean.png')
 
 if __name__ == '__main__':
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
     #orca_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
-    sochic_path = '../Output/EXP52/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
+    sochic_path = '../Output/EXP54/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
     #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
 
     #SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
     #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
-    plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
+    plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)

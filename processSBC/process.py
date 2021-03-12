@@ -6,7 +6,8 @@ import datetime
 import pandas as pd
 
 
-coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
+coord = xr.open_dataset('../SourceData/ORCA24/coordinates.nc',
+                         decode_times=False)
 ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
 def regrid(ds, coord, var, nav=False):
@@ -19,8 +20,15 @@ def regrid(ds, coord, var, nav=False):
     '''
 
     print ('variable: ', var)
-    print ('time length', ds[var].time_counter.values.shape)
-    #print ('time length', ds[var].time.values.shape)
+    try:
+        print ('time length', ds[var].time_counter.values.shape)
+    except:
+        print ('no time counter')
+    try:
+        print ('time length', ds[var].time.values.shape)
+    except:
+        print ('no time')
+
     ds_new_grid = []
     for i, ds_iter in enumerate(ds[var]):
         print ('time', i)
@@ -306,5 +314,5 @@ def regrid_sea_surface_restoring(coord):
     data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
 
 regrid_sea_surface_restoring(coord)
-#process_dfs('2015')
+process_dfs('2015')
 #calc_ecmwf_bulk()

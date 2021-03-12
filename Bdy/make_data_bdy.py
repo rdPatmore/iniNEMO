@@ -2,53 +2,52 @@ import xarray as xr
 import numpy  as np
 
 def get_side(data, side, pos, offset=0):
-    vel_block=0
     print ('SIDE: ', side)
-    mesh_mask = xr.open_dataset('../SourceData/mesh_mask.nc').rename({
+    domain_cfg = xr.open_dataset('../SourceData/ORCA24/mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
+    domain_cfg = domain_cfg.isel(X=slice(1,-1),Y=slice(1,-1))
+    vel_shift = 0
     if side == 'west':
-                           #Y=slice(2+offset,-1-offset)
-        arrayX = data.isel(X=0 + offset, 
-                          Y=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+        end = int(data.attrs['bdy_end']) - 1
+        print (end)
+        arrayX = data.isel(X=offset,Y=slice(offset,end-offset)
                           ).reset_coords('X', drop=True)
-        mesh_mask = mesh_mask.isel(X=1 + offset,
-                    Y=slice(1+offset,int(arrayX.attrs['bdy_end'] - offset)))
+        mesh_mask = domain_cfg.isel(X=offset, Y=slice(offset,end-offset))
         dim='Y'
         bdy_pos = int(arrayX.attrs['bdy_deb'] + offset)
+
     if side == 'east':
         if pos == 'U':
-            vel_block=1 
-        arrayX = data.isel(X=0 + offset + vel_block,
-                          Y=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+            # this may need to be vel_shift = 1
+            # vels exiting the domain are 1 in from tracer points
+            vel_shift = 0 
+        end = int(data.attrs['bdy_end']) - 1 # y north
+        arrayX = data.isel(X=vel_shift+offset, Y=slice(offset,end-offset)
                            ).reset_coords('X', drop=True)  
-        mesh_mask = mesh_mask.isel(X=-2 - offset - vel_block,
-                    Y=slice(1+ offset,int(arrayX.attrs['bdy_end'])-offset))
-        bdy_pos = int(arrayX.attrs['bdy_ind']+ 1 - offset - vel_block)
+        mesh_mask = domain_cfg.isel(X=-1-vel_shift-offset,
+                                    Y=slice(offset,end-offset))
+        bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset - vel_shift)
         dim='Y'
+
     if side == 'south':
-        arrayX = data.isel(Y=0 + offset,
-                           X=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+        end = int(data.attrs['bdy_end']) - 1
+        arrayX = data.isel(Y=offset, X=slice(offset,end-offset)
                           ).reset_coords('Y', drop=True)
-        mesh_mask = mesh_mask.isel(Y=1 + offset,
-                    X=slice(1+offset,int(arrayX.attrs['bdy_end'])-offset))
+        mesh_mask = domain_cfg.isel(Y=offset, X=slice(offset,end-offset))
         dim='X'
         bdy_pos = int(arrayX.attrs['bdy_deb'] + offset)
+
     if side == 'north':
         if pos == 'V':
-            vel_block=1
-        arrayX = data.isel(Y=0 + offset + vel_block,
-                           X=slice(offset,int(data.attrs['bdy_end'])-1-offset)
+            # this may need to be vel_shift = 1
+            # vels exiting the domain are 1 in from tracer points
+            vel_shift =0 
+        end = int(data.attrs['bdy_end']) - 1
+        arrayX = data.isel(Y=vel_shift+offset, X=slice(offset,end-offset)
                            ).reset_coords('Y', drop=True)
-        #print (mesh_mask.isel(Y=-2-offset-vel_block).nav_lon)
-        mesh_mask = mesh_mask.isel(Y=-2 - offset - vel_block,
-                    X=slice(1+offset,int(arrayX.attrs['bdy_end'])-offset))
-        bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset - vel_block)
-        #print (mesh_mask.nav_lon)
-        ##print (arrayX.nav_lon)
-        #print (mesh_mask.nav_lat)
-        #print (arrayX.nav_lat)
-        #print ((mesh_mask.nav_lon - arrayX.nav_lon).round(4))
-        #print ((mesh_mask.nav_lat - arrayX.nav_lat).round(4))
+        mesh_mask = domain_cfg.isel(Y=-1-vel_shift-offset,
+                           X=slice(offset,end-offset))
+        bdy_pos = int(arrayX.attrs['bdy_ind'] + 1 - offset - vel_shift)
         dim='X'
     if pos == 'T':
         arrayX['gdept'] = mesh_mask['gdept_0']
@@ -183,19 +182,20 @@ def single_bound(data, mesh_mask, side, pos, width=1):
         ds = xr.concat(segments, dim=('xb' + pos).lower())
     return ds
 
-def get_ring(pos, width):
+def get_ring(pos, width, date):
     segments = []
     for ring in range(0,width):
         print ('RING', ring)
         for side in ['east', 'north', 'west', 'south']:
+            append = side + '_' + date + '_masked.nc'
             if pos == 'T':
-                data_pathT = '../Masks/BdyData/bdy_T_' + side + '_masked.nc'
+                data_pathT = '../Masks/BdyData/bdy_T_' + append
                 data = xr.open_dataset(data_pathT, decode_times=False)
             if pos == 'U':
-                data_pathU = '../Masks/BdyData/bdy_U_' + side + '_masked.nc'
+                data_pathU = '../Masks/BdyData/bdy_U_' + append
                 data = xr.open_dataset(data_pathU, decode_times=False)
             if pos == 'V':
-                data_pathV = '../Masks/BdyData/bdy_V_' + side + '_masked.nc'
+                data_pathV = '../Masks/BdyData/bdy_V_' + append
                 data = xr.open_dataset(data_pathV, decode_times=False)
             #orcaT_path = '../processORCA12/DataIn/ORCA0083-N06_20150105d05T.nc'
             #orca_time = xr.open_dataset(orcaT_path).time_counter
@@ -204,17 +204,20 @@ def get_ring(pos, width):
             segments.append(get_side(data, side, pos, offset=ring))
     return xr.concat(segments, dim=('xb' + pos).lower())
 
-def full_bounds(width):
+def full_bounds(width, date='y2015m01'):
     #mesh_mask = xr.open_dataset('mesh_mask.nc')#.isel(
     #              x=slice(None,10), y=slice(1,99)).rename(
     #            {'x':'X','y':'Y'}).rename({'time_counter':'tc'})
-    dsT = get_ring('T', width=width)
-    dsU = get_ring('U', width=width)
-    dsV = get_ring('V', width=width)
-    dsT.to_netcdf('BdyOut/bdy_T_ring.nc', unlimited_dims='time_counter')
-    dsU.to_netcdf('BdyOut/bdy_U_ring.nc', unlimited_dims='time_counter')
-    dsV.to_netcdf('BdyOut/bdy_V_ring.nc', unlimited_dims='time_counter')
-full_bounds(20)
+    dsT = get_ring('T', date=date, width=width)
+    dsU = get_ring('U', date=date, width=width)
+    dsV = get_ring('V', date=date, width=width)
+    dsT.to_netcdf('BdyOut/bdy_T_ring_' + date + '.nc',
+                  unlimited_dims='time_counter')
+    dsU.to_netcdf('BdyOut/bdy_U_ring_' + date + '.nc',
+                  unlimited_dims='time_counter')
+    dsV.to_netcdf('BdyOut/bdy_V_ring_' + date + '.nc',
+                   unlimited_dims='time_counter')
+full_bounds(20, date='y2015m01')
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'
