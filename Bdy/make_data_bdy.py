@@ -3,7 +3,7 @@ import numpy  as np
 
 def get_side(data, side, pos, offset=0):
     print ('SIDE: ', side)
-    domain_cfg = xr.open_dataset('../SourceData/ORCA24/mesh_mask.nc').rename({
+    domain_cfg = xr.open_dataset('../SourceData/ORCA12/mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     domain_cfg = domain_cfg.isel(X=slice(1,-1),Y=slice(1,-1))
     vel_shift = 0
@@ -167,9 +167,45 @@ def get_side(data, side, pos, offset=0):
         ds.nbiv.attrs['units']='unitless'
         ds['vomecrty'] = ds.vomecrty.fillna(0.0)
         ds = ds.transpose('time_counter','depthv','yb','xbv')
+    if pos == 'I':
+        if side in ['north', 'south']:
+            nba = 'nbit'
+            nbb = 'nbjt'
+        if side in ['east', 'west']:
+            nba = 'nbjt'
+            nbb = 'nbit'
+        if side in ['north']:
+            arrayX = arrayX.sortby('X', ascending=False)
+        if side in ['west']:
+            arrayX = arrayX.sortby('Y', ascending=False)
+        arrayX = arrayX.swap_dims({'T':'time_counter'})
+        ds = xr.Dataset({'time_counter': arrayX.time_counter,
+                         nba: (['xbt'], arrayX[dim].values + 1),
+                         nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
+                         'nbrt': (['xbt'], np.full(arrayX[dim].shape, 1 + offset)),
+                         'nav_lon':(['xbt'], arrayX.nav_lon.values),
+                         'nav_lat':(['xbt'], arrayX.nav_lat.values),
+         'siconc':  (['time_counter','xbt'], arrayX.siconc.values),
+         'sithic':  (['time_counter','xbt'], arrayX.sithic.values),
+         'snthic':  (['time_counter','xbt'], arrayX.snthic.values)}
+                       ).expand_dims('yb')
+        ds.siconc.attrs['long_name']='Sea Ice Concentration'
+        ds.sithic.attrs['units']='Sea Ice Thickness'
+        ds.snthic.attrs['long_name']='Snow Thickness'
+        ds.siconc.attrs['units']='unitless'
+        ds.sithic.attrs['units']='m'
+        ds.snthic.attrs['units']='m'
+        ds.nbrt.attrs['long_name']='bdy discrete distance'
+        ds.nbrt.attrs['units']='unitless'
+        ds.nbjt.attrs['long_name']='bdy j index'
+        ds.nbjt.attrs['units']='unitless'
+        ds.nbit.attrs['long_name']='bdy i index'
+        ds.nbit.attrs['units']='unitless'
+        ds = ds.transpose('time_counter','yb','xbt')
     ds.nav_lat.attrs['units']='degrees_north'
     ds.nav_lon.attrs['units']='degrees_east'
     ds.attrs['history'] = 'Created using RDPs NEMO config on SCIHUB'
+    print (ds)
     return ds
 
 def single_bound(data, mesh_mask, side, pos, width=1):
@@ -179,7 +215,10 @@ def single_bound(data, mesh_mask, side, pos, width=1):
         segments = []
         for i in range(0,width):
             segments.append(get_side(data, side, pos, offset=i))
-        ds = xr.concat(segments, dim=('xb' + pos).lower())
+        if pos in ['U','V','T']:
+            ds = xr.concat(segments, dim=('xb' + pos).lower())
+        elif pos is 'I':
+            ds = xr.concat(segments, dim='xbt')
     return ds
 
 def get_ring(pos, width, date):
@@ -197,17 +236,25 @@ def get_ring(pos, width, date):
             if pos == 'V':
                 data_pathV = '../Masks/BdyData/bdy_V_' + append
                 data = xr.open_dataset(data_pathV, decode_times=False)
+            if pos == 'I':
+                data_pathV = '../Masks/BdyData/bdy_I_' + append
+                data = xr.open_dataset(data_pathV, decode_times=False)
             #orcaT_path = '../processORCA12/DataIn/ORCA0083-N06_20150105d05T.nc'
             #orca_time = xr.open_dataset(orcaT_path).time_counter
             #print (data)
             #data['time_counter'] = orca_time
             segments.append(get_side(data, side, pos, offset=ring))
+    if pos in ['U','V','T']:
+        pos = pos
+    elif pos is 'I':
+        pos = 't'
     return xr.concat(segments, dim=('xb' + pos).lower())
 
 def full_bounds(width, date='y2015m01'):
     #mesh_mask = xr.open_dataset('mesh_mask.nc')#.isel(
     #              x=slice(None,10), y=slice(1,99)).rename(
     #            {'x':'X','y':'Y'}).rename({'time_counter':'tc'})
+    dsI = get_ring('I', date=date, width=width)
     dsT = get_ring('T', date=date, width=width)
     dsU = get_ring('U', date=date, width=width)
     dsV = get_ring('V', date=date, width=width)
@@ -217,7 +264,9 @@ def full_bounds(width, date='y2015m01'):
                   unlimited_dims='time_counter')
     dsV.to_netcdf('BdyOut/bdy_V_ring_' + date + '.nc',
                    unlimited_dims='time_counter')
-full_bounds(20, date='y2015m01')
+    dsI.to_netcdf('BdyOut/bdy_I_ring_' + date + '.nc',
+                   unlimited_dims='time_counter')
+full_bounds(20, date='y2015m11')
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'

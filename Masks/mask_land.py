@@ -15,13 +15,18 @@ def mask_bdy(scalar, year, month):
             ds['vozoctrx'] = ds.vozocrtx.fillna(0.0)
         if scalar is 'V':
             ds['vomectry'] = ds.vomecrty.fillna(0.0)
+        if scalar is 'I':
+            ds['siconc'] = ds.siconc.fillna(0.0)
+            ds['sithic'] = ds.sithic.fillna(0.0)
+            ds['snthic'] = ds.snthic.fillna(0.0)
 
         ds.to_netcdf('BdyData/bdy_'+ scalar +'_' + bearing + 
                      '_y' + year + 'm' + month +  '_masked.nc')
 
-mask_bdy('V', '2015', '01')
-mask_bdy('T', '2015', '01')
-mask_bdy('U', '2015', '01')
+mask_bdy('V', '2015', '11')
+mask_bdy('T', '2015', '11')
+mask_bdy('U', '2015', '11')
+mask_bdy('I', '2015', '11')
 #mask_bdy('V', '2014', '12')
 #mask_bdy('T', '2014', '12')
 #mask_bdy('U', '2014', '12')

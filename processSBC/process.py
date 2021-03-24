@@ -6,7 +6,7 @@ import datetime
 import pandas as pd
 
 
-coord = xr.open_dataset('../SourceData/ORCA24/coordinates.nc',
+coord = xr.open_dataset('../SourceData/ORCA12/coordinates.nc',
                          decode_times=False)
 ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
@@ -272,7 +272,7 @@ def regrid_dfs(variables, year, period):
         data = data.assign_coords(time=time)
         data.time.encoding['dtype'] = np.float64
         data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54),
-                        time=slice('2015-01-01', '2015-01-31'))
+                        time=slice('2015-11-01', '2015-11-30'))
         data = data.rename({'lon0': 'longitude', 'lat0': 'latitude'})
         data = regrid(data, coord, var)
         ds.append(data)
@@ -282,7 +282,7 @@ def regrid_dfs(variables, year, period):
     ds = clean_coords(ds)
     #ds.time.attrs = {'calendar': 'gregorian'}
 
-    ds.to_netcdf('DFS5.2_' + str(period).zfill(2) + '.nc',
+    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y2015m11.nc',
                  unlimited_dims='time')
 
 def process_dfs(year):
@@ -313,6 +313,6 @@ def regrid_sea_surface_restoring(coord):
     # save
     data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
 
-regrid_sea_surface_restoring(coord)
+#regrid_sea_surface_restoring(coord)
 process_dfs('2015')
 #calc_ecmwf_bulk()

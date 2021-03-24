@@ -1,6 +1,7 @@
 import xarray as xr
 import numpy as np
 import gridding
+import datetime
 #import dask
 
 #dask.config.set(scheduler='single-threaded')
@@ -35,7 +36,10 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         if year == '2014':
             days = ['01','06','11','16','21','26','31']
         if year == '2015':
-            days = ['05','10','15','20','25','30']
+            if month == '01':
+                days = ['05','10','15','20','25','30']
+            if month == '11':
+                days = ['06','11','16','21','26']
 
     paths = []
     for d in days:
@@ -135,6 +139,35 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         #ds['vomecrty'] = ds.vomecrty.fillna(0.0)
         #ds['vomecrty'] = xr.where(ds.vomecrty > 40, 0, ds.vomecrty)
 
+    if pos == 'I':
+        drop = ['snowpre', 'sip', 'ist_ipa', 'uice_ipa', 'vice_ipa', 
+                'utau_ice', 'vtau_ice', 'qsr_io_cea', 'qns_io_cea']
+        ds = xr.open_mfdataset(paths, drop_variables=drop,
+                               mask_and_scale=False, combine='by_coords',
+                               decode_cf=False
+                               )
+        print ('loading')
+        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
+        print ('done')
+
+        ds = ds.rename({'nav_lon': 'longitude', 'nav_lat': 'latitude'})
+        ds = ds.set_coords(['time_counter_bounds','time_centered',
+                            'time_centered_bounds','longitude','latitude'])
+        #                    'time_centered_bounds','nav_lon','nav_lat'])
+        #ds = ds.drop_dims('axis_nbounds')
+      
+
+        ds = ds.rename({'ice_pres':'siconc',
+                        'sit': 'sithic',
+                        'snd': 'snthic'})
+        for var in ['siconc','sithic','snthic']:
+            ds[var] = ds[var].fillna(0.0)
+            # boundary hack for perio issues
+            ds[var][:,-1] = np.nan
+            ds[var][:,0] = np.nan
+            ds[var][:,:,-1] = np.nan
+            ds[var][:,:,0] = np.nan
+
     if pos == 'Tsurf':
         ds = xr.open_dataset(indir + 'ORCA0083-N06_20150105d05T.nc',
                              mask_and_scale=False)
@@ -147,13 +180,26 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
     #ds.attrs['DOMAIN_number_total'] = 1
     #ds.attrs['nj'] = ds.attrs['DOMAIN_size_global'][1]
 
-    ds.attrs['ni'] = int(len(ds.x))
-    ds.attrs['nj'] = int(len(ds.y))
-    ds.attrs['DOMAIN_number_total'] = 1
-    ds.attrs['DOMAIN_size_global'] = [ds.attrs['ni'],ds.attrs['nj']]
+#    ds.attrs['ni'] = int(len(ds.x))
+#    ds.attrs['nj'] = int(len(ds.y))
+#    ds.attrs['DOMAIN_number_total'] = 1
+#    ds.attrs['DOMAIN_size_global'] = [ds.attrs['ni'],ds.attrs['nj']]
+#    ds.attrs['periodicity'] = 0
+    ds.attrs = {}
+    #ds.siconc.attrs['periodicity'] = 0
+    #ds.sithic.attrs['periodicity'] = 0
+    #ds.snthic.attrs['periodicity'] = 0
+    #ds['jperio'] = 0
 
+    print (ds)
     ds.time_counter.encoding['dtype'] = np.float64
-    #ds.time_counter.encoding['units'] = 'seconds since 1900-01-01'
+    ##ds['time_counter'] = (ds.time_counter - 
+    ##                      datetime.timedelta(days=2,hours=12).total_seconds())
+    ##ds['time_centered'] = (ds.time_centered - 
+    ##                      datetime.timedelta(days=2,hours=12).total_seconds())
+    #ds.time_counter.attrs['units'] = 'seconds since 1900-01-01'
+    #ds.time_centered.attrs['units'] = 'seconds since 1900-01-01'
+    #ds = xr.decode_cf(ds)
 
     if t0: day='d' + day
     date_srt = 'y' + year + 'm' + month + day + '_'
@@ -255,11 +301,13 @@ def cut_orca(pos):
    encoding = {var: comp for var in ds.data_vars}
    ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc', encoding=encoding)
 
-#process(pos='T', year='2015', month='01', day='10', opendap=False, t0=True)
+for pos in ['I']:
+    process(pos=pos, year='2015', month='11', day='06', opendap=False, t0=True)
+    process(pos=pos, year='2015', month='11', opendap=False, t0=False)
 #process(pos='U', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='V', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='T', year='2015', month='01', opendap=False)
 #process(pos='V', year='2014', month='12', opendap=False)
-subset_bathy()
+#subset_bathy()
 #cut_orca('U')
 #cut_orca('V')

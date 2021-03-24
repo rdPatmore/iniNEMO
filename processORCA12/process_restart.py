@@ -19,32 +19,32 @@ def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline',
     return ds
 
 def de_nan_and_name(TEOS10=False):
-    zps = 1
-    ds = xr.open_dataset('DataIn/restart.nc')
-    cfg = xr.open_dataset('../SourceData/ORCA12/domain_cfg.nc')
-    # shift up ssh
-    ds['sossheig'] = ds.sossheig - ds.sossheig.mean(skipna=True)
-    ds = ds.squeeze('T')
-    ds = ds.drop('time_counter')
-    #ds = ds.set_coords('time_counter')
-    ds = ds.fillna(0.0)
-    ds = ds.drop('deptht')
+    ds = xr.open_dataset('DataIn/restart12.nc')
 
     if TEOS10:
         convert_to_TEOS10(ds)
-
-    if zps:
-        ds['nav_lev'] = cfg.nav_lev.rename({'z':'Z'})
-        ds = ds.set_coords('nav_lev')
-        ds = ds.swap_dims({'Z':'nav_lev'}).drop('Z')
 
     ds = ds.rename({'sossheig':'sshn',
                     'votemper':'tn',
                     'vosaline':'sn',
                     'vozocrtx':'un',
                     'vomecrty':'vn'})
+    var_list = ['sshn', 'tn', 'un', 'vn']
+    for var in var_list:
+        ds[var] = ds[var].fillna(0.0)
     
+    ds['sn'] = ds['sn'].fillna(34.0)
+    ds.to_netcdf('DataOut/restart_conform.nc', unlimited_dims='T')
 
-    ds.to_netcdf('DataOut/restart_conform.nc')
+def de_nan_and_name_ice():
+
+    ds = xr.open_dataset('DataIn/restart12_ice.nc')
+
+    for var in ['siconc', 'sithic', 'snthic']:
+        print ('var', var)
+        ds[var] = ds[var].fillna(0.0)
     
-de_nan_and_name(TEOS10=False)
+    ds.to_netcdf('DataOut/restart_ice_conform.nc', unlimited_dims='T')
+    
+de_nan_and_name()
+    

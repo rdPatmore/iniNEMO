@@ -2,7 +2,7 @@ import xarray as xr
 import numpy as np
 from scipy.interpolate import griddata
 
-def regrid(ds, coord, var):
+def regrid(ds, coord, var, x='X', y='Y'):
     print ('variable: ', var)
     time_labels  = set(['time', 'time_counter'])
     depth_labels = set(['deptht', 'depthu', 'depthv'])
@@ -47,8 +47,9 @@ def regrid(ds, coord, var):
     ds_regridded_var = np.concatenate(ds_new_grid, axis=0)
     
     if list(dims & depth_labels):
-        dims = [time_name, depth_name, 'Y', 'X']
+        dims = [time_name, depth_name, y, x]
     else:
-        dims = [time_name, 'Y', 'X']
-    ds = ds.assign({var: (dims, ds_regridded_var, ds[var].attrs)})
+        dims = [time_name, y, x]
+    #ds = ds.assign({var: (dims, ds_regridded_var, ds[var].attrs)})
+    ds = xr.Dataset({var: (dims, ds_regridded_var, ds[var].attrs)})
     return ds

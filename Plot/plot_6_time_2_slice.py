@@ -10,7 +10,7 @@ def add_slice(ax, ds, time, depth):
     ds = ds.isel(time_counter=time, deptht=depth)
     
     lev = np.linspace(-2,2,11)
-    p = ax.pcolor(ds.nav_lon, ds.nav_lat, ds.votemper, vmin=-1.2, vmax=1.2,
+    p = ax.pcolor(ds.nav_lon, ds.nav_lat, ds.vozocrtx, vmin=-0.4, vmax=0.4,
                   cmap=plt.cm.inferno)
 
     return p
@@ -34,13 +34,13 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     orca.time_centered.attrs['units'] = 'seconds since 1900-01-01'
     orca = xr.decode_cf(orca)
 
-    sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
+    #sochic['time_counter'] = sochic.indexes['time_counter'].to_datetimeindex()
 
-    if model == 'orca': 
-        m = orca
-    if model == 'sochic':
-        # align time steps
-        m = time_mean_to_orca(orca, sochic)
+    #if model == 'orca': 
+    m = orca
+    #if model == 'sochic':
+    #    # align time steps
+    #m = time_mean_to_orca(orca, sochic)
   
     # plot six time steps at depth0
     for i, ax in enumerate(axs[0]):
@@ -69,14 +69,16 @@ def plot(orca_path, sochic_path, model, depth0, depth1):
     for ax in axs.flatten():
         ax.set_aspect('equal')
 
-    plt.savefig('temp_' + model + '_EXP54_orca_mean.png')
+    plt.savefig(model + 'orca_u_orca_mean.png')
 
 if __name__ == '__main__':
-    orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
+    model = 'EXP106'
+    orca_path = '../processORCA12/DataOut/ORCA_PATCH_U.nc'
     #orca_path = '../processORCA12/DataOut/ORCA0083-N06_T_conform.nc'
-    sochic_path = '../Output/EXP54/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
+    sochic_path = '../Output/EXP106/SOCHIC_PATCH_1h_20150106_20150118_grid_U.nc'
+   #sochic_path = '../Output/EXP74/SOCHIC_PATCH_1h_20150106_20150130_grid_T.nc'
     #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
 
     #SOCHIC_PATCH_1h_20150101_20150130_grid_T.nc'
     #plot(orca_path, sochic_path, 'orca', depth0=0, depth1=20)
-    plot(orca_path, sochic_path, 'sochic', depth0=0, depth1=20)
+    plot(orca_path, sochic_path, model, depth0=0, depth1=20)

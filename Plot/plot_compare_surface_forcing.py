@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib import ticker
 from common import time_mean_to_orca
 import cmocean
+from processORCA12.gridding import regrid
 
 plt.style.use('paper')
 
@@ -48,8 +49,6 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     orca = orca.isel(time_counter=slice(1,-1))
     sochic = sochic.isel(time_counter=slice(1,-1))
   
-    # get model differences
-    diff = sochic[var] - orca[var]
 
     vmin = orca[var].min()
     vmax = orca[var].max()
@@ -68,6 +67,10 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
         ds = sochic.isel(time_counter=i)
         p0 = ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var], vmin=vmin, vmax=vmax,
                       cmap=cmap)
+
+    # get model differences
+    orca_new = regrid(orca, sochic, var, x='x', y='y')
+    diff = sochic[var] - orca_new[var]
 
     # plot six time steps of sochic - orca
     for i, ax in enumerate(axs[2]):
@@ -127,7 +130,7 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     plt.savefig(model + '_flux_diff_' + var + '.png')
 
 if __name__ == '__main__':
-    model = 'EXP74'
+    model = 'EXP73'
     outdir = '../Output/'
     outpath = outdir + model 
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
@@ -140,6 +143,8 @@ if __name__ == '__main__':
          cmap=plt.cm.inferno)
     plot(model, orca_path, sochic_path, 'sohefldo', -210, 210, sym_bounds=True)
     plot(model, orca_path, sochic_path, 'votemper', -1.2, 1.2, 
+         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
+    plot(model, orca_path, sochic_path, 'vosaline', 33, 34.5, 
          depth_dict={'deptht':0}, cmap=plt.cm.inferno)
 
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_U.nc'
