@@ -1,7 +1,7 @@
 import xarray as xr
 import numpy  as np
 
-coords = xr.open_dataset('../SourceData/ORCA24/coordinates.nc',
+coords = xr.open_dataset('../SourceData/ORCA12/coordinates.nc',
                          decode_times=False)#.rename({
        # 'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
 coords = coords.isel(X=slice(1,-1),Y=slice(1,-1))
@@ -19,6 +19,8 @@ def get_side(side, pos, offset=0):
 
     print ('SIDE: ', side)
     vel_shift=0
+    #if pos == 'I':
+    #    vel_shift=1
     if side == 'west':
         print (coords.isel(X=offset).sizes)
         arrayX = coords.isel(X=1+offset, Y=slice(0+offset, ylen-offset))
