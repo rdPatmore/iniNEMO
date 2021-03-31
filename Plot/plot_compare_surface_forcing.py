@@ -15,7 +15,7 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     '''
 
     # intialise plots
-    fig, axs = plt.subplots(3,4, figsize=(6.5, 4.0))
+    fig, axs = plt.subplots(3,3, figsize=(6.5, 4.0))
     plt.subplots_adjust(bottom=0.12, top=0.95, right=0.86, left=0.1,
                         wspace=0.15, hspace=0.12)
 
@@ -31,8 +31,25 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     
 
     # translate orca dates to cf
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print (orca.time_counter.attrs)
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
+    print ('space')
     orca.time_counter.attrs['units'] = 'seconds since 1900-01-01'
     orca.time_centered.attrs['units'] = 'seconds since 1900-01-01'
+    #try:
+    #except:
+    #    print ('no time centered')
     orca = xr.decode_cf(orca)
 
     # align time steps
@@ -43,7 +60,18 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     sochic = time_mean_to_orca(orca, sochic)
   
     # align dim labels
-    orca = orca.rename_dims({'X':'x', 'Y':'y'})
+    try:
+        orca = orca.rename_dims({'X':'x', 'Y':'y'})
+    except:
+        print ('x y already are dims')
+    #try:
+    #    sochic = sochic.rename({'longitude':'nav_lon', 'latitude':'nav_lat'})
+    #except:
+    #    print ('x y already are dims')
+    #try:
+    #    orca = orca.rename({'longitude':'nav_lon', 'latitude':'nav_lat'})
+    #except:
+    #    print ('x y already are dims')
 
     # cut to start and end
     orca = orca.isel(time_counter=slice(1,-1))
@@ -55,6 +83,19 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     if sym_bounds:
         vmax = max(np.abs(vmin), np.abs(vmax))
         vmin = -vmax
+    print ('')
+    print ('')
+    print ('')
+    print ('')
+    print ('')
+    print ('')
+    print (sochic)
+    print ()
+    print ('')
+    print ('')
+    print ('')
+    print ('')
+    print ('')
 
     # plot six time steps of orca
     for i, ax in enumerate(axs[0]):
@@ -75,7 +116,7 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     # plot six time steps of sochic - orca
     for i, ax in enumerate(axs[2]):
         arr = diff.isel(time_counter=i)
-        maximum = max(vmin, vmax) / 10
+        maximum = np.abs(max(vmin, vmax) / 10)
         minimum = - maximum
         p1 = ax.pcolor(sochic.nav_lon, sochic.nav_lat, arr,
                        vmin=minimum, vmax=maximum, cmap=cmocean.cm.balance)
@@ -100,7 +141,10 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
                   'vomecrty': 'v',
                   'sowaflup': 'fresh water flux',
                   'soshfldo': 'shortwave radiation',
-                  'sohefldo': 'heat flux'}
+                  'sohefldo': 'heat flux',
+                  'siconc': 'sea ice concentration',
+                  'sithic': 'sea ice thickness',
+                  'snthic': 'snow thickness'}
 
     # colourbars
     var_human = var_lookup[var] 
@@ -130,29 +174,42 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     plt.savefig(model + '_flux_diff_' + var + '.png')
 
 if __name__ == '__main__':
-    model = 'EXP73'
+    model = 'EXP002'
     outdir = '../Output/'
     outpath = outdir + model 
-    orca_path = '../processORCA12/DataOut/ORCA_PATCH_T.nc'
+    dates = '20151104_20151114'
+    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_T_conform.nc'
     #sochic_path = '../Output/EXP54/SOCHIC_PATCH_1h_20150101_20150128_grid_T.nc'
-    sochic_path = outpath + '/SOCHIC_PATCH_1h_20150106_20150130_grid_T.nc'
+    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_T.nc'
     #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
 
-    plot(model, orca_path, sochic_path, 'sowaflup', -1e-4, 1e-4, sym_bounds=True)
-    plot(model, orca_path, sochic_path, 'soshfldo', 300,
-         cmap=plt.cm.inferno)
-    plot(model, orca_path, sochic_path, 'sohefldo', -210, 210, sym_bounds=True)
-    plot(model, orca_path, sochic_path, 'votemper', -1.2, 1.2, 
-         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
-    plot(model, orca_path, sochic_path, 'vosaline', 33, 34.5, 
-         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
+#    plot(model, orca_path, sochic_path, 'sowaflup', -1e-4, 1e-4, sym_bounds=True)
+#    plot(model, orca_path, sochic_path, 'soshfldo', 300,
+#         cmap=plt.cm.inferno)
+#    plot(model, orca_path, sochic_path, 'sohefldo', -210, 210, sym_bounds=True)
+##    plot(model, orca_path, sochic_path, 'votemper', -1.2, 1.2, 
+####         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
+####    plot(model, orca_path, sochic_path, 'vosaline', 33, 34.5, 
+####         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
 
-    orca_path = '../processORCA12/DataOut/ORCA_PATCH_U.nc'
-    sochic_path = outpath + '/SOCHIC_PATCH_1h_20150106_20150130_grid_U.nc'
-    plot(model, orca_path, sochic_path, 'vozocrtx', -1.2, 1.2, sym_bounds=True,
-         depth_dict={'depthu':0})
+#    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_U.nc'
+#    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_U_conform.nc'
+#    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_U.nc'
+#    plot(model, orca_path, sochic_path, 'vozocrtx', -1.2, 1.2, sym_bounds=True,
+#         depth_dict={'depthu':0})
+#
+#    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_V.nc'
+#    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_V_conform.nc'
+#    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_V.nc'
+#    plot(model, orca_path, sochic_path, 'vomecrty', -1.2, 1.2, sym_bounds=True, 
+#         depth_dict={'depthv':0})
 
-    orca_path = '../processORCA12/DataOut/ORCA_PATCH_V.nc'
-    sochic_path = outpath + '/SOCHIC_PATCH_1h_20150106_20150130_grid_V.nc'
-    plot(model, orca_path, sochic_path, 'vomecrty', -1.2, 1.2, sym_bounds=True, 
-         depth_dict={'depthv':0})
+    orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_I.nc'
+    #orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_I_conform.nc'
+    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_icemod.nc'
+    plot(model, orca_path, sochic_path, 'siconc', 0, 1, sym_bounds=False,
+         cmap=cmocean.cm.ice)
+    plot(model, orca_path, sochic_path, 'sithic', 0, 0.5, sym_bounds=False,
+         cmap=cmocean.cm.ice)
+    plot(model, orca_path, sochic_path, 'snthic', 0, 0.5, sym_bounds=False,
+         cmap=cmocean.cm.ice)

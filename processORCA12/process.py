@@ -140,8 +140,8 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         #ds['vomecrty'] = xr.where(ds.vomecrty > 40, 0, ds.vomecrty)
 
     if pos == 'I':
-        drop = ['snowpre', 'sip', 'ist_ipa', 'uice_ipa', 'vice_ipa', 
-                'utau_ice', 'vtau_ice', 'qsr_io_cea', 'qns_io_cea']
+        drop = ['snowpre', 'sip', 'utau_ice', 'vtau_ice',
+                'qsr_io_cea', 'qns_io_cea']
         ds = xr.open_mfdataset(paths, drop_variables=drop,
                                mask_and_scale=False, combine='by_coords',
                                decode_cf=False
@@ -150,18 +150,30 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
         print ('done')
 
-        ds = ds.rename({'nav_lon': 'longitude', 'nav_lat': 'latitude'})
+        #ds = ds.rename({'nav_lon': 'longitude', 'nav_lat': 'latitude'})
         ds = ds.set_coords(['time_counter_bounds','time_centered',
-                            'time_centered_bounds','longitude','latitude'])
-        #                    'time_centered_bounds','nav_lon','nav_lat'])
+                            'time_centered_bounds','nav_lon','nav_lat'])
+        #                    'time_centered_bounds','longitude','latitude'])
         #ds = ds.drop_dims('axis_nbounds')
       
 
         ds = ds.rename({'ice_pres':'siconc',
                         'sit': 'sithic',
-                        'snd': 'snthic'})
-        for var in ['siconc','sithic','snthic']:
+                        'snd': 'snthic',
+                        'ist_ipa':'sitemp',
+                        'uice_ipa':'u_ice',
+                        'vice_ipa':'v_ice'})
+
+       
+        ice_shape = (ds.time_counter.shape[0], ds.y.shape[0], ds.x.shape[0])
+        print (ice_shape)
+        ds = ds.assign({'sisalt': (('time_counter', 'y', 'x'), 
+                        10 * np.ones(ice_shape))})
+
+        for var in ['siconc','sithic','snthic','v_ice', 'u_ice', 'sitemp']:
             ds[var] = ds[var].fillna(0.0)
+        for var in ['siconc','sithic','snthic','v_ice', 'u_ice', 'sitemp',
+                    'sisalt']:
             # boundary hack for perio issues
             ds[var][:,-1] = np.nan
             ds[var][:,0] = np.nan
@@ -219,7 +231,7 @@ def cut(ds):
     return ds
 
 def subset_coords():
-    indir  = 'DataIn/'
+    indir  = '../SourceData/ORCA12/'
     outdir = 'DataOut/'
 
     drop = ['nav_lev','time_steps']
@@ -227,7 +239,7 @@ def subset_coords():
                          drop_variables=drop)#.isel(
                      #   x=slice(3400,3500), y=slice(500,700))
     ds = cut(ds)
-    ds = ds.squeeze('time')
+    #ds = ds.squeeze('time')
     comp = dict(zlib=True, complevel=9)
     encoding = {var: comp for var in ds.data_vars}
     ds.to_netcdf(outdir + 'coordinates_subset.nc', encoding=encoding)
@@ -263,7 +275,7 @@ def subset_bathy():
     encoding = {var: comp for var in ds.data_vars}
     ds.to_netcdf(outdir + 'bathy_8deg.nc', encoding=encoding)
 
-def cut_orca(pos):
+def cut_orca(pos, year=0, month=0):
    '''
    regrid orca to chosen model grid
    pos can be in {T,U,V}
@@ -272,6 +284,8 @@ def cut_orca(pos):
    indir  = 'DataIn/'
    outdir = 'DataOut/'
    
+   date = 'y' + str(year) + 'm' + str(month)
+
    if pos == 'T':
        chunk = {'deptht':1}
        var_keys = ['votemper', 'vosaline', 'sossheig',
@@ -285,21 +299,36 @@ def cut_orca(pos):
        chunk = {'depthv':1}
        var_keys = ['vomecrty']
 
-   coord = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
-   ds    = xr.open_dataset(outdir + 'ORCA0083-N06_' + pos + '_conform.nc',
+   if pos == 'I':
+       chunk = None
+       var_keys = ['siconc', 'sithic', 'snthic']
+
+   coord = xr.open_dataset('DataOut/coordinates_subset.nc',
+                           decode_times=False)
+   ds    = xr.open_dataset(
+                  outdir + 'ORCA0083-N06_' +  date + '_' + pos + '_conform.nc',
                            mask_and_scale=False, decode_cf=False)
    
+   print (coord)
    coord = coord.drop('time')
 
+   arrs = []
    for var in var_keys: 
-       ds = gridding.regrid(ds, coord, var)
-   ds['nav_lat'] = coord.nav_lat
-   ds['nav_lon'] = coord.nav_lon
-   ds['time_counter'] = ds.time_counter
+       arrs.append(gridding.regrid(ds, coord, var))
+   print (arrs[0])
+   ds_cut = xr.merge(arrs)
+   ds_cut['nav_lat'] = coord.nav_lat
+   ds_cut['nav_lon'] = coord.nav_lon
+   ds_cut['time_counter'] = ds.time_counter
+   ds_cut['time_counter_bounds'] = ds.time_counter_bounds
+   ds_cut['time_centered'] = ds.time_centered
+   ds_cut['time_centered_bounds'] = ds.time_centered_bounds
 
    comp = dict(zlib=True, complevel=9)
-   encoding = {var: comp for var in ds.data_vars}
-   ds.to_netcdf(outdir + 'ORCA_PATCH_' + pos + '.nc', encoding=encoding)
+   encoding = {var: comp for var in ds_cut.data_vars}
+   print (encoding)
+   ds_cut.to_netcdf(outdir + 'ORCA_PATCH_' + date + '_' + pos + '.nc',
+                encoding=encoding)
 
 for pos in ['I']:
     process(pos=pos, year='2015', month='11', day='06', opendap=False, t0=True)
@@ -309,5 +338,5 @@ for pos in ['I']:
 #process(pos='T', year='2015', month='01', opendap=False)
 #process(pos='V', year='2014', month='12', opendap=False)
 #subset_bathy()
-#cut_orca('U')
-#cut_orca('V')
+#cut_orca('I', year=2015, month=11)
+#cut_orca('T', year=2015, month=11)

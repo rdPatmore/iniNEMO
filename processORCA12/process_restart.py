@@ -40,11 +40,21 @@ def de_nan_and_name_ice():
 
     ds = xr.open_dataset('DataIn/restart12_ice.nc')
 
-    for var in ['siconc', 'sithic', 'snthic']:
+    for var in ['siconc', 'sithic', 'snthic', 'sitemp', 'u_ice', 'v_ice']:
         print ('var', var)
         ds[var] = ds[var].fillna(0.0)
+    ds['sisalt'] = ds['sisalt'].fillna(6.3) # set in g/m^3?
+    ds['sitemp'] = ds['sitemp'] + 273.15 # convert to kelvin
+    #ds['nn_fsbc'] = 1
+    #s['kt_ice'] = 1
+
+    #ds = ds.rename({'siconc': 'a_i',
+    #                'sithic': 'v_i',
+    #                'snthic': 'v_s',
+    #                'sitemp': 't_su',
+    #                'sisalt': 'sv_i'})
     
     ds.to_netcdf('DataOut/restart_ice_conform.nc', unlimited_dims='T')
     
-de_nan_and_name()
+de_nan_and_name_ice()
     

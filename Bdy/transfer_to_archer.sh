@@ -1,4 +1,4 @@
-MODEL=EXP001
+MODEL=EXP003
 ARCH_PATH='/work/n02/n02/ryapat30/nemo/nemo/cfgs/SOCHIC_PATCH_ICE/'${MODEL}
 DATE='y2015m11'
 

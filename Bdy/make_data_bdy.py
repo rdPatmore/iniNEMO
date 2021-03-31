@@ -187,14 +187,21 @@ def get_side(data, side, pos, offset=0):
                          'nav_lat':(['xbt'], arrayX.nav_lat.values),
          'siconc':  (['time_counter','xbt'], arrayX.siconc.values),
          'sithic':  (['time_counter','xbt'], arrayX.sithic.values),
-         'snthic':  (['time_counter','xbt'], arrayX.snthic.values)}
+         'snthic':  (['time_counter','xbt'], arrayX.snthic.values),
+         'sitemp':  (['time_counter','xbt'], arrayX.sitemp.values),
+         'sisalt':  (['time_counter','xbt'], arrayX.sisalt.values)}
                        ).expand_dims('yb')
         ds.siconc.attrs['long_name']='Sea Ice Concentration'
-        ds.sithic.attrs['units']='Sea Ice Thickness'
+        ds.sithic.attrs['long_name']='Sea Ice Thickness'
+        ds.snthic.attrs['long_name']='Snow Thickness'
+        ds.sitemp.attrs['long_name']='Sea Ice Temperature'
+        ds.sisalt.attrs['long_name']='Sea Ice Salinity'
         ds.snthic.attrs['long_name']='Snow Thickness'
         ds.siconc.attrs['units']='unitless'
         ds.sithic.attrs['units']='m'
         ds.snthic.attrs['units']='m'
+        ds.sitemp.attrs['units']='decC'
+        ds.sisalt.attrs['units']='psu'
         ds.nbrt.attrs['long_name']='bdy discrete distance'
         ds.nbrt.attrs['units']='unitless'
         ds.nbjt.attrs['long_name']='bdy j index'
@@ -205,7 +212,6 @@ def get_side(data, side, pos, offset=0):
     ds.nav_lat.attrs['units']='degrees_north'
     ds.nav_lon.attrs['units']='degrees_east'
     ds.attrs['history'] = 'Created using RDPs NEMO config on SCIHUB'
-    print (ds)
     return ds
 
 def single_bound(data, mesh_mask, side, pos, width=1):
