@@ -20,14 +20,14 @@ def regrid(ds, coord, var, x='X', y='Y'):
             nav_lon = ds.nav_lon.isel({time_name:0})
             nav_lat = ds.nav_lat.isel({time_name:0})
         except:
-            print ('nope')
-        try:
-            nav_lon = ds.longitude.isel({time_name:0})
-            nav_lat = ds.latitude.isel({time_name:0})
-        except:
-            print ('nope')
-            nav_lon = ds.nav_lon
-            nav_lat = ds.nav_lat
+            print ('nope1')
+            try:
+                nav_lon = ds.longitude.isel({time_name:0})
+                nav_lat = ds.latitude.isel({time_name:0})
+            except:
+                print ('nope2')
+                nav_lon = ds.nav_lon
+                nav_lat = ds.nav_lat
     ds_new_grid = []
     for i, ds_iter in enumerate(ds[var]):
         ds_new_lev = []

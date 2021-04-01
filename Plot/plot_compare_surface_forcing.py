@@ -45,8 +45,8 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     print ('space')
     print ('space')
     print ('space')
-    orca.time_counter.attrs['units'] = 'seconds since 1900-01-01'
-    orca.time_centered.attrs['units'] = 'seconds since 1900-01-01'
+    #orca.time_counter.attrs['units'] = 'seconds since 1900-01-01'
+    #orca.time_centered.attrs['units'] = 'seconds since 1900-01-01'
     #try:
     #except:
     #    print ('no time centered')
@@ -74,8 +74,8 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     #    print ('x y already are dims')
 
     # cut to start and end
-    orca = orca.isel(time_counter=slice(1,-1))
-    sochic = sochic.isel(time_counter=slice(1,-1))
+    #orca = orca.isel(time_counter=slice(1,-1))
+    #sochic = sochic.isel(time_counter=slice(1,-1))
   
 
     vmin = orca[var].min()
@@ -89,7 +89,7 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     print ('')
     print ('')
     print ('')
-    print (sochic)
+    #print (sochic)
     print ()
     print ('')
     print ('')
@@ -174,7 +174,7 @@ def plot(model, orca_path, sochic_path, var, vmin=-1, vmax=1, depth_dict=None,
     plt.savefig(model + '_flux_diff_' + var + '.png')
 
 if __name__ == '__main__':
-    model = 'EXP002'
+    model = 'EXP005'
     outdir = '../Output/'
     outpath = outdir + model 
     dates = '20151104_20151114'
@@ -183,26 +183,26 @@ if __name__ == '__main__':
     sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_T.nc'
     #sochic_path = '../Output/EXP60/SOCHIC_PATCH_1h_20150101_20150121_grid_T.nc'
 
-#    plot(model, orca_path, sochic_path, 'sowaflup', -1e-4, 1e-4, sym_bounds=True)
-#    plot(model, orca_path, sochic_path, 'soshfldo', 300,
-#         cmap=plt.cm.inferno)
-#    plot(model, orca_path, sochic_path, 'sohefldo', -210, 210, sym_bounds=True)
-##    plot(model, orca_path, sochic_path, 'votemper', -1.2, 1.2, 
-####         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
-####    plot(model, orca_path, sochic_path, 'vosaline', 33, 34.5, 
-####         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
+    plot(model, orca_path, sochic_path, 'sowaflup', -1e-4, 1e-4, sym_bounds=True)
+    plot(model, orca_path, sochic_path, 'soshfldo', 300,
+         cmap=plt.cm.inferno)
+    plot(model, orca_path, sochic_path, 'sohefldo', -210, 210, sym_bounds=True)
+#    plot(model, orca_path, sochic_path, 'votemper', -1.2, 1.2, 
+###         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
+###    plot(model, orca_path, sochic_path, 'vosaline', 33, 34.5, 
+###         depth_dict={'deptht':0}, cmap=plt.cm.inferno)
 
-#    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_U.nc'
-#    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_U_conform.nc'
-#    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_U.nc'
-#    plot(model, orca_path, sochic_path, 'vozocrtx', -1.2, 1.2, sym_bounds=True,
-#         depth_dict={'depthu':0})
-#
-#    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_V.nc'
-#    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_V_conform.nc'
-#    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_V.nc'
-#    plot(model, orca_path, sochic_path, 'vomecrty', -1.2, 1.2, sym_bounds=True, 
-#         depth_dict={'depthv':0})
+    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_U.nc'
+    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_U_conform.nc'
+    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_U.nc'
+    plot(model, orca_path, sochic_path, 'vozocrtx', -1.2, 1.2, sym_bounds=True,
+         depth_dict={'depthu':0})
+
+    #orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_V.nc'
+    orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_V_conform.nc'
+    sochic_path = outpath + '/SOCHIC_PATCH_1h_' + dates + '_grid_V.nc'
+    plot(model, orca_path, sochic_path, 'vomecrty', -1.2, 1.2, sym_bounds=True, 
+         depth_dict={'depthv':0})
 
     orca_path = '../processORCA12/DataOut/ORCA_PATCH_y2015m11_I.nc'
     #orca_path = '../processORCA12/DataOut/ORCA0083-N06_y2015m11_I_conform.nc'
@@ -211,5 +211,6 @@ if __name__ == '__main__':
          cmap=cmocean.cm.ice)
     plot(model, orca_path, sochic_path, 'sithic', 0, 0.5, sym_bounds=False,
          cmap=cmocean.cm.ice)
-    plot(model, orca_path, sochic_path, 'snthic', 0, 0.5, sym_bounds=False,
-         cmap=cmocean.cm.ice)
+     # no sea ice thickness in data... ## Find its name... 
+#    plot(model, orca_path, sochic_path, 'snthic', 0, 0.5, sym_bounds=False,
+#         cmap=cmocean.cm.ice)

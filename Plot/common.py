@@ -7,7 +7,10 @@ def time_mean_to_orca(orca, sochic):
     bins  = np.union1d(bins0,bins1)
     bin_labels = orca.time_counter.values
 
-    #print (orca.time_counter)
+    print (orca.time_counter)
+    print (bins0)
+    print (bins1)
+
     # mean over orca time periods
     sochic_bin = sochic.groupby_bins('time_counter', bins, labels=bin_labels)
     sochic_mean = sochic_bin.mean()
