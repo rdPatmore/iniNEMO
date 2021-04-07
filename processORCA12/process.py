@@ -25,8 +25,8 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
     #         'ORCA0083-N06_grid_T_' + year)
     date =  year + month
     if opendap:
-        indir = ('http://opendap4gws.jasmin.ac.uk/thredds/nemo/dodsC/grid_T/'
-                  + year + '/ORCA0083-N06_')
+        indir = ('http://opendap4gws.jasmin.ac.uk/thredds/nemo/dodsC/grid_' + 
+                  pos + '/' + year + '/ORCA0083-N06_')
     else:
         indir = 'DataIn/ORCA0083-N06_'
 
@@ -41,9 +41,10 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
             if month == '11':
                 days = ['06','11','16','21','26']
 
-    paths = []
-    for d in days:
-        paths.append(indir + date + d + 'd05' + pos + '.nc')
+    if not opendap:
+        paths = []
+        for d in days:
+            paths.append(indir + date + d + 'd05' + pos + '.nc')
 
     outdir = 'DataOut/'
 
@@ -59,7 +60,10 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         kwargs = {'mask_and_scale': False, 'chunks': chunk,
                   'drop_variables': drop, 'decode_cf': False,
                   'decode_times': False}
-        ds = xr.open_mfdataset(paths, **kwargs)
+        if opendap:
+            ds = xr.open_dataset(path, **kwargs)
+        else:
+            ds = xr.open_mfdataset(paths, **kwargs)
 
         print ('loading')
         #time_period = year + '-' + month# + '-01'
@@ -330,9 +334,9 @@ def cut_orca(pos, year=0, month=0):
    ds_cut.to_netcdf(outdir + 'ORCA_PATCH_' + date + '_' + pos + '.nc',
                 encoding=encoding)
 
-for pos in ['I']:
-    process(pos=pos, year='2015', month='11', day='06', opendap=False, t0=True)
-    process(pos=pos, year='2015', month='11', opendap=False, t0=False)
+for pos in ['T']:
+    process(pos=pos, year='2012', month='01', opendap=True, t0=False)
+    #process(pos=pos, year='2015', month='11', day='06', opendap=True, t0=True)
 #process(pos='U', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='V', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='T', year='2015', month='01', opendap=False)
