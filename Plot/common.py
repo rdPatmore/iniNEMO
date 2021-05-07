@@ -16,3 +16,6 @@ def time_mean_to_orca(orca, sochic):
     sochic_mean = sochic_bin.mean()
     sochic_mean = sochic_mean.rename_dims({'time_counter_bins': 'time_counter'})
     return sochic_mean
+
+def monthly_mean(case):
+    return case.groupby('time_counter.month').mean()

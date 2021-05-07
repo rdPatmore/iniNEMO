@@ -19,17 +19,17 @@ def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline',
     
     return ds
 
-def TEOS10_bdy():
+def TEOS10_bdy(year=''):
     ''' conform bdy to TEOS10 '''
 
     # load
-    ds = xr.open_dataset('BdyOut/bdy_T_ring.nc')
+    ds = xr.open_dataset('../DataOut/bdy_T_ring' + year + '.nc')
 
     # convert
     convert_to_TEOS10(ds)
 
     # save
-    path = 'BdyOut/bdy_T_ring_TEOS10.nc'
+    path = '../DataOut/bdy_T_ring' + year + '_TEOS10.nc'
     ds.to_netcdf(path, unlimited_dims='time_counter')
 
-TEOS10_bdy()
+TEOS10_bdy(year='_y2012')

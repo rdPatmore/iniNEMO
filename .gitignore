@@ -1,3 +1,5 @@
 *.nc
 *.png
+*.slurm
+*.out
 *__pycache__

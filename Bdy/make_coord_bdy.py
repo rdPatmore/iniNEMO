@@ -1,7 +1,8 @@
 import xarray as xr
 import numpy  as np
 
-coords = xr.open_dataset('../SourceData/ORCA12/coordinates.nc',
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/'
+coords = xr.open_dataset(path + 'coordinates.nc',
                          decode_times=False)#.rename({
        # 'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
 coords = coords.isel(X=slice(1,-1),Y=slice(1,-1))
@@ -23,7 +24,8 @@ def get_side(side, pos, offset=0):
     #    vel_shift=1
     if side == 'west':
         print (coords.isel(X=offset).sizes)
-        arrayX = coords.isel(X=1+offset, Y=slice(0+offset, ylen-offset))
+        arrayX = coords.isel(X=offset, Y=slice(0, ylen))
+        #arrayX = coords.isel(X=offset, Y=slice(0+offset, ylen-offset))
         dim='Y'
         bdy_pos = 2 + offset
         print (arrayX.sizes)
@@ -31,39 +33,42 @@ def get_side(side, pos, offset=0):
     if side == 'east':
         if pos == 'U':
             vel_shift=1
-        arrayX = coords.isel(X=-1-offset-vel_shift,
-                             Y=slice(0+offset, ylen-offset))
+        arrayX = coords.isel(X=-1-offset-vel_shift, Y=slice(0, ylen))
+        #arrayX = coords.isel(X=-1-offset-vel_shift,
+        #                     Y=slice(0+offset, ylen-offset))
         bdy_pos = xlen +1- offset - vel_shift
         print (arrayX.sizes)
         dim='Y'
 
     if side == 'south':
-        arrayX = coords.isel(Y=1+offset, X=slice(0+offset, xlen-offset))
+        #arrayX = coords.isel(Y=offset, X=slice(0+offset, xlen-offset))
+        arrayX = coords.isel(Y=offset, X=slice(0, xlen))
         dim='X'
         bdy_pos = 2 + offset
 
     if side == 'north':
         if pos == 'V':
             vel_shift=1
-        arrayX = coords.isel(Y=-1-offset-vel_shift, 
-                             X=slice(0+offset, xlen-offset))
+        arrayX = coords.isel(Y=-1-offset-vel_shift, X=slice(0, xlen))
+        #arrayX = coords.isel(Y=-1-offset-vel_shift, 
+        #                     X=slice(0+offset, xlen-offset))
         bdy_pos = ylen + 1 - offset - vel_shift
         dim='X'
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ****** offset *****: ', offset)
-        print (arrayX.nav_lat)
-        print (' ')
-        print (' ')
-        print (' ****** offset *****: ', offset)
-        print (arrayX.nav_lon)
-        print (' ')
-        print (' ')
         #print (' ')
         #print (' ')
         #print (' ')
+        #print (' ')
+        #print (' ****** offset *****: ', offset)
+        #print (arrayX.nav_lat)
+        #print (' ')
+        #print (' ')
+        #print (' ****** offset *****: ', offset)
+        #print (arrayX.nav_lon)
+        #print (' ')
+        #print (' ')
+        ##print (' ')
+        ##print (' ')
+        ##print (' ')
 
     if pos == 'T':
         if side in ['north', 'south']:
@@ -76,6 +81,8 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('X', ascending=False)
         if side in ['west']:
             arrayX = arrayX.sortby('Y', ascending=False)
+        print (arrayX[dim].values)
+        print (np.full(arrayX[dim].shape, bdy_pos))
         ds = xr.Dataset({nba: (['xbt'], arrayX[dim].values),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
                        'nbrt': (['xbt'], np.full(arrayX[dim].shape,1+offset)),

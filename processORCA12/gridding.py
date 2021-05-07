@@ -4,7 +4,7 @@ from scipy.interpolate import griddata
 
 def regrid(ds, coord, var, x='X', y='Y'):
     #print ('variable: ', var)
-    time_labels  = set(['time', 'time_counter'])
+    time_labels  = set(['time', 'time_counter','month'])
     depth_labels = set(['deptht', 'depthu', 'depthv'])
     print (ds)
     dims = set(ds[var].dims)

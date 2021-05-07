@@ -6,10 +6,10 @@ import datetime
 
 #dask.config.set(scheduler='single-threaded')
 
-def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
+def process(pos='T', year='2014', month='', day='', t0=False, opendap=False):
 
     # get subset coordinate indices for scalar isel
-    coords = xr.open_dataset('DataIn/coordinates.nc', decode_times=False)
+    coords = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
     xlen = coords.sizes['x']
     ylen = coords.sizes['y']
     coords = coords.assign({'i': (('x'), np.arange(xlen))})
@@ -28,29 +28,39 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         indir = ('http://opendap4gws.jasmin.ac.uk/thredds/nemo/dodsC/grid_' + 
                   pos + '/' + year + '/ORCA0083-N06_')
     else:
-        indir = 'DataIn/ORCA0083-N06_'
+        indir = '../SourceData/ORCA0083-N06_'
 
-    if day != '':
-        days = [day]
-    else:
-        if year == '2014':
-            days = ['01','06','11','16','21','26','31']
-        if year == '2015':
-            if month == '01':
-                days = ['05','10','15','20','25','30']
-            if month == '11':
-                days = ['06','11','16','21','26']
+    #if day != '':
+    #    days = [day]
+    #else:
+    #    if year == '2014':
+    #        days = ['01','06','11','16','21','26','31']
+    #    if year == '2015':
+    #        if month == '01':
+    #            days = ['05','10','15','20','25','30']
+    #        if month == '11':
+    #            days = ['06','11','16','21','26']
 
     if not opendap:
-        paths = []
-        for d in days:
-            paths.append(indir + date + d + 'd05' + pos + '.nc')
+        #if (month and day) == 0:
+        print ('oui oui')
+        if month == '':
+            paths = indir +  year + '*d05' + pos + '.nc'
+        elif day == '':
+            paths = indir +  year + month + '*d05' + pos + '.nc'
+        else:
+            paths = indir +  year + month + day + 'd05' + pos + '.nc'
+        #else:
+        #    paths = []
+        #    for d in days:
+        #        paths.append(indir + date + d + 'd05' + pos + '.nc')
 
-    outdir = 'DataOut/'
+    outdir = '../DataOut/'
 
     if pos == 'T':
         chunk={'deptht':1}#, 'x':10, 'y':10}
-        drop = ['tos', 'tossq','sos','zossq', 'taum','mldkz5','mldr10_1']
+        drop = ['tos', 'tossq','sos','zossq', 'taum','mldkz5','mldr10_1',
+                'sst','sss','sosflxdo','sowindsp','soprecip','e3t']  
         
        #ds = xr.open_mfdataset(indir + 'ORCA0083-N06_201501*d05T.nc',
        #                       mask_and_scale=False, chunks=chunk,
@@ -68,7 +78,7 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         print ('loading')
         #time_period = year + '-' + month# + '-01'
         #ds = ds.isel(x=slice(3380,3515), y=slice(450,720)).load()
-        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
+        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1))#.load()
         print ('loaded')
         #ds = ds.sel(time_counter=time_period).load()
         #print ('sel month')
@@ -87,12 +97,20 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
                             'time_centered_bounds','nav_lat','nav_lon'])
 
         # conform names
-        ds = ds.rename({'so':    'vosaline',
-                        'thetao':'votemper',
-                        'zos'   :'sossheig',
-                        'wfo'   :'sowaflup',
-                        'rsntds':'soshfldo',
-                        'tohfls':'sohefldo'})
+        try:
+            ds = ds.rename({'so':    'vosaline',
+                            'thetao':'votemper',
+                            'zos'   :'sossheig',
+                            'wfo'   :'sowaflup',
+                            'rsntds':'soshfldo',
+                            'tohfls':'sohefldo'})
+        except:
+            ds = ds.rename({'salin': 'vosaline',
+                            'potemp':'votemper',
+                            'ssh'   :'sossheig',
+                            'wfo'   :'sowaflup',
+                            'rsntds':'soshfldo',
+                            'tohfls':'sohefldo'})
 
         #ds['vosaline'] = ds.vosaline.fillna(40)
         #ds['votemper'] = ds.votemper.fillna(40)
@@ -112,7 +130,7 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
                                decode_cf=False
                                )#.isel(x=slice(3400,3500), y=slice(500,700))
         print ('loading')
-        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
+        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1))#.load()
         print ('done')
 
         ds = ds.set_coords(['time_counter_bounds','time_centered',
@@ -133,7 +151,7 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
                                decode_cf=False
                                )
         print ('loading')
-        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
+        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1))#.load()
         print ('done')
 
         ds = ds.set_coords(['time_counter_bounds','time_centered',
@@ -151,7 +169,7 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
                                decode_cf=False
                                )
         print ('loading')
-        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1)).load()
+        ds = ds.isel(x=slice(lon0,lon1), y=slice(lat0,lat1))#.load()
         print ('done')
 
         #ds = ds.rename({'nav_lon': 'longitude', 'nav_lat': 'latitude'})
@@ -179,10 +197,11 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
         for var in ['siconc','sithic','snthic','v_ice', 'u_ice', 'sitemp',
                     'sisalt']:
             # boundary hack for perio issues
-            ds[var][:,-1] = np.nan
-            ds[var][:,0] = np.nan
-            ds[var][:,:,-1] = np.nan
-            ds[var][:,:,0] = np.nan
+            ds = set_halo(ds, var, fill_value=np.nan)
+            #ds[var][:,-1] = np.nan
+            #ds[var][:,0] = np.nan
+            #ds[var][:,:,-1] = np.nan
+            #ds[var][:,:,0] = np.nan
 
     if pos == 'Tsurf':
         ds = xr.open_dataset(indir + 'ORCA0083-N06_20150105d05T.nc',
@@ -217,8 +236,8 @@ def process(pos='T', year='2014', month='01', day='', t0=False, opendap=False):
     #ds.time_centered.attrs['units'] = 'seconds since 1900-01-01'
     #ds = xr.decode_cf(ds)
 
-    if t0: day='d' + day
-    date_srt = 'y' + year + 'm' + month + day + '_'
+    #if t0: day='d' + day
+    date_srt = year + month + day + '_'
     comp = dict(zlib=True, complevel=6)
     encoding = {var: comp for var in ds.data_vars}
     #if t0: # save first time step for restarts
@@ -235,8 +254,8 @@ def cut(ds):
     return ds
 
 def subset_coords():
-    indir  = '../SourceData/ORCA12/'
-    outdir = 'DataOut/'
+    indir  = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/'
+    outdir = '../OrcaCutData/'
 
     drop = ['nav_lev','time_steps']
     ds = xr.open_dataset(indir + 'coordinates.nc', decode_cf=False, 
@@ -248,14 +267,24 @@ def subset_coords():
     encoding = {var: comp for var in ds.data_vars}
     ds.to_netcdf(outdir + 'coordinates_subset.nc', encoding=encoding)
 
-def set_halo(ds, field, fill_value=0):
+def set_halo(ds, field, method='where', fill_value=0):
     ''' add halo to field '''
 
     print (ds)
-    ds[field].loc[{'x':0}] = fill_value
-    ds[field].loc[{'x':-1}] = fill_value
-    ds[field].loc[{'y':0}] = fill_value
-    ds[field].loc[{'y':-1}] = fill_value
+    if method == 'where':
+        xend = ds.x[-1]
+        yend = ds.y[-1]
+        ds[field] = xr.where(ds.x == 0, fill_value, ds[field])
+        ds[field] = xr.where(ds.x == xend, fill_value, ds[field])
+        ds[field] = xr.where(ds.y == 0, fill_value, ds[field])
+        ds[field] = xr.where(ds.y == yend, fill_value, ds[field])
+        ds[field] = ds[field].transpose('time_counter','y','x')
+    else:
+        ds[field].loc[{'x':0}] = fill_value
+        ds[field].loc[{'x':-1}] = fill_value
+        ds[field].loc[{'y':0}] = fill_value
+        ds[field].loc[{'y':-1}] = fill_value
+    print (ds)
 
     return ds
 
@@ -279,16 +308,33 @@ def subset_bathy():
     encoding = {var: comp for var in ds.data_vars}
     ds.to_netcdf(outdir + 'bathy_8deg.nc', encoding=encoding)
 
+def subset_zmesh():
+    ''' subset zmesh to 8 degree patch of weddell sea'''
+
+    outdir = 'DataOut/'
+    path = ('https://ige-meom-opendap.univ-grenoble-alpes.fr/thredds/dodsC/'
+           +'meomopendap/extract/ORCA12.L46/ORCA12.L46-I/'
+           +'mesh_zgr.nc')
+    ds = xr.open_dataset(path, decode_cf=False)
+
+    ds = cut(ds)
+    
+    ds.mbathy.attrs['_FillValue']=0
+
+    comp = dict(zlib=True, complevel=9)
+    encoding = {var: comp for var in ds.data_vars}
+    ds.to_netcdf(outdir + 'mesh_zgr_8deg.nc', encoding=encoding)
+
 def cut_orca(pos, year=0, month=0):
    '''
    regrid orca to chosen model grid
    pos can be in {T,U,V}
    '''
 
-   indir  = 'DataIn/'
-   outdir = 'DataOut/'
+   indir  = '../SourceData/'
+   outdir = '../OrcaCutData/'
    
-   date = 'y' + str(year) + 'm' + str(month)
+   #date = 'y' + str(year) + 'm' + str(month)
 
    if pos == 'T':
        chunk = {'deptht':1}
@@ -305,15 +351,14 @@ def cut_orca(pos, year=0, month=0):
 
    if pos == 'I':
        chunk = None
-       var_keys = ['siconc', 'sithic', 'snthic']
+       var_keys = ['siconc', 'sithic', 'snthic','sitemp','u_ice','v_ice']
 
-   coord = xr.open_dataset('DataOut/coordinates_subset.nc',
+   coord = xr.open_dataset(outdir + 'coordinates_subset.nc',
                            decode_times=False)
    ds    = xr.open_dataset(
-                  outdir + 'ORCA0083-N06_' +  date + '_' + pos + '_conform.nc',
+            '../DataOut/ORCA0083-N06_' +  year + '_' + pos + '_conform.nc',
                            mask_and_scale=False, decode_cf=False)
    
-   print (coord)
    coord = coord.drop('time')
 
    arrs = []
@@ -331,16 +376,17 @@ def cut_orca(pos, year=0, month=0):
    comp = dict(zlib=True, complevel=9)
    encoding = {var: comp for var in ds_cut.data_vars}
    print (encoding)
-   ds_cut.to_netcdf(outdir + 'ORCA_PATCH_' + date + '_' + pos + '.nc',
+   ds_cut.to_netcdf(outdir + 'ORCA_PATCH_' + year + '_' + pos + '.nc',
                 encoding=encoding)
 
-for pos in ['T']:
-    process(pos=pos, year='2012', month='01', opendap=True, t0=False)
+
+#for pos in ['I']:
+###    process(pos=pos, year='2012', month='01', day='05', opendap=False)
+#    process(pos=pos, year='2012', opendap=False)
     #process(pos=pos, year='2015', month='11', day='06', opendap=True, t0=True)
 #process(pos='U', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='V', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='T', year='2015', month='01', opendap=False)
 #process(pos='V', year='2014', month='12', opendap=False)
 #subset_bathy()
-#cut_orca('I', year=2015, month=11)
-#cut_orca('T', year=2015, month=11)
+cut_orca('I', year='2012')

@@ -6,9 +6,9 @@ import datetime
 import pandas as pd
 
 
-coord = xr.open_dataset('../SourceData/ORCA12/coordinates.nc',
+coord = xr.open_dataset('../SourceData/coordinates.nc',
                          decode_times=False)
-ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
+#ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
 def regrid(ds, coord, var, nav=False):
     '''
@@ -267,12 +267,23 @@ def regrid_dfs(variables, year, period):
         data = data.assign_coords(lon0=(((data.lon0 + 180) % 360) - 180))
         data = data.sortby('lon0', ascending=True)
         data = data.sortby('lat0', ascending=True)
-        time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
-                             periods=365 * 24 / period)
-        data = data.assign_coords(time=time)
+        try:
+            time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
+                                 periods=365 * 24 / period)
+            data = data.assign_coords(time=time)
+        except:
+            print ('yes')
+            print ('yes')
+            print ('yes')
+            print ('yes')
+            print ('yes')
+            print ('yes')
+            time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
+                                 periods=366 * 24 / period)
+            data = data.assign_coords(time=time)
         data.time.encoding['dtype'] = np.float64
-        data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54),
-                        time=slice('2015-11-01', '2015-11-30'))
+        data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
+         #               time=slice(year + '-01-01', '2015-11-30'))
         data = data.rename({'lon0': 'longitude', 'lat0': 'latitude'})
         data = regrid(data, coord, var)
         ds.append(data)
@@ -282,7 +293,7 @@ def regrid_dfs(variables, year, period):
     ds = clean_coords(ds)
     #ds.time.attrs = {'calendar': 'gregorian'}
 
-    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y2015m11.nc',
+    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y2015m01.nc',
                  unlimited_dims='time')
 
 def process_dfs(year):
@@ -290,8 +301,8 @@ def process_dfs(year):
     data_list_24 = ['snow', 'radsw', 'radlw', 'precip']
     data_list_03 = ['u10', 'v10', 't2', 'q2','msl']
 
-    regrid_dfs(data_list_24, '2015', 24)
-    regrid_dfs(data_list_03, '2015', 3)
+    regrid_dfs(data_list_24, year, 24)
+    regrid_dfs(data_list_03, year, 3)
 
 def regrid_sea_surface_restoring(coord):
     ''' cut sea surface restoring to patch and regrid '''
@@ -314,5 +325,5 @@ def regrid_sea_surface_restoring(coord):
     data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
 
 #regrid_sea_surface_restoring(coord)
-process_dfs('2015')
+process_dfs('2012')
 #calc_ecmwf_bulk()
