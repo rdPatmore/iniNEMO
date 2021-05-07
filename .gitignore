@@ -2,4 +2,5 @@
 *.png
 *.slurm
 *.out
+*core
 *__pycache__
