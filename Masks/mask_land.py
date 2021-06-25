@@ -21,14 +21,15 @@ def mask_bdy(scalar, year, month, day):
             ds['siconc'] = ds.siconc.fillna(0.0)
             ds['sithic'] = ds.sithic.fillna(0.0)
             ds['snthic'] = ds.snthic.fillna(0.0)
+            ds['sitemp'] = ds.sitemp.fillna(-3.15)
 
-        ds.to_netcdf('../DataOut/bdy_'+ scalar +'_' + bearing + 
+        ds.to_netcdf('../DataOut/ORCA12/bdy_'+ scalar +'_' + bearing + 
                      '_y' + year + '_masked.nc')
 
-mask_bdy('V', '2012', '01', '03')
-mask_bdy('T', '2012', '01', '03')
-mask_bdy('U', '2012', '01', '03')
-mask_bdy('I', '2012', '01', '03')
+mask_bdy('V', '2013', '01', '03')
+mask_bdy('T', '2013', '01', '03')
+mask_bdy('U', '2013', '01', '03')
+mask_bdy('I', '2013', '01', '03')
 #mask_bdy('V', '2014', '12')
 #mask_bdy('T', '2014', '12')
 #mask_bdy('U', '2014', '12')

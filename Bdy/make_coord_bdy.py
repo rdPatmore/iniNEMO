@@ -85,7 +85,7 @@ def get_side(side, pos, offset=0):
         print (np.full(arrayX[dim].shape, bdy_pos))
         ds = xr.Dataset({nba: (['xbt'], arrayX[dim].values),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,1+offset)),
+                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,offset+1)),
                          'glamt':(['xbt'], arrayX.glamt.values),
                          'gphit':(['xbt'], arrayX.gphit.values),
                          'e1t':  (['xbt'], arrayX.e1t.values),
@@ -112,7 +112,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbu'], arrayX[dim].values),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbru': (['xbu'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbru': (['xbu'], np.full(arrayX[dim].shape,offset+1)),
                          'glamu':(['xbu'], arrayX.glamu.values),
                          'gphiu':(['xbu'], arrayX.gphiu.values),
                          'e1u':  (['xbu'], arrayX.e1u.values),
@@ -140,7 +140,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbv'], arrayX[dim].values),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,offset+1)),
                          'glamv':(['xbv'], arrayX.glamv.values),
                          'gphiv':(['xbv'], arrayX.gphiv.values),
                          'e1v':  (['xbv'], arrayX.e1v.values),
@@ -191,7 +191,7 @@ def full_bounds(width=0):
     dsU = get_ring('U', width=width)
     dsV = get_ring('V', width=width)
     ds = xr.merge([dsT, dsU, dsV])
-    ds.to_netcdf('coordinates.bdy.nc')
+    ds.to_netcdf('../DataOut/ORCA24/coordinates.bdy.nc')
 
 full_bounds(width=20)
 

@@ -5,14 +5,17 @@ import numpy as np
 def get_montly_means(path, pos, model='', case_num=''):
     # load data
     if model == 'orca':
-        data   = xr.open_dataset(orca_path, decode_cf=False)
+        data   = xr.open_dataset(orca_path, decode_cf=False,
+                                 chunks={'time_counter': 1})
         data = xr.decode_cf(data)
     if model == 'sochic':
         try:
-            data = xr.open_dataset(sochic_path, decode_cf=True)
+            data = xr.open_mfdataset(sochic_path, decode_cf=True,
+                                     chunks={'time_counter': 1})
         except:
-            data = xr.open_dataset(sochic_path, decode_cf=False)
-            data = data.drop_vars('time_instant')
+            data = xr.open_mfdataset(sochic_path, decode_cf=False, 
+                                     chunks={'time_counter': 1})
+            #data = data.drop_vars('time_instant')
             data = xr.decode_cf(data)
 
     # align time steps
@@ -29,16 +32,18 @@ def get_montly_means(path, pos, model='', case_num=''):
 
     data.to_netcdf('tmp/' + model + '_' + case_num + '_' + pos + '.nc')
 
-case_num = 'EXP00'
+case_num = 'EXP08'
 outdir = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/'
 outpath = outdir + case_num 
 dates = '20120101_20121231'
 
-for pos in ['T','U','V']:
-    print (pos)
-    sochic_path = outpath + '/SOCHIC_PATCH_3h_' + dates + '_grid_' + pos + '.nc'
-    get_montly_means(sochic_path, pos=pos, model='sochic', case_num=case_num)
-sochic_path = outpath + '/SOCHIC_PATCH_3h_' + dates + '_icemod.nc'
+#for pos in ['U','V']:
+#    print (pos)
+##    #sochic_path = outpath + '/SOCHIC_PATCH_3h_' + dates + '_grid_' + pos + '.nc'
+#    sochic_path = outpath + '/SOCHIC_PATCH_6h_*_grid_' + pos + '.nc'
+#    get_montly_means(sochic_path, pos=pos, model='sochic', case_num=case_num)
+##sochic_path = outpath + '/SOCHIC_PATCH_3h_' + dates + '_icemod.nc'
+sochic_path = outpath + '/SOCHIC_PATCH_6h_*_icemod.nc'
 get_montly_means(sochic_path, pos='I', model='sochic', case_num=case_num)
 
 # T
