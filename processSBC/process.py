@@ -6,8 +6,9 @@ import datetime
 import pandas as pd
 
 
-coord = xr.open_dataset('../SourceData/coordinates.nc',
-                         decode_times=False)
+#path = '../SourceData/coordinates.nc'
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/coordinates.nc'
+coord = xr.open_dataset(path, decode_times=False)
 #ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
 def regrid(ds, coord, var, nav=False):
@@ -293,7 +294,7 @@ def regrid_dfs(variables, year, period):
     ds = clean_coords(ds)
     #ds.time.attrs = {'calendar': 'gregorian'}
 
-    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y2015m01.nc',
+    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y' + year + 'm01.nc',
                  unlimited_dims='time')
 
 def process_dfs(year):
@@ -322,8 +323,8 @@ def regrid_sea_surface_restoring(coord):
     data = data.rename_dims({'time':'time_counter', 'X':'x', 'Y':'y'})
 
     # save
-    data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
+    data.to_netcdf('ORCA24/sss_1m_conform.nc', unlimited_dims='time_counter')
 
 #regrid_sea_surface_restoring(coord)
-process_dfs('2012')
+process_dfs('2013')
 #calc_ecmwf_bulk()

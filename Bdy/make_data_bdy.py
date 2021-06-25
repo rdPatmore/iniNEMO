@@ -3,7 +3,7 @@ import numpy  as np
 
 def get_side(data, side, pos, offset=0):
     print ('SIDE: ', side)
-    mesh_path = '/work/n02/n02/ryapat30/nemo/nemo/cfgs/SOCHIC_PATCH_ICE/EXP005/'
+    mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP02/'
     domain_cfg = xr.open_dataset(mesh_path + 'mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     domain_cfg = domain_cfg.isel(X=slice(1,-1),Y=slice(1,-1))
@@ -83,7 +83,7 @@ def get_side(data, side, pos, offset=0):
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbt'], arrayX[dim].values + 1),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrt': (['xbt'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbrt': (['xbt'], np.full(arrayX[dim].shape,offset+1)),
                          'deptht':(['deptht'], arrayX.deptht.values),
                          'nav_lon':(['xbt'], arrayX.nav_lon.values),
                          'nav_lat':(['xbt'], arrayX.nav_lat.values),
@@ -124,7 +124,7 @@ def get_side(data, side, pos, offset=0):
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbu'], arrayX[dim].values + 1),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbru': (['xbu'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbru': (['xbu'], np.full(arrayX[dim].shape,offset+1)),
                          'depthu':(['depthu'], arrayX.depthu.values),
                          'nav_lat':(['xbu'], arrayX.nav_lat.values),
                          'nav_lon':(['xbu'], arrayX.nav_lon.values),
@@ -163,7 +163,7 @@ def get_side(data, side, pos, offset=0):
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbv'], arrayX[dim].values + 1),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,offset+1)),
                          'depthv':(['depthv'], arrayX.depthv.values),
                          'nav_lon':(['xbv'], arrayX.nav_lon.values),
                          'nav_lat':(['xbv'], arrayX.nav_lat.values),
@@ -199,7 +199,7 @@ def get_side(data, side, pos, offset=0):
         ds = xr.Dataset({'time_counter': arrayX.time_counter,
                          nba: (['xbt'], arrayX[dim].values + 1),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrt': (['xbt'], np.full(arrayX[dim].shape,1+offset)),
+                         'nbrt': (['xbt'], np.full(arrayX[dim].shape,offset+1)),
                          'nav_lon':(['xbt'], arrayX.nav_lon.values),
                          'nav_lat':(['xbt'], arrayX.nav_lat.values),
          'siconc':  (['time_counter','xbt'], arrayX.siconc.values),
@@ -289,7 +289,7 @@ def full_bounds(width, date='y2015m01'):
                    unlimited_dims='time_counter')
     dsI.to_netcdf('../DataOut/bdy_I_ring_' + date + '.nc',
                    unlimited_dims='time_counter')
-full_bounds(20, date='y2012')
+full_bounds(20, date='y2013')
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'

@@ -23,13 +23,14 @@ def TEOS10_bdy(year=''):
     ''' conform bdy to TEOS10 '''
 
     # load
-    ds = xr.open_dataset('../DataOut/bdy_T_ring' + year + '.nc')
+    ds = xr.open_dataset('../DataOut/ORCA24/bdy_T_ring' + year + '.nc',
+            chunks={'time_counter': 1, 'xbt': 100})
 
     # convert
     convert_to_TEOS10(ds)
 
     # save
-    path = '../DataOut/bdy_T_ring' + year + '_TEOS10.nc'
+    path = '../DataOut/ORCA24/bdy_T_ring' + year + '_TEOS10.nc'
     ds.to_netcdf(path, unlimited_dims='time_counter')
 
 TEOS10_bdy(year='_y2012')
