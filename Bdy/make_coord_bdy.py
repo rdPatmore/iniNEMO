@@ -1,7 +1,7 @@
 import xarray as xr
 import numpy  as np
 
-path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/'
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_48/'
 coords = xr.open_dataset(path + 'coordinates.nc',
                          decode_times=False)#.rename({
        # 'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
@@ -191,7 +191,7 @@ def full_bounds(width=0):
     dsU = get_ring('U', width=width)
     dsV = get_ring('V', width=width)
     ds = xr.merge([dsT, dsU, dsV])
-    ds.to_netcdf('../DataOut/ORCA24/coordinates.bdy.nc')
+    ds.to_netcdf('../DataOut/ORCA48/coordinates.bdy.nc')
 
 full_bounds(width=20)
 

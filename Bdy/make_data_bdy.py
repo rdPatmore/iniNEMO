@@ -1,9 +1,12 @@
 import xarray as xr
 import numpy  as np
 
-def get_side(data, side, pos, offset=0):
+def get_side(data, side, pos, res, offset=0):
     print ('SIDE: ', side)
-    mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP02/'
+    if res == '48':
+        mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP09/'
+    if res == '12':
+        mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP04/'
     domain_cfg = xr.open_dataset(mesh_path + 'mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     domain_cfg = domain_cfg.isel(X=slice(1,-1),Y=slice(1,-1))
@@ -231,65 +234,65 @@ def get_side(data, side, pos, offset=0):
     ds.attrs['history'] = 'Created using RDPs NEMO config on SCIHUB'
     return ds
 
-def single_bound(data, mesh_mask, side, pos, width=1):
+def single_bound(data, mesh_mask, side, pos, res, width=1):
     if width == 1:
-        ds = get_side(data, side, pos, offset=0)
+        ds = get_side(data, side, pos, res, offset=0)
     else:
         segments = []
         for i in range(0,width):
-            segments.append(get_side(data, side, pos, offset=i))
+            segments.append(get_side(data, side, pos, res, offset=i))
         if pos in ['U','V','T']:
             ds = xr.concat(segments, dim=('xb' + pos).lower())
         elif pos is 'I':
             ds = xr.concat(segments, dim='xbt')
     return ds
 
-def get_ring(pos, width, date):
+def get_ring(pos, width, date, res):
     segments = []
     for ring in range(0,width):
         print ('RING', ring)
         for side in ['east', 'north', 'west', 'south']:
             append = side + '_' + date + '_masked.nc'
             if pos == 'T':
-                data_pathT = '../DataOut/bdy_T_' + append
+                data_pathT = '../DataOut/ORCA' + res + '/bdy_T_' + append
                 data = xr.open_dataset(data_pathT, decode_times=False)
             if pos == 'U':
-                data_pathU = '../DataOut/bdy_U_' + append
+                data_pathU = '../DataOut/ORCA' + res + '/bdy_U_' + append
                 data = xr.open_dataset(data_pathU, decode_times=False)
             if pos == 'V':
-                data_pathV = '../DataOut/bdy_V_' + append
+                data_pathV = '../DataOut/ORCA' + res + '/bdy_V_' + append
                 data = xr.open_dataset(data_pathV, decode_times=False)
             if pos == 'I':
-                data_pathV = '../DataOut/bdy_I_' + append
+                data_pathV = '../DataOut/ORCA' + res + '/bdy_I_' + append
                 data = xr.open_dataset(data_pathV, decode_times=False)
             #orcaT_path = '../processORCA12/DataIn/ORCA0083-N06_20150105d05T.nc'
             #orca_time = xr.open_dataset(orcaT_path).time_counter
             #print (data)
             #data['time_counter'] = orca_time
-            segments.append(get_side(data, side, pos, offset=ring))
+            segments.append(get_side(data, side, pos, res, offset=ring))
     if pos in ['U','V','T']:
         pos = pos
     elif pos is 'I':
         pos = 't'
     return xr.concat(segments, dim=('xb' + pos).lower())
 
-def full_bounds(width, date='y2015m01'):
+def full_bounds(width, date='y2015m01', res='12'):
     #mesh_mask = xr.open_dataset('mesh_mask.nc')#.isel(
     #              x=slice(None,10), y=slice(1,99)).rename(
     #            {'x':'X','y':'Y'}).rename({'time_counter':'tc'})
-    dsI = get_ring('I', date=date, width=width)
-    dsT = get_ring('T', date=date, width=width)
-    dsU = get_ring('U', date=date, width=width)
-    dsV = get_ring('V', date=date, width=width)
-    dsT.to_netcdf('../DataOut/bdy_T_ring_' + date + '.nc',
+    dsI = get_ring('I', date=date, width=width, res=res)
+    dsT = get_ring('T', date=date, width=width, res=res)
+    dsU = get_ring('U', date=date, width=width, res=res)
+    dsV = get_ring('V', date=date, width=width, res=res)
+    dsT.to_netcdf('../DataOut/ORCA' + res + '/bdy_T_ring_' + date + '.nc',
                   unlimited_dims='time_counter')
-    dsU.to_netcdf('../DataOut/bdy_U_ring_' + date + '.nc',
+    dsU.to_netcdf('../DataOut/ORCA' + res + '/bdy_U_ring_' + date + '.nc',
                   unlimited_dims='time_counter')
-    dsV.to_netcdf('../DataOut/bdy_V_ring_' + date + '.nc',
+    dsV.to_netcdf('../DataOut/ORCA' + res + '/bdy_V_ring_' + date + '.nc',
                    unlimited_dims='time_counter')
-    dsI.to_netcdf('../DataOut/bdy_I_ring_' + date + '.nc',
+    dsI.to_netcdf('../DataOut/ORCA' + res + '/bdy_I_ring_' + date + '.nc',
                    unlimited_dims='time_counter')
-full_bounds(20, date='y2013')
+full_bounds(20, date='y2014')
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'
