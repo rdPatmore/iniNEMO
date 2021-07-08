@@ -3,13 +3,15 @@ import numpy as np
 import gridding
 import datetime
 #import dask
+import config
 
 #dask.config.set(scheduler='single-threaded')
 
 def process(pos='T', year='2014', month='', day='', t0=False, opendap=False):
 
     # get subset coordinate indices for scalar isel
-    coords = xr.open_dataset('../SourceData/coordinates.nc', decode_times=False)
+    coords = xr.open_dataset(config.nemoPath_coords() + 'coordinates.nc',
+                             decode_times=False)
     xlen = coords.sizes['x']
     ylen = coords.sizes['y']
     coords = coords.assign({'i': (('x'), np.arange(xlen))})
@@ -28,7 +30,7 @@ def process(pos='T', year='2014', month='', day='', t0=False, opendap=False):
         indir = ('http://opendap4gws.jasmin.ac.uk/thredds/nemo/dodsC/grid_' + 
                   pos + '/' + year + '/ORCA0083-N06_')
     else:
-        indir = '../SourceData/ORCA0083-N06_'
+        indir = config.nemoPath_data() + 'ORCA0083-N06_'
 
     #if day != '':
     #    days = [day]
