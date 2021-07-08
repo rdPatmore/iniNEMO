@@ -19,7 +19,7 @@ def convert_to_TEOS10(ds, temperature='votemper', salinity='vosaline',
     return ds
 
 def de_nan_and_name(TEOS10=False):
-    indir = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/'
+    indir = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_48/'
     ds = xr.open_dataset(indir + 'restart_y2012m01.nc')
 
     if TEOS10:
@@ -35,7 +35,7 @@ def de_nan_and_name(TEOS10=False):
         ds[var] = ds[var].fillna(0.0)
     
     ds['sn'] = ds['sn'].fillna(34.0)
-    ds.to_netcdf('../DataOut/restart_conform.nc', unlimited_dims='T')
+    ds.to_netcdf('../DataOut/ORCA48/restart_conform.nc', unlimited_dims='T')
 
 def de_nan_and_name_ice():
 
@@ -58,4 +58,4 @@ def de_nan_and_name_ice():
     
     ds.to_netcdf('../DataOut/restart_ice_conform.nc', unlimited_dims='T')
     
-de_nan_and_name(TEOS10=True)
+de_nan_and_name(TEOS10=False)

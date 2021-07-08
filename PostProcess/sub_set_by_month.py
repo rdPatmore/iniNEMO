@@ -1,5 +1,4 @@
 import xarray as xr
-from common import monthly_mean
 import numpy as np
 
 def get_montly_means(path, pos, model='', case_num=''):
@@ -25,17 +24,15 @@ def get_montly_means(path, pos, model='', case_num=''):
         print ('leap skipping to_datetimeindex')
 
     print ('loading means')
-    data = monthly_mean(data)#.load()
+    month = data.sel(time_counter='2012-01')
     print ('loaded')
-    data.month.encoding['dtype'] = np.float64
     print (data)
 
-    data.to_netcdf('tmp/' + model + '_' + case_num + '_' + pos + '.nc')
+    data.to_netcdf('tmp/' + model + '_' + case_num + '_' + pos + '_201201.nc')
 
 case_num = 'EXP08'
 outdir = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/'
 outpath = outdir + case_num 
-dates = '20120101_20121231'
 
 #for pos in ['U','V']:
 #    print (pos)

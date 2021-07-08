@@ -11,7 +11,8 @@ def kelvin_ice_bdy(year=''):
     ''' conform bdy to TEOS10 '''
 
     # load
-    ds = xr.open_dataset('../DataOut/bdy_I_ring' + year + '.nc')
+    ds = xr.open_dataset('../DataOut/ORCA12/bdy_I_ring' + year + '.nc',
+            chunks={'time_counter':1})#, 'xbt':10})
 
     # convert
     convert_to_Kelvin(ds, temperature='sitemp')
@@ -20,7 +21,7 @@ def kelvin_ice_bdy(year=''):
     ds['sitemp'] = ds.sitemp.fillna(270)
 
     # save
-    path = '../DataOut/bdy_I_ring' + year + '_kelvin.nc'
+    path = '../DataOut/ORCA12/bdy_I_ring' + year + '_kelvin.nc'
     ds.to_netcdf(path, unlimited_dims='time_counter')
 
-kelvin_ice_bdy(year='_y2012')
+kelvin_ice_bdy(year='_y2014')

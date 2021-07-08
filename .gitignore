@@ -4,3 +4,4 @@
 *.out
 *core
 *__pycache__
+*myout.txt

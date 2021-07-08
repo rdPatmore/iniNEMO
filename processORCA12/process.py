@@ -250,6 +250,14 @@ def process(pos='T', year='2014', month='', day='', t0=False, opendap=False):
     ds.to_netcdf(outdir + 'ORCA0083-N06_' + date_srt + pos + '_conform.nc',
                      encoding=encoding, unlimited_dims='time_counter')
 
+def merge_year(year, pos):
+    ''' merge NOC orca12 data into one file in prep for NESTING module '''
+    
+    path = '../SourceData/ORCA0083-N06_' + str(year) + '*d05' + pos + '.nc'
+    ds = xr.open_mfdataset(path, chunks={'time_counter':1}, decode_cf=False)
+    ds.to_netcdf('../ORCA12_' + str(year) + '_' + pos + '.nc', 
+                  unlimited_dims='time_counter')
+
 def cut(ds):
     ds = ds.where((ds.nav_lon > -5)  & (ds.nav_lon < 5) & 
                   (ds.nav_lat > -65) & (ds.nav_lat < -55), drop=True)
@@ -382,13 +390,14 @@ def cut_orca(pos, year=0, month=0):
                 encoding=encoding)
 
 
-#for pos in ['I']:
-###    process(pos=pos, year='2012', month='01', day='05', opendap=False)
-#    process(pos=pos, year='2012', opendap=False)
+for pos in ['T','U','V','I']:
+    process(pos=pos, year='2014', opendap=False)
+#    process(pos=pos, year='2013', month='01', day='05', opendap=False)
     #process(pos=pos, year='2015', month='11', day='06', opendap=True, t0=True)
 #process(pos='U', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='V', year='2015', month='01', day='10', opendap=False, t0=True)
 #process(pos='T', year='2015', month='01', opendap=False)
 #process(pos='V', year='2014', month='12', opendap=False)
 #subset_bathy()
-cut_orca('I', year='2012')
+#cut_orca('I', year='2012')
+#merge_year(2012, 'T')

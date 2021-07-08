@@ -1,11 +1,11 @@
 import xarray as xr
 import numpy as np
 
-def mask_bdy(scalar, year, month, day, res='12'):
-    indir = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_' + res
+def mask_bdy(scalar, year, month, day):
+    indir = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP04/data/'
     for bearing in ['north', 'east', 'south', 'west']:
-        ds = xr.load_dataset(indir + '/bdy_'+ scalar +'_' + bearing + 
-                             '_y' + year + 'm' + month + 'd' + day + '.nc')
+        ds = xr.load_dataset(indir + '/bdy_'+ scalar +'_' + 'ring' + 
+                             '_y' + year + '.nc')
 
         print (scalar)
         if scalar == 'T':
@@ -17,11 +17,13 @@ def mask_bdy(scalar, year, month, day, res='12'):
             ds['sossheig'] = ds.sossheig.fillna(0.0)
             ds['sossheig'] = xr.where(ds.sossheig == 1e20, 0.0, ds.sossheig)
         if scalar == 'U':
-            ds['vozocrtx'] = ds.vozocrtx.fillna(0.0)
+            ds['vozocrtx'] = ds.vozoctrx.fillna(0.0)
             ds['vozocrtx'] = xr.where(ds.vozocrtx == 1e20, 0.0, ds.vozocrtx)
+            ds = ds.drop('vozoctrx')
         if scalar == 'V':
-            ds['vomecrty'] = ds.vomecrty.fillna(0.0)
+            ds['vomecrty'] = ds.vomectry.fillna(0.0)
             ds['vomecrty'] = xr.where(ds.vomecrty == 1e20, 0.0, ds.vomecrty)
+            ds = ds.drop('vomectry')
         if scalar == 'I':
             ds['siconc'] = ds.siconc.fillna(0.0)
             ds['sithic'] = ds.sithic.fillna(0.0)
@@ -33,14 +35,13 @@ def mask_bdy(scalar, year, month, day, res='12'):
             ds['snthic'] = xr.where(ds.snthic == 1e20, 0.0, ds.snthic)
             ds['sitemp'] = xr.where(ds.sitemp == 1e20, -3.15, ds.sitemp)
 
-        print (ds)
-        ds.to_netcdf('../DataOut/ORCA' + res + '/bdy_'+ scalar +'_' + bearing + 
+        ds.to_netcdf(indir + 'bdy_' + scalar +'_' + 'ring' + 
                      '_y' + year + '_masked.nc')
 
-mask_bdy('V', '2014', '01', '03')
-mask_bdy('T', '2014', '01', '03')
-mask_bdy('U', '2014', '01', '03')
-mask_bdy('I', '2014', '01', '03')
+mask_bdy('V', '2013', '01', '03')
+#mask_bdy('T', '2013', '01', '03')
+mask_bdy('U', '2013', '01', '03')
+#mask_bdy('I', '2013', '01', '03')
 #mask_bdy('V', '2014', '12')
 #mask_bdy('T', '2014', '12')
 #mask_bdy('U', '2014', '12')

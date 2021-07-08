@@ -6,8 +6,9 @@ import datetime
 import pandas as pd
 
 
-coord = xr.open_dataset('../SourceData/coordinates.nc',
-                         decode_times=False)
+#path = '../SourceData/coordinates.nc'
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/coordinates.nc'
+coord = xr.open_dataset(path, decode_times=False)
 #ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
 def regrid(ds, coord, var, nav=False):
@@ -261,7 +262,7 @@ def regrid_dfs(variables, year, period):
             url = path + 'drowned_msl_ERAinterim_y' + year + '.nc'
         else:
             url = path + 'drowned_' + var + '_DFS5.2_y' + year + '.nc'
-        data = xr.open_dataset(url)
+        data = xr.open_dataset(url, chunks={'time':1})
         if var == 'msl':
             data = data.rename({'lon': 'lon0', 'lat': 'lat0'})
         data = data.assign_coords(lon0=(((data.lon0 + 180) % 360) - 180))
@@ -281,6 +282,7 @@ def regrid_dfs(variables, year, period):
             time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
                                  periods=366 * 24 / period)
             data = data.assign_coords(time=time)
+        #data = data.isel(time=slice(1800,2100))
         data.time.encoding['dtype'] = np.float64
         data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
          #               time=slice(year + '-01-01', '2015-11-30'))
@@ -293,8 +295,8 @@ def regrid_dfs(variables, year, period):
     ds = clean_coords(ds)
     #ds.time.attrs = {'calendar': 'gregorian'}
 
-    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y2015m01.nc',
-                 unlimited_dims='time')
+    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y' + year + '.nc',
+                 unlimited_dims='time', mode='w')
 
 def process_dfs(year):
 
@@ -322,8 +324,8 @@ def regrid_sea_surface_restoring(coord):
     data = data.rename_dims({'time':'time_counter', 'X':'x', 'Y':'y'})
 
     # save
-    data.to_netcdf('sss_1m_conform.nc', unlimited_dims='time_counter')
+    data.to_netcdf('ORCA48/sss_1m_conform.nc', unlimited_dims='time_counter')
 
 #regrid_sea_surface_restoring(coord)
-process_dfs('2012')
+process_dfs('2014')
 #calc_ecmwf_bulk()
