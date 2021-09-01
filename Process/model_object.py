@@ -169,7 +169,7 @@ class model(object):
         self.lon_shift = (lon1 - lon0) * (np.random.random() - 0.5) * 0.9
         self.lat_shift = (lat1 - lat0) * (np.random.random() - 0.5) * 0.9
         
-    def interp_to_raw_obs_path(self, save=False):
+    def interp_to_raw_obs_path(self, random_offset=False, save=False, ind=''):
         '''
         sample model along glider's raw path
         using giddy (2020)
@@ -189,6 +189,14 @@ class model(object):
                                                 deptht=slice(None,1100),
                                                 time_counter=slice(time0,time1))
 
+        # drop surface variables
+        self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
+                            'mldr10_3', 'wfo', 'qsr_oce', 'qns_oce',
+                            'qt_oce', 'sfx', 'taum', 'windsp',
+                            'precip', 'snowpre', 'bounds_nav_lon',
+                            'bounds_nav_lat', 'deptht_bounds',
+                             'area', 'e3t'])
+
         # get glider lat-lons
         self.x = xr.DataArray(self.giddy_raw.longitude.values,
                               dims='ctd_data_point')
@@ -204,38 +212,6 @@ class model(object):
             self.random_glider_lat_lon_shift()
             self.x = self.x + self.lon_shift
             self.y = self.y + self.lat_shift
-            self.glider_nemo['lon_offset'] = self.lon_shift
-            self.glider_nemo['lat_offset'] = self.lat_shift
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (self.ds['grid_T'].lon)
-        print (self.ds['grid_T'].lon)
-        print (self.x)
-        print (self.x)
-        print (' ')
-        print (self.ds['grid_T'].lat)
-        print (self.ds['grid_T'].lat)
-        print (self.y)
-        print (self.y)
-        print (' ')
-        print (self.ds['grid_T'].deptht.min())
-        print (self.ds['grid_T'].deptht.max())
-        print (self.giddy_raw.ctd_depth.min())
-        print (self.giddy_raw.ctd_depth.max())
-        print (' ')
-        print (self.ds['grid_T'].time_counter.min())
-        print (self.ds['grid_T'].time_counter.max())
-        print (self.giddy_raw.ctd_time.min())
-        print (self.giddy_raw.ctd_time.max())
-        print (' ')
-        print (' ')
-        print (' ')
-        #plt.figure()
-        ##plt.plot(self.ds['grid_T'].votemper)
-        #plt.plot(self.ds['grid_T'].time_counter, self.ds['grid_T'].votemper.mean(['lon','lat','deptht']))
-        #plt.show()
 
         # interpolate
         self.glider_nemo = self.ds['grid_T'].interp(lon=self.x,
@@ -247,29 +223,31 @@ class model(object):
         #glider_raw=self.glider_nemo#.isel(ctd_data_point=slice(None,250000))
 
         self.glider_nemo['dives'] = self.giddy_raw.dives
-        #plt.figure()
-        #plt.plot(self.ds['grid_T'].votemper)
-        #plt.plot(self.glider_nemo.ctd_data_point, self.glider_nemo.votemper)
-        #plt.show()
+        if random_offset:
+            self.glider_nemo['lon_offset'] = self.lon_shift
+            self.glider_nemo['lat_offset'] = self.lat_shift
+
         # drop obsolete coords
         self.glider_nemo = self.glider_nemo.drop_vars(['nav_lon',
                                                        'nav_lat'])
 
         if save:
-            self.glider_nemo.to_netcdf(self.data_path + 'glider_raw_nemo.nc')
+            self.glider_nemo.to_netcdf(self.data_path +
+                                     'GliderRandomSampling/glider_raw_nemo_' + 
+                                       ind + '.nc')
 
-    def interp_raw_obs_path_to_uniform_grid(self):
+    def interp_raw_obs_path_to_uniform_grid(self, ind=''):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
            following giddy (2020)
         '''
 
-        # Expands surface data unessacerily
-        # Need to keep this to 1d
-
-        glider_raw = xr.open_dataset(self.data_path + '/glider_raw_nemo.nc')
+        #glider_raw = xr.open_dataset(self.data_path +
+        #                             'GliderRandomSampling/glider_raw_nemo_' + 
+        #                             ind + '.nc')
                                     #chunks={'ctd_data_point': 1000})
+        glider_raw = self.glider_nemo
         glider_raw['distance'] = xr.DataArray( 
                  gt.utils.distance(glider_raw.longitude,
                                    glider_raw.latitude).cumsum(),
@@ -308,14 +286,14 @@ class model(object):
 #        print (glider_raw)  
 #        print (dskjlh)
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
-        print (uniform_distance)
+        #print (uniform_distance)
 
         glider_uniform_i = []
         #glider_raw = glider_raw.isel(ctd_data_point=slice(None,10000))
         #print (glider_raw)
         for (label, group) in glider_raw.groupby('dives'):
             # interpolate
-            print (label)
+            #print (label)
             try:
                 group = group.swap_dims({'ctd_data_point': 'ctd_depth'})
                 depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
@@ -335,7 +313,7 @@ class model(object):
                 #group = group.dropna('distance')
                 group = group.sortby('distance')
                 group = group.dropna('distance', how='all')
-                print (group.distance)
+                #print (group.distance)
                 group = group.interpolate_na('distance')
            
                 uniform = group.interp(distance=uniform_distance)
@@ -359,7 +337,9 @@ class model(object):
         #    except:
         #        print ('fail')
         #print (glider_uniform)
-        glider_uniform.to_netcdf('glider_uniform_test.nc')
+        glider_uniform.to_netcdf(self.data_path + 
+                                 'GliderRandomSampling/glider_uniform_'
+                                  + ind + '.nc')
 
     def interp_to_obs_path(self, random_offset=False):
         '''
@@ -455,8 +435,12 @@ m = model('EXP02')
 #m.save_area_mean_all()
 #m.save_area_std_all()
 #m.save_month()
-#m.interp_to_raw_obs_path(save=True)
-m.interp_raw_obs_path_to_uniform_grid()
+for ind in range(10):
+    print ('ind: ', ind)
+    m.interp_to_raw_obs_path(save=False, random_offset=True)
+    print ('done part 1')
+    m.interp_raw_obs_path_to_uniform_grid(ind=ind)
+    print ('done part 2')
 
 #print ('start')
 #m.get_conservative_temperature(save=True)
