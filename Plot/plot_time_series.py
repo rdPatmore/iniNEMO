@@ -69,13 +69,16 @@ class time_series(object):
                 self.axs[0].text(text_pos[i], 1.05, year, c=colour,
                             transform=self.axs[0].transAxes)
 
-                qt_oce = ds.qt_oce_mean.rolling(time_counter=7, center=True).mean()
+                qt_oce = ds.qt_oce_mean.rolling(time_counter=7,
+                                                center=True).mean()
                 self.axs[0].plot(qt_oce.time_counter.dt.dayofyear, qt_oce,
                                  lw=1, c=colour)
-                qns_oce = ds.qns_oce_mean.rolling(time_counter=7, center=True).mean()
+                qns_oce = ds.qns_oce_mean.rolling(time_counter=7,
+                                                  center=True).mean()
                 self.axs[1].plot(qns_oce.time_counter.dt.dayofyear, qns_oce,
                                  lw=1, c=colour)
-                qsr_oce = ds.qsr_oce_mean.rolling(time_counter=7, center=True).mean()
+                qsr_oce = ds.qsr_oce_mean.rolling(time_counter=7,
+                                                  center=True).mean()
                 self.axs[2].plot(qsr_oce.time_counter.dt.dayofyear, qsr_oce,
                                  lw=1, c=colour)
         for ax in self.axs:
@@ -96,10 +99,7 @@ class time_series(object):
 
         plt.savefig('heat_fluxes_EXP04.png', dpi=600)
 
-
     def plot_mld_sip(self, years, giddy=False, orca=False, satellite=False):
-
-        # alias case
 
         self.fig, self.axs = plt.subplots(2,1, figsize=(5.5,4.0))
 
@@ -191,8 +191,8 @@ class time_series(object):
 
         for i, (year, ds) in enumerate(self.orca.groupby('time_counter.year')): 
             colour = colours[i]
-            l, = self.axs[1].plot(ds.time_counter.dt.dayofyear, ds.siconc_mean, lw=1, 
-                                c=colour, ls=':')
+            l, = self.axs[1].plot(ds.time_counter.dt.dayofyear, ds.siconc_mean,
+                                  lw=1, c=colour, ls=':')
         return l
 
     def plot_mld_sip_add_satellite(self, colours, year):
@@ -266,6 +266,8 @@ class time_series(object):
 
 
     def plot_buoyancy_gradients(self):
+        ''' plot buoyancy gradients of model over time '''
+
         bg_stats = xr.open_dataset(config.data_path() + self.case + 
                                  '/buoyancy_gradient_stats.nc')
 

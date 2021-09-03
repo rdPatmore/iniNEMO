@@ -12,6 +12,7 @@ class buoyancy_gradients(object):
     def __init__(self, case):
         self.case = case
         self.model = model_object.model(case)
+        self.model.ds = self.model.ds['grid_T']
 
     def open_temp(self):
         ''' open t grid file '''
@@ -33,8 +34,12 @@ class buoyancy_gradients(object):
                                  chunks={'time_counter':1})
         self.ds = xr.merge([ct, abs_s, p])
 
-    def buoyancy_gradient(self):
-        ''' calculate buoyancy gradient '''
+    def mixed_layer_buoyancy_gradients(self):
+        ''' calculate mixed layer buoyancy gradient '''
+
+        # restrict data to mixed layer
+        self.model.ds = self.model.ds.where(
+                       self.model.ds.deptht < self.model.ds.mldr10_3, drop=True)
 
         #self.open_ct_as_p()
         self.model.get_conservative_temperature(save=False)
@@ -61,6 +66,10 @@ class buoyancy_gradients(object):
         #                         chunks={'time_counter':1})
         mesh_mask = xr.open_dataset(config.data_path() + self.case + 
                                  '/mesh_mask.nc').squeeze('time_counter')
+ 
+        # remove halo
+        mesh_mask = mesh_mask.isel(x=slice(1,-1), y=slice(1,-1))
+
         g = 9.81
         dx = mesh_mask.e1t.isel(x=slice(None,-1))
         dy = mesh_mask.e2t.isel(y=slice(None,-1))
@@ -161,7 +170,7 @@ class buoyancy_gradients(object):
                            '/buoyancy_gradient_stats.nc')
 
 bg = buoyancy_gradients('EXP08')
-bg.buoyancy_gradient()
+bg.mixed_layer_buoyancy_gradients()
 #bg.buoyancy_gradient_stats()
 #bg.open_temp()
 #bg.save_pressure()

@@ -27,8 +27,10 @@ class model(object):
             self.ds = {}
             #self.grid_keys = ['icemod']
             self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
-            file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
-                          '/SOCHIC_PATCH_3h_20130101_20140101_']
+            #file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
+            #              '/SOCHIC_PATCH_3h_20130101_20140101_']
+            file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
+                          '/SOCHIC_PATCH_6h_20120702_20121231_']
             for pos in self.grid_keys:
             #    self.ds[pos] = xr.open_mfdataset(self.data_path +
             #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
@@ -177,36 +179,15 @@ class model(object):
         lon_dist = glon0 - nlon0 + nlon1 - glon1
         lat_dist = glat1 - nlat1 + nlat0 - glat0
   
-        # fractional distance to bound
-        lon_frac = (glon0 - nlon0) / lon_dist
-        lat_frac = (glat0 - nlat0) / lat_dist
-
         # lat lon space to left and bottom
         left_space = glon0 - nlon0
         bottom_space = glat1 - nlat1
 
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (lon_dist)
-        print (lat_dist)
-        print (left_space)
-        print (bottom_space)
 
         # get random shifts within nemo bounds
-        self.lon_shift = (- left_space + (lon_dist * np.random.random())) * 0.8
-        self.lat_shift = (- bottom_space + (lat_dist * np.random.random())) *0.8
+        self.lon_shift = (- left_space + (lon_dist * np.random.random()))
+        self.lat_shift = (- bottom_space + (lat_dist * np.random.random()))
     
-        print (self.lon_shift)
-        print (self.lat_shift)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-
     def prep_interp_to_raw_obs(self):
         '''
         preliminary processing for sampling model like a glider
@@ -228,23 +209,20 @@ class model(object):
 
         # drop surface variables
         self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
-                            'mldr10_3', 'wfo', 'qsr_oce', 'qns_oce',
+                            'wfo', 'qsr_oce', 'qns_oce',
                             'qt_oce', 'sfx', 'taum', 'windsp',
                             'precip', 'snowpre', 'bounds_nav_lon',
                             'bounds_nav_lat', 'deptht_bounds',
                              'area', 'e3t'])
 
         # get glider lat-lons
-        self.x = xr.DataArray(self.giddy_raw.lon.values,
+        self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
                               dims='ctd_data_point')
-        self.y = xr.DataArray(self.giddy_raw.lat.values,
+        self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
                               dims='ctd_data_point')
 
         # add lat-lat lon to grid_T dimentions
         self.x_y_to_lat_lon('grid_T')
-        print (self.ds['grid_T'])
-        
-
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind=''):
         '''
@@ -257,29 +235,13 @@ class model(object):
             # this shift is centered on the model and may shift
             # glider out of bounds
             self.random_glider_lat_lon_shift()
-            self.x = self.x + self.lon_shift
-            self.y = self.y + self.lat_shift
-
-      
-        print (' ')
-        print (self.x.values)
-        print (self.y.values)
-        print (' ')
+            self.x = self.glider_lon + self.lon_shift
+            self.y = self.glider_lat + self.lat_shift
 
         # interpolate
-        self.glider_nemo = self.ds['grid_T'].interp(lon=self.x,
-                                                    lat=self.y,
+        self.glider_nemo = self.ds['grid_T'].interp(lon=self.x, lat=self.y,
                                         deptht=self.giddy_raw.ctd_depth,
                                         time_counter=self.giddy_raw.ctd_time)
-        #self.glider_nemo = self.glider_nemo.swap_dims(
-        #                                        {'distance':'time_counter'})
-        #glider_raw=self.glider_nemo#.isel(ctd_data_point=slice(None,250000))
-        print ('')
-        print ('')
-        print (self.glider_nemo.votemper.max().values)
-        print (self.glider_nemo.votemper.min().values)
-        print ('')
-        print ('')
 
         self.glider_nemo['dives'] = self.giddy_raw.dives
         if random_offset:
@@ -312,49 +274,12 @@ class model(object):
                                    glider_raw.lat).cumsum(),
                                    dims='ctd_data_point')
         glider_raw = glider_raw.set_coords('distance')
-        print (glider_raw)
-        #glider_raw=glider_raw.isel(ctd_data_point=slice(None,250000))
-        #plt.figure()
-        #plt.plot(glider_raw.ctd_data_point, glider_raw.votemper)
-        #plt.show()
 
-        # distance between samples
-        #glider_raw['distance'] = xr.DataArray(np.r_[0, 
-        #             gt.utils.distance(glider_raw.longitude,
-        #                               glider_raw.latitude).cumsum()],
-        #                               dims='ctd_data_point')
-        
-        # set distance as dimension
-        # make depth a dimension
-
-        #glider_uniform_i = glider_raw.interp(deptht=np.arange(0,999,1))
-        #print (glider_uniform_i)
-        #print (sdfhjklas)
- 
-        #reshaped = []
-        #for (label, group) in glider_raw.groupby('deptht'):
-        #    print (group)
-        #    reshaped.append(group.expand_dims('depth'))
-        #glider_raw = xr.concat(reshaped, dim='depth')
-
-        #def expand_depth_dim(ds):
-        #    return ds.expand_dims('depht')
-   
-        #glider_raw.groupby('deptht').map(expand_depth_dim)
-#
-#        print (glider_raw)  
-#        print (dskjlh)
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
-        #print (uniform_distance)
 
         glider_uniform_i = []
-        #glider_raw = glider_raw.isel(ctd_data_point=slice(None,10000))
-        #print (glider_raw)
-        #glider_raw = glider_raw.dropna('ctd_data_point', how='all')
         # interpolate to 1 m vertical grid
         for (label, group) in glider_raw.groupby('dives'):
-            #print (label)
-            #try:
             if group.sizes['ctd_data_point'] < 2:
                 continue
             group = group.swap_dims({'ctd_data_point': 'ctd_depth'})
@@ -364,22 +289,15 @@ class model(object):
             group = group.isel(ctd_depth=index)
 
             depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
-            #depth_uniform = depth_uniform.reset_coords(
-            #['lat','lon','latitude','longitude','ctd_depth'])
             uniform = depth_uniform.expand_dims(dive=[label])
             glider_uniform_i.append(uniform)
-            #except:
-            #    print ('fail 1')
         glider_uniform = xr.concat(glider_uniform_i, dim='dive')
-        print (glider_uniform)
 
         # interpolate to 1 km horzontal grid
         glider_uniform_i = []
         for (label, group) in glider_uniform.groupby('ctd_depth'):
-            #try:
             group = group.swap_dims({'dive': 'distance'})
                 
-            #group = group.dropna('distance')
             group = group.sortby('distance')
             group = group.dropna('distance', how='all')
 
@@ -391,25 +309,9 @@ class model(object):
            
             uniform = group.interp(distance=uniform_distance)
             glider_uniform_i.append(uniform)
-            #except ValueError:
-            #    print ('fail 2')
 
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
-        #glider_uniform_i = []
-        #for (label, group) in glider_raw.groupby('dives'):
-        #    try:
-        #        #depth_uniform = depth_uniform.sortby('distance')
-        #        #plt.figure()
-        #        #plt.plot(depth_uniform.distance)
-        #        #plt.show()
-        #        depth_uniform = depth_uniform.dropna('distance')
-        #        print (depth_uniform.distance.values)
-        #        depth_uniform = depth_uniform.interpolate_na('distance')
-        #        uniform = uniform.expand_dims(dive=[label])
-        #        glider_uniform_i.append(uniform)
-        #    except:
-        #        print ('fail')
-        #print (glider_uniform)
+
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
                                   + str(ind) + '.nc')
@@ -503,23 +405,23 @@ class model(object):
         encoding = {var: comp for var in jan.data_vars}
         jan.to_netcdf(self.data_path + 'SOCHIC_201201_T.nc', encoding=encoding)
 
-
-m = model('EXP02')
-#m.save_area_mean_all()
-#m.save_area_std_all()
-#m.save_month()
-m.prep_interp_to_raw_obs()
-for ind in range(10):
-    print ('ind: ', ind)
-    m.interp_to_raw_obs_path(save=False, random_offset=True)
-    print ('done part 1')
-    m.interp_raw_obs_path_to_uniform_grid(ind=ind)
-    print ('done part 2')
-
-#print ('start')
-#m.get_conservative_temperature(save=True)
-#print ('part1/3')
-#m.get_absolute_salinity(save=True)
-#print ('part2/3')
-#m.get_alpha_and_beta(save=True)
-#print ('part3/3... end')
+if __name__ == '__main__':
+    m = model('EXP10')
+    m.save_area_mean_all()
+    m.save_area_std_all()
+    #m.save_month()
+    #m.prep_interp_to_raw_obs()
+    #for ind in range(100):
+    #    print ('ind: ', ind)
+    #    m.interp_to_raw_obs_path(save=False, random_offset=True)
+    #    print ('done part 1')
+    #    m.interp_raw_obs_path_to_uniform_grid(ind=ind)
+    #    print ('done part 2')
+    
+    #print ('start')
+    #m.get_conservative_temperature(save=True)
+    #print ('part1/3')
+    #m.get_absolute_salinity(save=True)
+    #print ('part2/3')
+    #m.get_alpha_and_beta(save=True)
+    #print ('part3/3... end')
