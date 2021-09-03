@@ -150,7 +150,7 @@ class glider_nemo(object):
         
     def histogram_buoyancy_gradient(self):
         ''' 
-        plot histogram of buoyancy gradient comparision for diffirent
+        plot histogram of buoyancy gradient comparision for different
         sampling methods
         '''
         plt.figure()
