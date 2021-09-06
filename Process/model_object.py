@@ -27,17 +27,17 @@ class model(object):
             self.ds = {}
             #self.grid_keys = ['icemod']
             self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
-            #file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
-            #              '/SOCHIC_PATCH_3h_20130101_20140101_']
-            file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
-                          '/SOCHIC_PATCH_6h_20120702_20121231_']
+            self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
+                          '/SOCHIC_PATCH_3h_20130101_20140101_']
+            #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
+            #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
             for pos in self.grid_keys:
             #    self.ds[pos] = xr.open_mfdataset(self.data_path +
             #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
             #              chunks={'time_counter':100}, decode_cf=False)
             #                #compat='different', coords='all',
                 data_set = []
-                for file_name in file_names:
+                for file_name in self.file_names:
                     data = xr.open_dataset(self.data_path +
                                 file_name + pos + '.nc',
                               chunks={'time_counter':10}, decode_cf=False)
@@ -111,29 +111,34 @@ class model(object):
         self.ds[grid] = self.ds[grid].swap_dims({'x':'lon', 'y':'lat'})
 
     def get_pressure(self, save=False):
-        ''' calculate pressure from sea surface height '''
-        self.ds['p'] = gsw.p_from_z(self.ds.zos, self.ds.nav_lat)
+        ''' calculate pressure from depth '''
+        self.ds['grid_T']['p'] = gsw.p_from_z(-self.ds['grid_T'].deptht,
+                                               self.ds['grid_T'].nav_lat)
  
         if save:
-            self.ds.p.to_netcdf(config.data_path() + self.case + '/p.nc')
+            self.ds['grid_T'].p.to_netcdf(config.data_path() +
+                                          self.case + '/p.nc')
 
     def get_conservative_temperature(self, save=False):
         ''' calulate conservative temperature '''
-        self.ds['cons_temp'] = gsw.conversions.CT_from_pt(self.ds.vosaline,
-                                                          self.ds.votemper)
+        self.ds['grid_T']['cons_temp'] = gsw.conversions.CT_from_pt(
+                                                     self.ds['grid_T'].vosaline,
+                                                     self.ds['grid_T'].votemper)
         if save:
-            self.ds.cons_temp.to_netcdf(config.data_path() + self.case + 
+            self.ds['grid_T'].cons_temp.to_netcdf(
+                                     config.data_path() + self.case + 
                                     '/conservative_temperature.nc')
 
     def get_absolute_salinity(self, save=False):
         ''' calulate absolute_salinity '''
         self.get_pressure()
-        self.ds['abs_sal'] = gsw.conversions.SA_from_SP(self.ds.vosaline, 
-                                                        self.ds.p,
-                                                        self.ds.nav_lon,
-                                                        self.ds.nav_lat)
+        data = self.ds['grid_T']
+        data['abs_sal'] = gsw.conversions.SA_from_SP(data.vosaline, 
+                                                     data.p,
+                                                     data.nav_lon,
+                                                     data.nav_lat)
         if save:
-            self.ds.abs_sal.to_netcdf(config.data_path() + self.case + 
+            data.abs_sal.to_netcdf(config.data_path() + self.case + 
                                   '/absolute_salinity.nc')
 
     def get_alpha_and_beta(self, save=False):
@@ -147,10 +152,26 @@ class model(object):
         if save:
             self.ds.alpha.to_netcdf(config.data_path() + 'alpha.nc')
             self.ds.beta.to_netcdf(config.data_path() + 'beta.nc')
-    
 
+    def get_rho(self):
+        '''
+        calculate buoyancy from conservative temperature and
+        absolute salinity    
+        '''
+        
+        # load temp, sal, alpha, beta
+        ct = xr.open_dataset(self.data_path +
+                             '/conservative_temperature.nc').cons_temp
+        a_sal = xr.open_dataset(self.data_path +
+                                '/absolute_salinity.nc').abs_sal
+        p = xr.open_dataset(self.data_path + '/p.nc').p
 
+        rho = gsw.density.sigma0(a_sal, ct) + 1000
+        #rho = rho.isel(x=slice(1,-1), y=slice(1,-1))
 
+        # save
+        rho.name = 'rho'
+        rho.load().to_netcdf(self.data_path + 'rho.nc')
         
     def get_nemo_glider_time(self, start_month='01'):
         ''' take a time sample based on time difference in glider sample '''
@@ -159,7 +180,7 @@ class model(object):
         start_date = np.datetime64('2012-' + start_month + '-01 00:00:00')
         time_span = start_date + time_diff
         return time_span
-        #self.ds = self.ds.interp(time_counter=time_span.values, method='nearest')
+    #self.ds = self.ds.interp(time_counter=time_span.values, method='nearest')
         
     def random_glider_lat_lon_shift(self, grid='grid_T'):
 
@@ -193,6 +214,9 @@ class model(object):
         preliminary processing for sampling model like a glider
         '''
         
+        rho = xr.open_dataarray(self.data_path + 'rho.nc')
+        self.ds['grid_T'] = xr.merge([self.ds['grid_T'], rho])
+
         # shift glider time to nemo time
         time_delta = (np.datetime64('2018') 
                     - np.datetime64('2012')).astype('timedelta64[ns]')
@@ -215,6 +239,7 @@ class model(object):
                             'bounds_nav_lat', 'deptht_bounds',
                              'area', 'e3t'])
 
+        
         # get glider lat-lons
         self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
                               dims='ctd_data_point')
@@ -276,6 +301,7 @@ class model(object):
         glider_raw = glider_raw.set_coords('distance')
 
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
+        print (self.glider_raw)
 
         glider_uniform_i = []
         # interpolate to 1 m vertical grid
@@ -312,9 +338,57 @@ class model(object):
 
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
 
+        # add mixed layer depth
+        glider_uniform = self.get_mld_from_interpolated_glider(glider_uniform)
+
+        # add buoyancy gradient
+        glider_uniform = self.buoyancy_gradients_in_mld_from_interp_data(
+                              glider_uniform)
+
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
                                   + str(ind) + '.nc')
+
+    def get_mld_from_interpolated_glider(self, glider_sample,
+                                         ref_depth=10, threshold=0.03):
+        '''
+        Use giddy method for finding mixed layer depth
+        Use on uniformly interpolated glider sampled
+        add quanitites to random samples
+        '''
+         
+        mld_set = []
+        for i in range(len(glider_sample.rho[1,:])):
+            density_i = glider_sample.rho.isel(distance=i)
+            density_ref = density_i.sel(ctd_depth=ref_depth, method='nearest')
+            dens_diff = np.abs(density_i-density_ref)
+            mld_i = glider_sample.deptht.where(dens_diff >= threshold).min()
+            mld_set.append(mld_i)
+        mld = xr.concat(mld_i, dim='distance')
+
+        glider_sample['mld'] = mld
+        return glider_sample
+
+    def buoyancy_gradients_in_mld_from_interp_data(self, glider_sample):
+        '''
+        add buoyancy gradients to randomly sampled and
+        uniformly interpolated model data
+        '''
+       
+        # constants
+        g = 9.81
+        rho_0 = 1027 
+        dx = 1000
+
+        # buoyancy gradient
+        b = g * (1 - glider_sample.rho / rho_0)
+        b_x = b.diff('distance') / dx
+
+        # buoyancy within mixed layer
+        glider_sample['b_x_ml'] = glider_sample.where( 
+                            glider_sample.deptht < glider_sample.mld, drop=True)
+        return glider_sample
+
 
     def interp_to_obs_path(self, random_offset=False):
         '''
@@ -338,7 +412,6 @@ class model(object):
             self.random_glider_lat_lon_shift()
             self.x = self.x + self.lon_shift
             self.y = self.y + self.lat_shift
-
 
         # get time bounds
         time_delta = (np.datetime64('2018') 
@@ -406,17 +479,19 @@ class model(object):
         jan.to_netcdf(self.data_path + 'SOCHIC_201201_T.nc', encoding=encoding)
 
 if __name__ == '__main__':
-    m = model('EXP10')
-    m.save_area_mean_all()
-    m.save_area_std_all()
+    m = model('EXP02')
+    #m.save_area_mean_all()
+    #m.save_area_std_all()
     #m.save_month()
-    #m.prep_interp_to_raw_obs()
-    #for ind in range(100):
-    #    print ('ind: ', ind)
-    #    m.interp_to_raw_obs_path(save=False, random_offset=True)
-    #    print ('done part 1')
-    #    m.interp_raw_obs_path_to_uniform_grid(ind=ind)
-    #    print ('done part 2')
+    #m.get_conservative_temperature(save=True)
+    #m.get_rho()
+    m.prep_interp_to_raw_obs()
+    for ind in range(1):
+        print ('ind: ', ind)
+        m.interp_to_raw_obs_path(save=False, random_offset=True)
+        print ('done part 1')
+        m.interp_raw_obs_path_to_uniform_grid(ind=ind)
+        print ('done part 2')
     
     #print ('start')
     #m.get_conservative_temperature(save=True)
