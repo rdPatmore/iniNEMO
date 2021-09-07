@@ -300,8 +300,15 @@ class model(object):
                                    dims='ctd_data_point')
         glider_raw = glider_raw.set_coords('distance')
 
+        # make time a variable so it doesn't dissapear on interp
+        glider_raw = glider_raw.reset_coords('time_counter')
+
+        # change time units for interpolation 
+        timedelta = glider_raw.time_counter-np.datetime64('1971-01-01')
+        glider_raw['time_counter'] = timedelta.astype('timedelta64[s]'
+                                ).astype(np.int32)
+
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
-        print (self.glider_raw)
 
         glider_uniform_i = []
         # interpolate to 1 m vertical grid
@@ -313,10 +320,13 @@ class model(object):
             # remove duplicate index values
             _, index = np.unique(group['ctd_depth'], return_index=True)
             group = group.isel(ctd_depth=index)
-
+        
+            # interpolate
             depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
+
             uniform = depth_uniform.expand_dims(dive=[label])
             glider_uniform_i.append(uniform)
+
         glider_uniform = xr.concat(glider_uniform_i, dim='dive')
 
         # interpolate to 1 km horzontal grid
@@ -337,6 +347,11 @@ class model(object):
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
+
+        # convert time units back to datetime64
+        unit = "seconds since 1971-01-01"
+        depth_uniform.time_counter.attrs['units'] = unit
+        depth_uniform = xr.decode_cf(depth_uniform)
 
         # add mixed layer depth
         glider_uniform = self.get_mld_from_interpolated_glider(glider_uniform)
@@ -364,7 +379,7 @@ class model(object):
             dens_diff = np.abs(density_i-density_ref)
             mld_i = glider_sample.deptht.where(dens_diff >= threshold).min()
             mld_set.append(mld_i)
-        mld = xr.concat(mld_i, dim='distance')
+        mld = xr.concat(mld_set, dim='distance')
 
         glider_sample['mld'] = mld
         return glider_sample
@@ -385,7 +400,7 @@ class model(object):
         b_x = b.diff('distance') / dx
 
         # buoyancy within mixed layer
-        glider_sample['b_x_ml'] = glider_sample.where( 
+        glider_sample['b_x_ml'] = b_x.where( 
                             glider_sample.deptht < glider_sample.mld, drop=True)
         return glider_sample
 
@@ -486,7 +501,7 @@ if __name__ == '__main__':
     #m.get_conservative_temperature(save=True)
     #m.get_rho()
     m.prep_interp_to_raw_obs()
-    for ind in range(1):
+    for ind in range(100):
         print ('ind: ', ind)
         m.interp_to_raw_obs_path(save=False, random_offset=True)
         print ('done part 1')

@@ -19,12 +19,13 @@ class bootstrap_glider_samples(object):
             ds = ds.expand_dims('sample')
             return ds
         self.samples = xr.open_mfdataset(self.data_path + 
-                                         'GliderRandomSampling/glider_uniform_6*.nc',
+                                    'GliderRandomSampling/glider_uniform_6*.nc',
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim)
         print (self.samples)
         self.model_rho = xr.open_dataset(self.data_path + 'rho.nc')
         
+        # time is missing from data need to solve
         self.cut_model_time()
 
 
@@ -45,10 +46,14 @@ class bootstrap_glider_samples(object):
         random = int(np.random.random(set_size) * set_size)
 
         # select from sample set using random as index
-         
+        # add random as an index
+        # sortby according to random         
     
         # reshape accoring to n 
-   
+        
+        # average and std of each sample set
+
+        # plot histogram 
         
 
         
@@ -64,7 +69,7 @@ class bootstrap_glider_samples(object):
         data = data.interp(time_counter=time_span.values, method='nearest')
         return data
 
-    def histogram_buoyancy_gradient(self):
+    def histogram_buoyancy_gradient(self, bg):
         ''' 
         plot histogram of buoyancy gradients 
         '''

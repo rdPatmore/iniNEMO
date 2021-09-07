@@ -1,0 +1,10 @@
+moving on bootstap
+
+need to try and keep time when sampling 
+           (Process/model_object,  interp_raw_obs_path_to_uniform_grid())
+
+after this, check rho and buoyancy grads have been sampled ok
+           (Process/model_object)
+
+the get bootstrap calc and plotting going
+           (Plot/plot_bootstrap_glider_sampling)
