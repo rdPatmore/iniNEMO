@@ -286,7 +286,7 @@ class model(object):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
-           following giddy (2020)
+    der_uniform_       following giddy (2020)
         '''
 
         #glider_raw = xr.open_dataset(self.data_path +
@@ -302,11 +302,11 @@ class model(object):
 
         # make time a variable so it doesn't dissapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
+        #glider_raw = glider_raw.isel(ctd_data_point=slice(0,100))
 
         # change time units for interpolation 
-        timedelta = glider_raw.time_counter-np.datetime64('1971-01-01')
-        glider_raw['time_counter'] = timedelta.astype('timedelta64[s]'
-                                ).astype(np.int32)
+        timedelta = glider_raw.time_counter-np.datetime64('1971-01-01 00:00:00')
+        glider_raw['time_counter'] = timedelta.astype(np.int64)
 
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
 
@@ -329,6 +329,7 @@ class model(object):
 
         glider_uniform = xr.concat(glider_uniform_i, dim='dive')
 
+
         # interpolate to 1 km horzontal grid
         glider_uniform_i = []
         for (label, group) in glider_uniform.groupby('ctd_depth'):
@@ -349,7 +350,9 @@ class model(object):
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
 
         # convert time units back to datetime64
-        unit = "seconds since 1971-01-01"
+        glider_uniform['time_counter'] = glider_uniform.time_counter / 1e9 
+
+        unit = "seconds since 1971-01-01 00:00:00"
         depth_uniform.time_counter.attrs['units'] = unit
         depth_uniform = xr.decode_cf(depth_uniform)
 
@@ -362,7 +365,7 @@ class model(object):
 
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
-                                  + str(ind) + '.nc')
+                                  + str(ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):

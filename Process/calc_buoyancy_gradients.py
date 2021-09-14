@@ -13,6 +13,8 @@ class buoyancy_gradients(object):
         self.case = case
         self.model = model_object.model(case)
         self.model.ds = self.model.ds['grid_T']
+        self.model.ds['rho'] = xr.open_dataarray(config.data_path() + case + 
+                                               '/rho.nc')
 
     def open_temp(self):
         ''' open t grid file '''
@@ -41,65 +43,39 @@ class buoyancy_gradients(object):
         self.model.ds = self.model.ds.where(
                        self.model.ds.deptht < self.model.ds.mldr10_3, drop=True)
 
-        #self.open_ct_as_p()
-        self.model.get_conservative_temperature(save=False)
-        print ('part1/3')
-        self.model.get_absolute_salinity(save=False)
-        print ('part2/3')
-        self.model.get_alpha_and_beta(save=False)
-        print ('part3/3... end')
-        CT = self.model.ds.cons_temp
-        AS = self.model.ds.abs_sal
-        alpha = self.model.ds.alpha
-        beta = self.model.ds.beta
-        #CT = xr.open_dataarray(config.data_path() + self.case + 
-        #                         '/conservative_temperature.nc',
-        #                         chunks={'time_counter':1})
-        #AS = xr.open_dataarray(config.data_path() + self.case + 
-        #                         '/absolute_salinity.nc',
-        #                         chunks={'time_counter':1})
-        #alpha = xr.open_dataarray(config.data_path() + self.case + 
-        #                         '/alpha.nc',
-        #                         chunks={'time_counter':1})
-        #beta = xr.open_dataarray(config.data_path() + self.case + 
-        #                         '/beta.nc',
-        #                         chunks={'time_counter':1})
+
         mesh_mask = xr.open_dataset(config.data_path() + self.case + 
                                  '/mesh_mask.nc').squeeze('time_counter')
  
         # remove halo
         mesh_mask = mesh_mask.isel(x=slice(1,-1), y=slice(1,-1))
 
+        # constants
         g = 9.81
+        rho_0 = 1027
+
+        # mesh
         dx = mesh_mask.e1t.isel(x=slice(None,-1))
         dy = mesh_mask.e2t.isel(y=slice(None,-1))
-        alphax = alpha.isel(x=slice(None,-1))
-        alphay = alpha.isel(y=slice(None,-1))
-        betax = beta.isel(x=slice(None,-1))
-        betay = beta.isel(y=slice(None,-1))
-        #dCT_dx = self.ds.cons_temp.diff('x') / dx
-        #dCT_dy = self.ds.cons_temp.diff('y') / dy
-        #dAS_dx = self.ds.abs_sal.diff('x') / dx
-        #dAS_dy = self.ds.abs_sal.diff('y') / dy
-        dCT_dx = CT.diff('x') / dx
-        dCT_dy = CT.diff('y') / dy
-        dAS_dx = AS.diff('x') / dx
-        dAS_dy = AS.diff('y') / dy
-        buoyancy_gradient_x = g * ( alphax * dCT_dx - betax * dAS_dx ) 
-        buoyancy_gradient_y = g * ( alphay * dCT_dy - betay * dAS_dy ) 
+
+        # buoyancy gradient
+        buoyancy = g * (1 - self.model.ds.rho / rho_0)
+        buoyancy_gradient_x = buoyancy.diff('x') / dx
+        buoyancy_gradient_y = buoyancy.diff('y') / dy
+
         buoyancy_gradient_x.name = 'bgx'
         buoyancy_gradient_y.name = 'bgy'
 
         # hack to reassign coords ( unknown why these partially dissapear ) 
-        buoyancy_gradient_x = buoyancy_gradient_x.assign_coords({
-                              'nav_lon':alphax.nav_lon,
-                              'nav_lat':alphax.nav_lat})
-        buoyancy_gradient_y = buoyancy_gradient_y.assign_coords({
-                              'nav_lon':alphay.nav_lon,
-                              'nav_lat':alphay.nav_lat})
+        #buoyancy_gradient_x = buoyancy_gradient_x.assign_coords({
+        #                      'nav_lon':alphax.nav_lon,
+        #                      'nav_lat':alphax.nav_lat})
+        #buoyancy_gradient_y = buoyancy_gradient_y.assign_coords({
+        #                      'nav_lon':alphay.nav_lon,
+        #                      'nav_lat':alphay.nav_lat})
 
-        bg = xr.merge([buoyancy_gradient_x.isel(x=slice(1,-1),y=slice(1,-2)),
-                       buoyancy_gradient_y.isel(x=slice(1,-2),y=slice(1,-1))])
+        bg = xr.merge([buoyancy_gradient_x.isel(y=slice(1,None)),
+                       buoyancy_gradient_y.isel(x=slice(1,None))])
         bg.to_netcdf(config.data_path() + self.case + 
                     '/buoyancy_gradients.nc')
 
@@ -169,7 +145,7 @@ class buoyancy_gradients(object):
         bg_stats.to_netcdf(config.data_path() + self.case + 
                            '/buoyancy_gradient_stats.nc')
 
-bg = buoyancy_gradients('EXP08')
+bg = buoyancy_gradients('EXP02')
 bg.mixed_layer_buoyancy_gradients()
 #bg.buoyancy_gradient_stats()
 #bg.open_temp()
