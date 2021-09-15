@@ -255,7 +255,6 @@ class model(object):
         using giddy (2020)
         '''
 
-
         if random_offset:
             # this shift is centered on the model and may shift
             # glider out of bounds
@@ -263,12 +262,15 @@ class model(object):
             self.x = self.glider_lon + self.lon_shift
             self.y = self.glider_lat + self.lat_shift
 
+        # lon lat gets overriden if these remain
+        self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])
+
         # interpolate
         self.glider_nemo = self.ds['grid_T'].interp(lon=self.x, lat=self.y,
-                                        deptht=self.giddy_raw.ctd_depth,
-                                        time_counter=self.giddy_raw.ctd_time)
+                                     deptht=self.giddy_raw_no_ll.ctd_depth,
+                                     time_counter=self.giddy_raw_no_ll.ctd_time)
 
-        self.glider_nemo['dives'] = self.giddy_raw.dives
+        self.glider_nemo['dives'] = self.giddy_raw_no_ll.dives
         if random_offset:
             self.glider_nemo.attrs['lon_offset'] = self.lon_shift.values
             self.glider_nemo.attrs['lat_offset'] = self.lat_shift.values
@@ -286,7 +288,7 @@ class model(object):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
-    der_uniform_       following giddy (2020)
+           following giddy (2020)
         '''
 
         #glider_raw = xr.open_dataset(self.data_path +
@@ -305,7 +307,7 @@ class model(object):
         #glider_raw = glider_raw.isel(ctd_data_point=slice(0,100))
 
         # change time units for interpolation 
-        timedelta = glider_raw.time_counter-np.datetime64('1971-01-01 00:00:00')
+        timedelta = glider_raw.time_counter-np.datetime64('1970-01-01 00:00:00')
         glider_raw['time_counter'] = timedelta.astype(np.int64)
 
         uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
@@ -352,9 +354,9 @@ class model(object):
         # convert time units back to datetime64
         glider_uniform['time_counter'] = glider_uniform.time_counter / 1e9 
 
-        unit = "seconds since 1971-01-01 00:00:00"
-        depth_uniform.time_counter.attrs['units'] = unit
-        depth_uniform = xr.decode_cf(depth_uniform)
+        unit = "seconds since 1970-01-01 00:00:00"
+        glider_uniform.time_counter.attrs['units'] = unit
+        glider_uniform = xr.decode_cf(glider_uniform)
 
         # add mixed layer depth
         glider_uniform = self.get_mld_from_interpolated_glider(glider_uniform)
@@ -362,6 +364,7 @@ class model(object):
         # add buoyancy gradient
         glider_uniform = self.buoyancy_gradients_in_mld_from_interp_data(
                               glider_uniform)
+
 
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
