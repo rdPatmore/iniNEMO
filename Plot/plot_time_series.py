@@ -6,13 +6,13 @@ import numpy as np
 
 class time_series(object):
 
-    def __init__(self, cases):
+    def __init__(self, cases, title_list):
         self.path = config.data_path()
         self.root = config.root()
 
         self.cases = {}
 
-        for case in cases:
+        for i, case in enumerate(cases):
             print (self.path + case)
             mean = xr.open_mfdataset(self.path + case + 
                                '/Stats/SOCHIC_PATCH_mean*.nc',
@@ -23,6 +23,7 @@ class time_series(object):
                                compat='override', coords='different',
                                chunks={'time_counter':10})
             self.cases[case] = xr.merge([mean, std])
+            self.cases[case].attrs['title'] = title_list[i]
 
         #self.cases[year] = self.cases[year].drop_vars('time_instant')
         #self.cases[year] = xr.decode_cf(self.cases[year])
@@ -60,7 +61,7 @@ class time_series(object):
         self.fig, self.axs = plt.subplots(3, 1, figsize=(5.5,4.0))
         plt.subplots_adjust(left=0.16)
 
-        colours = ['royalblue', 'orange', 'olivedrab']
+        colours = ['royalblue', 'orange', 'red']
         text_pos = [0.05, 0.2, 0.35]
 
         for (case, data) in self.cases.items():
@@ -104,15 +105,28 @@ class time_series(object):
         self.fig, self.axs = plt.subplots(2,1, figsize=(5.5,4.0))
 
         colours = ['royalblue', 'orange', 'olivedrab']
-        text_pos = [0.05, 0.2, 0.35]
-
+        text_pos = [0.05, 0.18, 0.5]
+        
+        year_len = len(years)
          
-        for (case, data) in self.cases.items():
-            #data = data.sel(time_counter=years[0])
+        for j, (case, data) in enumerate(self.cases.items()):
+            if year_len == 1:
+                if case == 'EXP04':
+                    data = data.sel(time_counter='2013')
+                else:
+                    data = data.sel(time_counter=years[0])
+            # add case label
+            if len(self.cases) > 1:
+                colour = colours[j]
+                self.axs[0].text(text_pos[j], 1.05, data.title,
+                                 c=colour, transform=self.axs[0].transAxes)
             for i, (year, ds) in enumerate(data.groupby('time_counter.year')): 
-                colour = colours[i]
-                self.axs[0].text(text_pos[i], 1.05, year, c=colour,
-                            transform=self.axs[0].transAxes)
+                print ('year', year)
+                # add year label
+                if year_len > 1:
+                    colour = colours[i]
+                    self.axs[0].text(text_pos[i], 1.05, year, c=colour,
+                                transform=self.axs[0].transAxes)
                 print ('mld_std')
                 upper = (ds.mldr10_3_mean + 2 * ds.mldr10_3_std)
                 print ('upper')
@@ -121,11 +135,10 @@ class time_series(object):
 
                 # plot mixed layer depth
                 self.axs[0].fill_between(ds.time_counter.dt.dayofyear, 
-                                    lower, upper, alpha=0.2, color=colour,
+                                    lower, upper, alpha=0.3, color=colour,
                                     ec=None)
                 print ('plt1')
-                self.axs[0].plot(ds.time_counter.dt.dayofyear, ds.mldr10_3_mean, lw=1, 
-                            c=colour)
+                self.axs[0].plot(ds.time_counter.dt.dayofyear, ds.mldr10_3_mean,                                 lw=1, c=colour)
                 print ('plt2')
 
                 print ('siconc')
@@ -161,9 +174,9 @@ class time_series(object):
             lines.append(self.plot_mld_sip_add_satellite(colours, years))
             labels.append('satellite obs.')
         
-        self.axs[0].legend(lines, labels, fontsize=8)
+        #self.axs[0].legend(lines, labels, fontsize=8)
 
-        plt.savefig('mld_siconc_EXP04_all_with_giddy.png', dpi=600)
+        plt.savefig('mld_siconc_swap_forcing_year_13.png', dpi=600)
 
     def plot_mld_sip_add_giddy(self):
         ''' add giddy to mix layer depth '''
@@ -290,8 +303,9 @@ class time_series(object):
         plt.show()
 
 
-ds = time_series(['EXP04'])
-ds.plot_mld_sip(['2014'], giddy=True, orca=True, satellite=True)
+ds = time_series(['EXP04','EXP11','EXP12'], ['2013','up 2013, lat 2012',
+                                                  'up 2012, lat 2013'])
+ds.plot_mld_sip(['2012'], giddy=False, orca=False, satellite=False)
 #ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True)
 #ds.plot_heat_fluxes(['2012', '2013', '2014'])
 #ds.add_orca12_sip()

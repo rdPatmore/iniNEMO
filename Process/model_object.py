@@ -5,6 +5,7 @@ import gsw
 import dask
 import matplotlib.pyplot as plt
 import glidertools as gt
+from math import radians, cos, sin, asin, sqrt
 
 #dask.config.set(scheduler='single-threaded')
 
@@ -23,48 +24,54 @@ class model(object):
                 except:
                     print ('no win', var)
             return ds.reset_coords(drop=True)
-        with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-            self.ds = {}
-            #self.grid_keys = ['icemod']
-            self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
-            self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
-                          '/SOCHIC_PATCH_3h_20130101_20140101_']
-            #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
-            #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
-            for pos in self.grid_keys:
-            #    self.ds[pos] = xr.open_mfdataset(self.data_path +
-            #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
-            #              chunks={'time_counter':100}, decode_cf=False)
-            #                #compat='different', coords='all',
-                data_set = []
-                for file_name in self.file_names:
-                    data = xr.open_dataset(self.data_path +
-                                file_name + pos + '.nc',
-                              chunks={'time_counter':10}, decode_cf=False)
-                    try:
-                        data = data.drop(['sbt','mldr10_1','mldkz5'])
-                    except:
-                        print ('no drop')
-                    try:
-                        data = data.drop(['vocetr_eff'])
-                    except:
-                        print ('no drop')
-                    try:
-                        data = data.drop(['difvho','vovematr','av_wave',
-                                          'bflx_iwm','pcmap_iwm','emix_iwm',
-                                          'av_ratio'])
-                    except:
-                        print ('no drop')
-                    data_set.append(data) 
-                self.ds[pos] = xr.concat(data_set, dim='time_counter',
-                                                   data_vars='minimal',
-                                                   coords='minimal')
-                self.ds[pos] = xr.decode_cf(self.ds[pos])
-                self.ds[pos] = self.ds[pos].isel(x=slice(1,-1), y=slice(1,-1))
-            #self.ds = self.ds.drop_vars('time_instant')
+        #with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+        self.ds = {}
+        self.grid_keys = ['icemod']
+        self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
+        self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
+                      '/SOCHIC_PATCH_3h_20130101_20140101_']
+        #self.file_names = ['/SOCHIC_PATCH_24h_20120101_20121231_']
+        #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
+        #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
+        for pos in self.grid_keys:
+        #    self.ds[pos] = xr.open_mfdataset(self.data_path +
+        #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
+        #              chunks={'time_counter':100}, decode_cf=False)
+        #                #compat='different', coords='all',
+            data_set = []
+            for file_name in self.file_names:
+                data = xr.open_dataset(self.data_path +
+                            file_name + pos + '.nc',
+                          chunks={'time_counter':1},
+                          decode_cf=False)
+                try:
+                    data = data.drop(['sbt','mldr10_1','mldkz5'])
+                except:
+                    print ('no drop')
+                try:
+                    data = data.drop(['vocetr_eff'])
+                except:
+                    print ('no drop')
+                try:
+                    data = data.drop(['difvho','vovematr','av_wave',
+                                      'bflx_iwm','pcmap_iwm','emix_iwm',
+                                      'av_ratio'])
+                except:
+                    print ('no drop')
+                data_set.append(data) 
+            self.ds[pos] = xr.concat(data_set, dim='time_counter',
+                                               data_vars='minimal',
+                                               coords='minimal')
+            self.ds[pos] = xr.decode_cf(self.ds[pos])
+            self.ds[pos] = self.ds[pos].isel(x=slice(1,-1), y=slice(1,-1))
+        #self.ds = self.ds.drop_vars('time_instant')
         #self.ds = xr.open_mfdataset(self.data_path + '/SOCHIC_201201_T.nc',
         #                            #compat='override',coords='minimal',
         #                            chunks={'time_counter':10})#, 'x':10,'y':10})
+        #self.data = xr.open_dataset(self.data_path +
+        #            self.file_names[0] + 'grid_T.nc',
+        #          chunks={'time_counter':1},
+        #          decode_cf=False)
 
         # load obs
         self.giddy     = xr.open_dataset(self.root + 
@@ -209,7 +216,119 @@ class model(object):
         self.lon_shift = (- left_space + (lon_dist * np.random.random()))
         self.lat_shift = (- bottom_space + (lat_dist * np.random.random()))
     
-    def prep_interp_to_raw_obs(self):
+    def resample_original_raw_glider_path(self, sample_dist):
+        print (self.giddy_raw)
+        self.giddy_raw['distance'] = xr.DataArray( 
+                 gt.utils.distance(self.giddy_raw.lon,
+                                   self.giddy_raw.lat).cumsum(),
+                                   dims='ctd_data_point')
+        self.giddy_raw = self.giddy_raw.set_coords('distance')
+        self.giddy_raw = self.giddy_raw.swap_dims(
+                                                 {'ctd_data_point': 'distance'})
+
+        # remove duplicate index values
+        _, index = np.unique(self.giddy_raw['distance'], return_index=True)
+        self.giddy_raw = self.giddy_raw.isel(distance=index)
+
+        distance_interp = np.arange(0,self.giddy_raw.distance.max(),
+                                    sample_dist)
+        # change time units for interpolation 
+        timedelta = self.giddy_raw.ctd_time-np.datetime64('1970-01-01 00:00:00')
+        self.giddy_raw['ctd_time'] = timedelta.astype(np.int64)
+
+        self.giddy_raw = self.giddy_raw.interp(distance=distance_interp)
+
+        # convert time units back to datetime64
+        self.giddy_raw['ctd_time'] = self.giddy_raw.ctd_time / 1e9 
+        unit = "seconds since 1970-01-01 00:00:00"
+        self.giddy_raw.ctd_time.attrs['units'] = unit
+        self.giddy_raw = xr.decode_cf(self.giddy_raw)
+        self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
+        self.giddy_raw = self.giddy_raw.drop('distance')
+
+    def mould_glider_path_to_shape(self, sample_dist):
+        '''
+        take distance in glider path reshape the path along distance
+        preserving dives and depth
+        '''
+
+        # first shape is a square
+        length_dist = 4000 # meters
+         
+        self.giddy_raw['distance'] = xr.DataArray( 
+                 gt.utils.distance(self.giddy_raw.lon,
+                                   self.giddy_raw.lat).cumsum(),
+                                   dims='ctd_data_point')
+        self.giddy_raw = self.giddy_raw.set_coords('distance')
+        self.giddy_raw = self.giddy_raw.swap_dims(
+                                                 {'ctd_data_point': 'distance'})
+
+        # remove duplicate index values
+        _, index = np.unique(self.giddy_raw['distance'], return_index=True)
+        self.giddy_raw = self.giddy_raw.isel(distance=index)
+  
+        # iterate over sides
+        for i in int(range(giddy_raw.distance.max()/lenth_dist)):
+            side = self.giddy_raw.sel(distance=slice(
+                         i * length_dist, (i + 1) * length_dist))
+        #    if ns:
+        #         ds = 
+             
+
+    def haversine(lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance in kilometers between two points 
+        on the earth (specified in decimal degrees)
+        """
+        # convert decimal degrees to radians 
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+        # haversine formula 
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a)) 
+        r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
+        return c * r
+        
+
+        distance_interp = np.arange(0,self.giddy_raw.distance.max(),
+                                    sample_dist)
+        # change time units for interpolation 
+        timedelta = self.giddy_raw.ctd_time-np.datetime64('1970-01-01 00:00:00')
+        self.giddy_raw['ctd_time'] = timedelta.astype(np.int64)
+
+        self.giddy_raw = self.giddy_raw.interp(distance=distance_interp)
+
+        # convert time units back to datetime64
+        self.giddy_raw['ctd_time'] = self.giddy_raw.ctd_time / 1e9 
+        unit = "seconds since 1970-01-01 00:00:00"
+        self.giddy_raw.ctd_time.attrs['units'] = unit
+        self.giddy_raw = xr.decode_cf(self.giddy_raw)
+        self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
+        self.giddy_raw = self.giddy_raw.drop('distance')
+
+
+    def rotate_original_raw_glider_path(self, theta):
+
+        # translation lengths
+        xt = self.giddy_raw.lon.median()
+        yt = self.giddy_raw.lat.median()
+ 
+        # translate to origin
+        lon_orig = self.giddy_raw.lon - xt
+        lat_orig = self.giddy_raw.lat - yt
+
+        # rotate
+        lon_rotated =  lon_orig * np.cos(theta) - lat_orig * np.sin(theta)
+        lat_rotated =  lon_orig * np.sin(theta) + lat_orig * np.cos(theta)
+
+        # translate to original position
+        self.giddy_raw['lon'] = lon_rotated + xt
+        self.giddy_raw['lat'] = lat_rotated + yt
+
+    def prep_interp_to_raw_obs(self, resample_path=False, sample_dist=10,
+                                     rotate=False, rotation=np.pi/2):
         '''
         preliminary processing for sampling model like a glider
         '''
@@ -239,6 +358,13 @@ class model(object):
                             'bounds_nav_lat', 'deptht_bounds',
                              'area', 'e3t'])
 
+        # alter path to test sampling methods
+        if resample_path:
+            self.resample_original_raw_glider_path(sample_dist)
+
+        if rotate:
+            self.rotate_original_raw_glider_path(rotation)
+
         
         # get glider lat-lons
         self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
@@ -249,23 +375,30 @@ class model(object):
         # add lat-lat lon to grid_T dimentions
         self.x_y_to_lat_lon('grid_T')
 
-    def interp_to_raw_obs_path(self, random_offset=False, save=False, ind=''):
+    def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
+                               append=''):
         '''
         sample model along glider's raw path
         using giddy (2020)
         '''
+    
+        # alias lat-lon for interpolation
+        self.x = self.glider_lon
+        self.y = self.glider_lat
 
         if random_offset:
             # this shift is centered on the model and may shift
             # glider out of bounds
             self.random_glider_lat_lon_shift()
-            self.x = self.glider_lon + self.lon_shift
-            self.y = self.glider_lat + self.lat_shift
+            self.x = self.x + self.lon_shift
+            self.y = self.y + self.lat_shift
+
 
         # lon lat gets overriden if these remain
         self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])
 
         # interpolate
+        
         self.glider_nemo = self.ds['grid_T'].interp(lon=self.x, lat=self.y,
                                      deptht=self.giddy_raw_no_ll.ctd_depth,
                                      time_counter=self.giddy_raw_no_ll.ctd_time)
@@ -282,9 +415,9 @@ class model(object):
         if save:
             self.glider_nemo.to_netcdf(self.data_path +
                                      'GliderRandomSampling/glider_raw_nemo_' + 
-                                       ind + '.nc')
+                                      append + '_' + ind + '.nc')
 
-    def interp_raw_obs_path_to_uniform_grid(self, ind=''):
+    def interp_raw_obs_path_to_uniform_grid(self, ind='', append=''):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
@@ -344,6 +477,10 @@ class model(object):
             _, index = np.unique(group['distance'], return_index=True)
             group = group.isel(distance=index)
 
+            print (group)
+            if group.sizes['distance'] < 2:
+                continue
+
             group = group.interpolate_na('distance')
            
             uniform = group.interp(distance=uniform_distance)
@@ -353,7 +490,6 @@ class model(object):
 
         # convert time units back to datetime64
         glider_uniform['time_counter'] = glider_uniform.time_counter / 1e9 
-
         unit = "seconds since 1970-01-01 00:00:00"
         glider_uniform.time_counter.attrs['units'] = unit
         glider_uniform = xr.decode_cf(glider_uniform)
@@ -368,7 +504,7 @@ class model(object):
 
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
-                                  + str(ind).zfill(2) + '.nc')
+                                  + append + str(ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):
@@ -475,11 +611,21 @@ class model(object):
 
         for grid in self.grid_keys:
             print ('mean :', grid)
-            ds = self.ds[grid].mean(['x','y']).load()
+            ds = self.ds[grid].mean(['x','y'])#.load()
             for key in ds.keys():
                 ds = ds.rename({key: key + '_mean'})
+            ds = ds.drop('area_mean')
             ds.to_netcdf(self.data_path +
-                        'Stats/SOCHIC_PATCH_mean_' + grid + '.nc')
+                         'Stats/SOCHIC_PATCH_mean_' + grid + '.nc')
+
+    #def save_area_mean_all_test(self):
+    #    ''' save lateral mean of all data '''
+#
+#        ds = self.data.mean(['x','y']).load()
+#        for key in ds.keys():
+#            ds = ds.rename({key: key + '_mean'})
+#        ds.to_netcdf(self.data_path +
+#                     'Stats/SOCHIC_PATCH_mean_grid_T.nc')
 
     def save_area_std_all(self):
         ''' save lateral standard deviation of all data '''
@@ -489,6 +635,7 @@ class model(object):
             ds = self.ds[grid].std(['x','y']).load()
             for key in ds.keys():
                 ds = ds.rename({key: key + '_std'})
+            ds = ds.drop('area_std')
             ds.to_netcdf(self.data_path +
                          'Stats/SOCHIC_PATCH_std_' + grid + '.nc')
 
@@ -506,13 +653,23 @@ if __name__ == '__main__':
     #m.save_month()
     #m.get_conservative_temperature(save=True)
     #m.get_rho()
-    m.prep_interp_to_raw_obs()
-    for ind in range(100):
-        print ('ind: ', ind)
-        m.interp_to_raw_obs_path(save=False, random_offset=True)
-        print ('done part 1')
-        m.interp_raw_obs_path_to_uniform_grid(ind=ind)
-        print ('done part 2')
+    #sample_dist=5000
+    #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
+    ###m.prep_interp_to_raw_obs(rotate=False)
+    ###for ind in range(1):
+    ###    print ('ind: ', ind)
+    ###    m.interp_to_raw_obs_path(save=False)
+    ###    print ('done part 1')
+    ###    append='non_rotated_path_'
+    ###    #append='pre_resampled_path_' + str(sample_dist)  + '_'
+    ###    m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
+    ###    print ('done part 2')
+    def interp_obs_to_model():
+        m.prep_interp_to_raw_obs()
+        m.interp_to_raw_obs_path()
+        m.interp_raw_obs_path_to_uniform_grid(ind='', append='raw_path')
+    interp_obs_to_model()
+    
     
     #print ('start')
     #m.get_conservative_temperature(save=True)

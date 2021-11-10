@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import dask
-import matplotlib
-
-matplotlib.rcParams.update({'font.size': 8})
 
 class bootstrap_glider_samples(object):
     '''
@@ -22,7 +19,7 @@ class bootstrap_glider_samples(object):
             ds = ds.expand_dims('sample')
             return ds
         self.samples = xr.open_mfdataset(self.data_path + 
-                                    'GliderRandomSampling/glider_uniform_*.nc',
+               'GliderRandomSampling/glider_uniform_pre_resampled_path_*_00.nc',
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim)
 
@@ -48,10 +45,19 @@ class bootstrap_glider_samples(object):
         bg = xr.open_dataset(config.data_path() + self.case +
                                    '/buoyancy_gradients.nc')
         
+        bg = bg.assign_coords({'lon': bg.nav_lon.isel(y=0),
+                                   'lat': bg.nav_lat.isel(x=0)})
+        bg = bg.swap_dims({'x':'lon', 'y':'lat'})
          
         clean_float_time = self.samples.time_counter
         start = clean_float_time.min().astype('datetime64[ns]')
         end   = clean_float_time.max().astype('datetime64[ns]')
+        
+        print (self.samples)
+        east = self.sample.lon.max()
+        west = self.sample.lon.min()
+        north = self.sample.lat.max()
+        south = self.sample.lat.min()
 
         print (' ')
         print (' ')
@@ -59,7 +65,9 @@ class bootstrap_glider_samples(object):
         print ('end', end.values)
         print (' ')
         print (' ')
-        self.bg = bg.sel(time_counter=slice(start,end))
+        self.bg = bg.sel(time_counter=slice(start,end),
+                         lon=slice(west,east), lat=slice(south,north))
+        self.bg = self.bg.swap_dims({'lon':'x', 'lat':'y'})
 
     def add_sample(self, n=1, c='green'):
         '''
@@ -67,30 +75,32 @@ class bootstrap_glider_samples(object):
         n = sample size
         '''
  
-        set_size = self.samples.sizes['sample']
+        self.sample = xr.open_dataset(self.data_path + 
+               'GliderRandomSampling/glider_uniform_pre_resampled_path_'+
+                str(n) + '_00.nc')
+        bx = np.abs(self.sample.b_x_ml)
+        bx = bx.where(bx < 5e-8, drop=True)
 
-        # get random group
-        random = np.random.randint(set_size, size=(set_size,n))
+        bx_stacked = bx.stack(z=('distance','ctd_depth'))
 
-        hists = []
-        for sample in random:
-            sample_set = self.samples.isel(sample=sample).b_x_ml
-            set_stacked = sample_set.stack(z=('distance','sample'))
-            hist, bins = np.histogram(set_stacked.dropna('z', how='all'),
-                                range=(0,2e-8), density=True, bins=100)
-            #                    range=(1e-9,5e-8), density=True)
-            hists.append(hist)
+        plt.hist(bx_stacked, bins=100, density=True, alpha=1.0,
+                 label='freq (m): ' + str(n), fill=False, edgecolor=c,
+                 histtype='step')
 
-        bin_centers = bins[:-1] + bins[1:] / 2
-        hist_array = xr.DataArray(hists, dims=('sets', 'bin_centers'), 
-                                  coords={'bin_centers': bin_centers})
-        hist_mean = hist_array.mean('sets')
-        hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
+        #hist, bins = np.histogram(bx_stacked.dropna('z', how='all'),
+        #                        range=(1e-9,5e-8), density=True, bins=100)
 
-        self.ax.plot(bin_centers, hist_mean, c=c, label='gliders: ' + str(n))
-        self.ax.fill_between(bin_centers, hist_l_quant,
-                                          hist_u_quant,
-                             color=c, edgecolor=None, alpha=0.2)
+
+        #bin_centers = bins[:-1] + bins[1:] / 2
+
+        #hist_l_quant, hist_u_quant = bx_stacked.quantile([0.1,0.9],'z')
+        #print (hist_l_quant)
+
+        #self.ax.plot(bin_centers, hist, c=c, label='freq (m): ' + str(n),
+        #             lw=1)
+        #self.ax.fill_between(bin_centers, hist_l_quant,
+        #                                  hist_u_quant,
+        #                     color=c, edgecolor=None, alpha=0.2)
 
     def glider_sample_bootstrap_stats(self, n):
         set_size = self.samples.sizes['sample']
@@ -125,22 +135,27 @@ class bootstrap_glider_samples(object):
 
     def add_model_lines(self):
 
+        print ('a')
         # load buoyancy gradients       
         self.get_model_buoyancy_gradients()
+        print (self.bg)
 
+        print ('b')
+        print (self.bg)
         self.bg = self.bg.mean('deptht')
         self.bg = np.abs(self.bg)
 
+        print ('c')
         stacked_bgx = self.bg.bgx.stack(z=('time_counter','x','y'))
         stacked_bgy = self.bg.bgy.stack(z=('time_counter','x','y'))
 
         hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
-                                    range=(0,2e-8), density=True, bins=100)
+                                    range=(1e-9,5e-8), density=True, bins=100)
         hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
-                                    range=(0,2e-8), density=True, bins=100)
+                                    range=(1e-9,5e-8), density=True, bins=100)
 
         bin_centers = bins[:-1] + bins[1:] / 2
-        self.ax.plot(bin_centers, hist_x, c='black', lw=2, zorder=1,
+        self.ax.plot(bin_centers, hist_x, c='black', lw=1, zorder=1,
                      label='Model')
 
     def add_model_hist(self):
@@ -156,17 +171,17 @@ class bootstrap_glider_samples(object):
 
         self.bg = self.bg.mean('deptht')
         self.bg = np.abs(self.bg)
-        self.bg = self.bg.where(self.bg < 1e-7, drop=True)
+        self.bg = self.bg.where(self.bg < 5e-8, drop=True)
         stacked_bgx = self.bg.bgx.stack(z=('time_counter','x','y'))
         stacked_bgy = self.bg.bgy.stack(z=('time_counter','x','y'))
         
         print (stacked_bgx)
-        plt.hist(stacked_bgx, bins=50, density=True, alpha=0.3,
-                 label='model bgx', fill=False, edgecolor='red',
-                 histtype='step')
-        plt.hist(stacked_bgy, bins=50, density=True, alpha=0.3,
-                 label='model bgy', fill=False, edgecolor='blue',
-                 histtype='step')
+        plt.hist(stacked_bgx, bins=100, density=True, alpha=1.0,
+                 label='model bgx', fill=False, edgecolor='gray',
+                 histtype='step', zorder=11)
+        plt.hist(stacked_bgy, bins=100, density=True, alpha=1.0,
+                 label='model bgy', fill=False, edgecolor='black',
+                 histtype='step', zorder=11)
         
 
     def histogram_buoyancy_gradients_and_samples(self, n):
@@ -175,23 +190,22 @@ class bootstrap_glider_samples(object):
         n = sample_size
         '''
 
-        self.figure, self.ax = plt.subplots(figsize=(4.5,4.0))
+        self.figure, self.ax = plt.subplots(figsize=(5.5,4.5))
 
-        sample_sizes = [1, 4, 20]
+        sample_sizes = [10, 100, 1000]
         colours = ['g', 'b', 'r', 'y', 'c']
 
-        for i, n in enumerate(sample_sizes):
+        for i in range(len(sample_sizes)):
             print ('sample', i)
-            self.add_sample(n=n, c=colours[i])
+            self.add_sample(n=sample_sizes[i], c=colours[i])
         print ('model')
-        self.add_model_lines()
+        self.add_model_hist()
 
         self.ax.set_xlabel('Buoyancy Gradient')
         self.ax.set_ylabel('PDF')
 
         plt.legend()
-        self.ax.set_xlim(0, 2e-8)
-        plt.savefig('EXP02_bg_sampling_skill.png', dpi=600)
+        plt.savefig('EXP02_bg_glider_sample_freq.png', dpi=300)
 
     def plot_error_bars(self):
         

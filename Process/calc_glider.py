@@ -1,10 +1,13 @@
 import xarray as xr
 import config
-import Process.model_object as mo
+import iniNEMO.Process.model_object as mo
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import matplotlib
 import numpy as np
 import dask
+
+matplotlib.rcParams.update({'font.size': 8})
 
 class glider_nemo(object):
 
@@ -26,30 +29,33 @@ class glider_nemo(object):
                      'Giddy_2020/sg643_grid_density_surfaces.nc',
                       chunks={'distance':1})
 
-    def sub_sample_nemo(self, glider_path):
-        dask.config.set(**{'array.slicing.split_large_chunks': True})
+    def load_glider_uniform_bg(self):
+        ''' load glider sampled model data on a unifrom grid'''
+        self.glider_uniform = xr.open_dataset(self.data_path + 
+                                   'glider_uniform_raw_path.nc',
+                                   chunks={'ctd_depth':1})
+
+    def sub_sample_nemo(self, glider_path, save=True):
+        ''' restrict time and space of nemo to glider path '''
+
         bg = xr.open_dataset(self.data_path + 
                                   'buoyancy_gradients.nc',
                                   chunks={'time_counter':1,'deptht':1})
 
-        mld = xr.open_dataset(self.data_path + 
-                              'SOCHIC_PATCH_3h_20120101_20121231_grid_T.nc',
-                               chunks={'time_counter':1, 'deptht':1}).mldr10_3
-        mld = mld.assign_coords({'lon': mld.nav_lon.isel(y=0),
-                                 'lat': mld.nav_lat.isel(x=0)})
-        mld = mld.swap_dims({'x':'lon', 'y':'lat'})
+        # restrict nemo to glider time
+        bg_cut_grid = self.subset_times_to_obs(bg)
 
         bounds = [glider_path.lon.min(), glider_path.lon.max(),
                   glider_path.lat.min(), glider_path.lat.max()]
 
-        bg_cut_grid = self.cut_grid_to_obs_patch(bg, bounds)
+        bg_cut_grid = self.cut_grid_to_obs_patch(bg_cut_grid, bounds)
         bg_cut_grid = bg_cut_grid.drop(['nav_lon', 'nav_lat'])
 
-        # restrict to mixed layer depth
-        #self.nemo_bg_ml = bg_cut_grid.where(bg_cut_grid.deptht < mld, drop=True)
-        self.nemo_bg_ml = bg_cut_grid
+        self.nemo_bg_ml = bg_cut_grid.load()
   
-        #self.nemo_bg_ml.to_netcdf(self.data_path + 'nemo_bg.nc')
+        if save:
+            self.nemo_bg_ml.to_netcdf(self.data_path + 'nemo_bg.nc',
+                                      unlimited_dims='time_counter')
         
     def cut_grid_to_obs_patch(self, data, bounds):
         # xy -> latlon
@@ -57,31 +63,28 @@ class glider_nemo(object):
                                    'lat': data.nav_lat.isel(x=0)})
         data = data.swap_dims({'x':'lon', 'y':'lat'})
 
-        # use bounds to get nemo grid
-        #lon0 = xr.where(data.lon < bounds[0], data.lon, np.nan).max()
-        #lon1 = xr.where(data.lon > bounds[1], data.lon, np.nan).min()
-        #lat0 = xr.where(data.lat < bounds[2], data.lat, np.nan).max()
-        #lat1 = xr.where(data.lat > bounds[3], data.lat, np.nan).min()
- 
-        #print (lon0.values)
-        #print (lon1.values)
-        #print (lat0.values)
-        #print (lat1.values)
-
-        data = data.sel(lon=slice(bounds[0],bounds[1]), lat=slice(bounds[2],bounds[3]))
-        #data = data.sel(lon=slice(lon0,lon1), lat=slice(lat0,lat1))
-
+        data = data.sel(lon=slice(bounds[0],bounds[1]),
+                        lat=slice(bounds[2],bounds[3]))
         return data
 
-    def sample_times(self, data, start_month='01'):
-        ''' take a time sample based on time differnce in glider sample '''
+    def subset_times_to_obs(self, data, start_month='01'):
+        ''' subset model according to glider time '''
         self.load_giddy()
         time = self.giddy.time.isel(density=50)
-        #time_diff = time.diff('distance').pad(distance=(0,1)).fillna(0).cumsum()
-        time_diff = time.diff('distance').fillna(0).cumsum()
-        start_date = np.datetime64('2012-' + start_month + '-01 00:00:00')
-        time_span = start_date + time_diff
-        data = data.interp(time_counter=time_span.values, method='nearest')
+        time_delta = np.datetime64('2018-01-01') - np.datetime64('2012-01-01')
+        time_span = time - time_delta
+        data = data.sel(time_counter=slice(time_span[1],time_span[-1]))
+        return data
+
+    def sample_times_interp(self, data, start_month='01'):
+        ''' sample time according to glider time '''
+        self.load_giddy()
+        time = self.giddy.time.isel(density=50)
+        time_delta = np.datetime64('2018-01-01') - np.datetime64('2012-01-01')
+        time_span = time - time_delta
+        data = data.interp(time_counter=time_span.values, method='linear')
+        data['time_counter'] = data.time_counter.astype('int64')/1e9
+        data.time_counter.attrs['units'] = 'seconds since 1970-01-01'
         return data
 
     def get_randomly_sampled_buoyancy_gradient_along_glider_path(self,
@@ -148,15 +151,17 @@ class glider_nemo(object):
         random_sampled_nemo_and_glider.to_netcdf(self.data_path +
                                            'random_sampled_nemo_glider_pair.nc')
         
-    def histogram_buoyancy_gradient(self):
+    def histogram_buoyancy_gradient_ensemble(self):
         ''' 
         plot histogram of buoyancy gradient comparision for different
         sampling methods
+        using set of random glider samples
         '''
-        plt.figure()
+        plt.figure(figsize=(4.5,4.5))
         samples = 10
 
-        glider_abs_bg = np.abs(self.bg_rand)
+        #self.load_glider_uniform_bg()
+        #glider_abs_bg = np.abs(self.glider_uniform.bg_x_ml)
         glider_bg_hist = glider_abs_bg.where(glider_abs_bg<2e-8, drop=True)
 
 
@@ -179,9 +184,44 @@ class glider_nemo(object):
                                  label='glider bg', fill=False, edgecolor='red',
                                  histtype='step')
         plt.legend()
+        plt.xlabel
         #plt.hist(bgx_hist, 50)
         #plt.savefig('Plots/buoyany_gradient_histogram.png', dpi=300)
         plt.show()
+
+    def histogram_buoyancy_gradient(self):
+        ''' 
+        plot histogram of buoyancy gradient comparision of glider sample
+        against nemo gradients
+        nemo gradients are subsampled to glider area and time 
+        '''
+        plt.figure(figsize=(4.5,4.0))
+
+        self.load_glider_uniform_bg()
+        glider_abs_bg = np.abs(self.glider_uniform.b_x_ml)
+        glider_bg_hist = glider_abs_bg.where(glider_abs_bg<2e-8, drop=True)
+
+        self.load_nemo_bg()
+        abs_bgx = np.abs(self.nemo.bgx)
+        bgx_hist = abs_bgx.where(abs_bgx<2e-8, drop=True)
+        abs_bgy = np.abs(self.nemo.bgy)
+        bgy_hist = abs_bgy.where(abs_bgy<2e-8, drop=True)
+
+        abs_bgx.plot.hist(bins=100, density=True, alpha=0.3,
+                           label='nemo bgx', range=(0,2e-8),
+                           fill=False, edgecolor='gray', histtype='step')
+        abs_bgy.plot.hist(bins=100, density=True, alpha=0.3,
+                           label='nemo bgy', range=(0,2e-8),
+                           fill=False, edgecolor='black', histtype='step')
+
+        glider_abs_bg.plot.hist(bins=100, density=True, alpha=0.3,
+                             label='glider bg', fill=False, edgecolor='red',
+                             range=(0,2e-8), histtype='step')
+        plt.legend()
+        plt.xlabel('Buoyancy Gradient')
+        plt.ylabel('PDF')
+        plt.title('')
+        plt.savefig('Plots/buoyany_gradient_histogram.png', dpi=600)
 
     def plot_glider_path(self, ax):
         self.load_giddy()
@@ -299,10 +339,19 @@ class glider_nemo(object):
         ani.save("movie.mp4", writer=writer, dpi=300)
 
 
-m = glider_nemo('EXP03')
+m = glider_nemo('EXP02')
+m.histogram_buoyancy_gradient()
+
+# this is for creating nemo_bg for bg plotting
+# histogram buoyancy gradient!
+#m.load_glider_uniform_bg()
+#m.sub_sample_nemo(m.glider_uniform)
+
+
 #m.get_randomly_sampled_buoyancy_gradient_along_glider_path(save=True,samples=10)
-m.subset_nemo_to_randomised_nemo_paths(save=True, samples=10)
+#m.subset_nemo_to_randomised_nemo_paths(save=True, samples=10)
 #m.combine_random_bg_nemo_and_glider()
+#m.histogram_buoyancy_gradient()
 #m.movie_bg_grad_and_glider_path()
 def plot_path():
     m = glider_nemo('EXP03')
@@ -310,10 +359,10 @@ def plot_path():
     m.plot_path_and_max_bg() 
 
 def plot_histogram():
-    m = glider_nemo('EXP03')
-    m.load_nemo_bg()
+    m = glider_nemo('EXP02')
     #m.load_glider_nemo()
     #m.sub_sample_nemo()
     m.histogram_buoyancy_gradient()
 
-#plot_histogram()
+
+    #m.get_randomly_sampled_buoyancy_gradient_along_glider_path()

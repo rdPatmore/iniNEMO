@@ -146,7 +146,8 @@ class buoyancy_gradients(object):
                            '/buoyancy_gradient_stats.nc')
 
 bg = buoyancy_gradients('EXP02')
-bg.mixed_layer_buoyancy_gradients()
+bg.buoyancy_gradient_glider_path()
+#bg.mixed_layer_buoyancy_gradients()
 #bg.buoyancy_gradient_stats()
 #bg.open_temp()
 #bg.save_pressure()
