@@ -100,7 +100,8 @@ class time_series(object):
 
         plt.savefig('heat_fluxes_EXP04.png', dpi=600)
 
-    def plot_mld_sip(self, years, giddy=False, orca=False, satellite=False):
+    def plot_mld_sip(self, years, giddy=False, orca=False, satellite=False,
+                                  argo=False):
 
         self.fig, self.axs = plt.subplots(2,1, figsize=(5.5,4.0))
 
@@ -173,10 +174,12 @@ class time_series(object):
         if satellite:
             lines.append(self.plot_mld_sip_add_satellite(colours, years))
             labels.append('satellite obs.')
+        if argo:
+            self.plot_mld_sip_add_argo()
         
         #self.axs[0].legend(lines, labels, fontsize=8)
 
-        plt.savefig('mld_siconc_swap_forcing_year_13.png', dpi=600)
+        plt.savefig('mld_siconc_3year_giddy_and_argo.png', dpi=600)
 
     def plot_mld_sip_add_giddy(self):
         ''' add giddy to mix layer depth '''
@@ -223,7 +226,15 @@ class time_series(object):
                              ds.icepres_mean, c=colour, ls='--', lw=1)
         return l
 
+    def plot_mld_sip_add_argo(self):
+        ''' add argo mld '''
 
+        self.argo = xr.open_mfdataset('/storage/silver/SO-CHIC/Ryan/Argo/' +
+                                       'argo_giddy.nc')
+        
+        self.giddy = self.giddy.reindex({'dayofyear': np.arange(1,366)})
+        self.axs[0].plot(self.argo.profiledate.dt.dayofyear,
+                         self.argo.dt_mld, lw=1, c='lightseagreen')
 
     def plot_mld_sic_bg(self, case, colour):
         
@@ -305,7 +316,8 @@ class time_series(object):
 
 ds = time_series(['EXP04','EXP11','EXP12'], ['2013','up 2013, lat 2012',
                                                   'up 2012, lat 2013'])
-ds.plot_mld_sip(['2012'], giddy=False, orca=False, satellite=False)
-#ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True)
+#ds.plot_mld_sip(['2012'], giddy=False, orca=False, satellite=False)
+ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True,
+                                          argo=True)
 #ds.plot_heat_fluxes(['2012', '2013', '2014'])
 #ds.add_orca12_sip()

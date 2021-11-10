@@ -1,6 +1,7 @@
 import xarray as xr
 import config
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class argo(object):
@@ -10,14 +11,24 @@ class argo(object):
         self.data_path = '/storage/silver/SO-CHIC/Ryan/Argo/'
         self.ds = xr.open_dataset(self.data_path +
                                   'Argo_mixedlayers_all_03172021.nc')
+      
+        # format argo time
+        time_to_1970 = np.datetime64('1970-01-01') - np.datetime64('0000-01-01')
+        days_to_1970 = time_to_1970.astype('float64')
+        self.ds['profiledate'] = self.ds.profiledate - days_to_1970
+        self.ds.profiledate.attrs['units'] = 'days since 1970-01-01'
+        self.ds.profiledate.attrs['calendar'] = 'gregorian'
+        self.ds = xr.decode_cf(self.ds)
 
     def cut_to_glider_dates(self):
         ''' cut dates to glider period '''
         
-        glider = xr.open_dataset(config.data_path() + 
-                                'Giddy_2020/merged_raw.nc')
+        glider = xr.open_dataset(config.root() + 'Giddy_2020/merged_raw.nc')
         date0 = glider.ctd_time.min()
         date1 = glider.ctd_time.max()
+
+        self.ds = self.ds.where((self.ds.profiledate > date0) &
+                                (self.ds.profiledate < date1), drop=True)
 
     def cut_to_sochic_patch(self):
         ''' cut area to match sochic model region '''
@@ -33,41 +44,27 @@ class argo(object):
                                 (self.ds.profilelon < lon1) &
                                 (self.ds.profilelat > lat0) &
                                 (self.ds.profilelat < lat1), drop=True)
-        self.ds['icepres'] = xr.where(self.ds.cdr_seaice_conc > 0, 1, 0)
-        self.ds.to_netcdf(self.data_path + 
-                       'seaice_conc_daily_sh_' + self.year + '_sochic_patch.nc')
 
-    def save_area_mean_all(self):
+    def mean_by_day(self):
+        ''' collect each day by averaging by day '''
+
+        self.ds = self.ds.set_coords('profiledate')
+        self.ds = self.ds.swap_dims({'iNPROF':'profiledate'})
+        self.ds = self.ds.sortby('profiledate')
+        self.ds = self.ds.resample(profiledate='1D').mean()
+        #grouped = self.ds.groupby('profiledate.dayofyear')
+        #self.ds = grouped.mean()
+        print (self.ds)
+        
+
+
+    def save_processed_mld(self):
         ''' save lateral mean of all data '''
 
-        # create weights
-        weights = np.cos(np.deg2rad(self.ds.latitude))
-        weights.name = 'weights'
-
-        # apply weights
-        weights = weights.fillna(0)
-
-        for key in self.ds.keys():
-            da = self.ds[key].weighted(weights)
-            print (key)
-            self.ds[key] = da.mean(['x','y'])
-            ds = self.ds.rename({key: key + '_mean'})
-        ds = ds.swap_dims({'tdim':'time'})
-        ds.to_netcdf(self.data_path + 'seaice_conc_daily_sh_' 
-                     + self.year + '_mean.nc')
-
-    def save_area_std_all(self):
-        ''' save lateral standard deviation of all data '''
-
-        ds = self.ds.std(['x','y']).load()
-        for key in ds.keys():
-            ds = ds.rename({key: key + '_std'})
-        ds = ds.swap_dims({'tdim':'time'})
-        ds.to_netcdf(self.data_path + 'seaice_conc_daily_sh_' 
-                     + self.year + '_std.nc')
-
+        self.ds.to_netcdf('/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy.nc')
 
 m = argo()
-print (m.ds)
-#m.cut_to_sochic_patch()
-#m.save_area_mean_all()
+m.cut_to_sochic_patch()
+m.cut_to_glider_dates()
+m.mean_by_day()
+m.save_processed_mld()
