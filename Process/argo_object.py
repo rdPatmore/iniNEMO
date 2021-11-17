@@ -7,18 +7,28 @@ import matplotlib.pyplot as plt
 class argo(object):
     ''' get argo object and process '''
  
-    def __init__(self):
+    def __init__(self, climatology):
         self.data_path = '/storage/silver/SO-CHIC/Ryan/Argo/'
-        self.ds = xr.open_dataset(self.data_path +
+        if climatology:
+            self.clim = True
+            self.ds = xr.open_dataset(self.data_path +
+                                  'Argo_mixedlayers_monthlyclim_03172021.nc')
+            # alias lat lon labels
+            self.ds = self.ds.rename(lon='profilelon')
+            self.ds = self.ds.rename(lat='profilelat')
+        else:
+            self.clim = False
+            self.ds = xr.open_dataset(self.data_path +
                                   'Argo_mixedlayers_all_03172021.nc')
       
-        # format argo time
-        time_to_1970 = np.datetime64('1970-01-01') - np.datetime64('0000-01-01')
-        days_to_1970 = time_to_1970.astype('float64')
-        self.ds['profiledate'] = self.ds.profiledate - days_to_1970
-        self.ds.profiledate.attrs['units'] = 'days since 1970-01-01'
-        self.ds.profiledate.attrs['calendar'] = 'gregorian'
-        self.ds = xr.decode_cf(self.ds)
+            # format argo time
+            time_to_1970 = np.datetime64('1970-01-01') -\
+                           np.datetime64('0000-01-01')
+            days_to_1970 = time_to_1970.astype('float64')
+            self.ds['profiledate'] = self.ds.profiledate - days_to_1970
+            self.ds.profiledate.attrs['units'] = 'days since 1970-01-01'
+            self.ds.profiledate.attrs['calendar'] = 'gregorian'
+            self.ds = xr.decode_cf(self.ds)
 
     def cut_to_glider_dates(self):
         ''' cut dates to glider period '''
@@ -55,16 +65,29 @@ class argo(object):
         #grouped = self.ds.groupby('profiledate.dayofyear')
         #self.ds = grouped.mean()
         print (self.ds)
-        
 
+    def mean_by_month(self):
+        self.ds = self.ds.mean(['iLAT','iLON'])
 
     def save_processed_mld(self):
         ''' save lateral mean of all data '''
 
-        self.ds.to_netcdf('/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy.nc')
+        if self.clim:
+            self.ds.to_netcdf(
+                      '/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy_clim.nc')
+        else:
+            self.ds.to_netcdf('/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy.nc')
 
-m = argo()
-m.cut_to_sochic_patch()
-m.cut_to_glider_dates()
-m.mean_by_day()
-m.save_processed_mld()
+def cut_argo_time_specific():
+    m = argo()
+    m.cut_to_sochic_patch()
+    m.cut_to_glider_dates()
+    m.mean_by_day()
+    m.save_processed_mld()
+
+def cut_argo_time_climatology():
+    m = argo(climatology=True)
+    m.cut_to_sochic_patch()
+    m.mean_by_month()
+    m.save_processed_mld()
+cut_argo_time_climatology()

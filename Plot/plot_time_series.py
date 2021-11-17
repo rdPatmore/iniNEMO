@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import config 
 import matplotlib.dates as mdates
 import numpy as np
+import calendar as cal
 
 class time_series(object):
 
@@ -226,15 +227,39 @@ class time_series(object):
                              ds.icepres_mean, c=colour, ls='--', lw=1)
         return l
 
-    def plot_mld_sip_add_argo(self):
+    def plot_mld_sip_add_argo(self, clim=True):
         ''' add argo mld '''
 
-        self.argo = xr.open_mfdataset('/storage/silver/SO-CHIC/Ryan/Argo/' +
-                                       'argo_giddy.nc')
-        
-        self.giddy = self.giddy.reindex({'dayofyear': np.arange(1,366)})
-        self.axs[0].plot(self.argo.profiledate.dt.dayofyear,
+        if clim:
+            path = '/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy_clim.nc'
+            self.argo = xr.open_dataset(path)
+            days_in_month_list=[]
+            for month in range(1,13):
+                _, days_in_month = cal.monthrange(2012, month)
+                days_in_month_list.append(days_in_month)
+
+            mid_days = np.array(
+                              [int(days_in_month_list[i]/2) for i in range(12)])
+            days_in_month = np.array(days_in_month_list)
+            self.argo['dayofyear'] = np.cumsum(days_in_month) \
+                                                 - days_in_month[0] \
+                                                 + mid_days
+            upper = self.argo.mld_dt_mean + 2 * self.argo.mld_dt_std
+            lower = self.argo.mld_dt_mean - 2 * self.argo.mld_dt_std
+
+            self.axs[0].fill_between(self.argo.dayofyear, 
+                                     lower, upper, alpha=0.3, 
+                                     color='lightseagreen', ec=None)
+            self.axs[0].plot(self.argo.dayofyear,
+                             self.argo.mld_dt_mean, lw=1, c='lightseagreen')
+ 
+        else:
+            path = '/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy.nc'
+            self.argo = xr.open_dataset(path)
+            self.axs[0].plot(self.argo.profiledate.dt.dayofyear,
                          self.argo.dt_mld, lw=1, c='lightseagreen')
+        
+        #self.giddy = self.giddy.reindex({'dayofyear': np.arange(1,366)})
 
     def plot_mld_sic_bg(self, case, colour):
         
@@ -314,8 +339,9 @@ class time_series(object):
         plt.show()
 
 
-ds = time_series(['EXP04','EXP11','EXP12'], ['2013','up 2013, lat 2012',
-                                                  'up 2012, lat 2013'])
+#ds = time_series(['EXP04','EXP11','EXP12'], ['2013','up 2013, lat 2012',
+#                                                  'up 2012, lat 2013'])
+ds = time_series(['EXP04'],[''])
 #ds.plot_mld_sip(['2012'], giddy=False, orca=False, satellite=False)
 ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True,
                                           argo=True)
