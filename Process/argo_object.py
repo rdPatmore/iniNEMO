@@ -67,7 +67,7 @@ class argo(object):
         print (self.ds)
 
     def mean_by_month(self):
-        self.ds = self.ds.mean(['iLAT','iLON'])
+        self.ds = self.ds.mean(['iLAT','iLON'], skipna=True)
 
     def save_processed_mld(self):
         ''' save lateral mean of all data '''
