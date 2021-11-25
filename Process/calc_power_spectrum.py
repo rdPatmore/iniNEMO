@@ -16,12 +16,13 @@ class power_spectrum(object):
 
     def __init__(self, model, var):
         self.var = var 
-        self.path = config.data_path()
+        self.path = config.data_path() + model
         if var in ['votemper', 'vosaline']:
-            self.ds = xr.open_dataset(self.path +  model + 
-                            '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc')
+            self.ds = xr.open_dataset(self.path + 
+                            '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
+                            chunks={'time_counter':10})
             self.ds = self.ds[var]
-        self.cfg = xr.open_dataset(self.path + model + '/domain_cfg.nc')
+        self.cfg = xr.open_dataset(self.path + '/domain_cfg.nc')
 
         # remove halo
         self.cfg = self.cfg.isel(x=slice(1,-1), y=slice(1,-1))
@@ -52,6 +53,7 @@ class power_spectrum(object):
                                        self.cfg.e2t.mean()), dims='y')
         # interp
         self.ds = self.ds.interp(x=new_x, y=new_y)
+
 
     def detrend(self):
         ''' remove low wavenumber signals since these are not resolved '''
@@ -127,30 +129,30 @@ class power_spectrum(object):
         return psd1D, len(psd1D)
 
 
-    def calc_power_spec(self, time=[]):
+    def calc_power_spec(self, time=[], load=True):
         ''' calculate power_spectrum of 2d slice at depth '''
 
+        if load:
+            detrended = xr.load_dataarray(self.path + '/Spectra/' +
+                                           self.var + '_regular_grid_d10.nc')
 
-        # select time
-        if time:
-            model_slice = self.ds.isel(time_counter=time)
-        else:
-            model_slice = self.ds
+        else: 
+            # select time
+            if time:
+                self.ds = self.ds.isel(time_counter=time)
 
-        # get depth
-        #depth_slice = model_slice.interp(deptht=10)
-        depth_slice = model_slice.isel(deptht=10)
+            self.ds = self.ds.isel(deptht=10)
 
-        # regrid and detrend
-        self.interp_to_regular_grid()
-        detrended = self.detrend()
+            # regrid and detrend
+            self.interp_to_regular_grid()
+            detrended = self.detrend()
 
         # windowing         
-        tukey =  window(('tukey', 0.5), depth_slice.shape[1:])[None,:,:]
-        depth_slice = depth_slice * tukey
+        tukey =  window(('tukey', 0.5), detrended.shape[1:])[None,:,:]
+        processed = detrended * tukey
 
-        fourier = np.abs(fft.fftshift(fft.fft2(depth_slice.values))) ** 2
-        time_dim_len = depth_slice.time_counter.size
+        fourier = np.abs(fft.fftshift(fft.fft2(processed.values))) ** 2
+        time_dim_len = processed.time_counter.size
         if not time:
             power_spec = []
             for time in range(time_dim_len):
@@ -163,10 +165,38 @@ class power_spectrum(object):
         #                   nr is number of radial bins
         #                   dx is mean zonal resolution
         dx = self.cfg.e1t.mean() # cell width mean
-        freq = fft.fftshift(fft.fftfreq(nr, dx.values) * dx.values)
+        #freq = fft.fftfreq(nr, dx.values)
+        #freq = fft.fftshift(fft.fftfreq(nr, dx.values) * dx.values)
+        print (dx)
+        freq = fft.fftshift(fft.fftfreq(nr, dx.values))
        
         return freq, np.array(power_spec)
 
+    def prep_for_calc_power_spec(self, time=[]):
+        ''' 
+        prepares for calc_power_spec 
+            - interpolates to regular grid
+            - detrends data
+            - saves a file for later loading
+        '''
+
+        # select time
+        if time:
+            self.ds = self.ds.isel(time_counter=time)
+
+        self.ds = self.ds.isel(deptht=10)
+
+        # regrid and detrend
+        self.interp_to_regular_grid()
+        detrended = self.detrend()
+
+        detrended.name = self.var
+        detrended.to_netcdf(self.path + '/Spectra/' +
+                          self.var + '_regular_grid_d10.nc')
+
+
+        # get depth
+        #depth_slice = model_slice.interp(deptht=10)
 #    def plot_multi_time_power_spectrum(self, times):
 #
 #        fig = plt.figure()
@@ -180,5 +210,5 @@ class power_spectrum(object):
     
 if __name__ == '__main__':
     m = power_spectrum('EXP13', 'votemper')
-    m.detrend()
+    m.prep_for_calc_power_spec()
     #m.plot_multi_time_power_spectrum(np.arange(0,100,10))

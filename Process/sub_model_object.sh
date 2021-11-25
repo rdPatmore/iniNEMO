@@ -17,5 +17,5 @@
 #SBATCH --partition=cluster
 #SBATCH --account=shared
  
-python -u calc_glider.py
+python -u calc_power_spectrum.py
 #python -u calc_buoyancy_gradients.py

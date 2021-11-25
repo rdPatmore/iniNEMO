@@ -213,7 +213,7 @@ class plot_power_spectrum(object):
             plt.loglog(freq, middle, color=c[i], label=labels[i])
 
             #plt.gca().set_ylim([2e0,3e2])
-            plt.gca().set_ylim([1e-6,1e9])
+            plt.gca().set_ylim([1e-1,4e2])
 
     def add_power_law(self, power, ls='-'):
         ''' adds Kolmogorov-esk power law to spectra plot ''' 
