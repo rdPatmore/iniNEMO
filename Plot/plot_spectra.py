@@ -124,6 +124,49 @@ class plot_power_spectrum(object):
         #    plot_2d(fig, i+1, freq)
         #plt.savefig('test3.png')
 
+    def plot_regridded_detrended_example(self):
+        '''
+        3 panel plot of one time step and depth level that
+        has been
+            - regridded to regular grid
+            - detrended to remove large scale variability
+        panel 1: original data
+              2: original minus trend
+              3: trend
+        '''
+
+        fig, axs = plt.subplots(1,3)
+        plt.subplots_adjust(bottom=0.2)
+
+        model_spec = spec.power_spectrum('EXP13', 'votemper')
+        model_spec.ds = model_spec.ds.isel(deptht=10, time_counter=0)
+
+        model_spec.interp_to_regular_grid()
+        detrended = model_spec.detrend()
+
+        trend = model_spec.ds - detrended
+
+        x = model_spec.ds.x
+        y = model_spec.ds.y
+
+        p0 = axs[0].pcolor(x, y, model_spec.ds, vmin=-2, vmax=0.5)
+        axs[1].pcolor(x, y, detrended, vmin=-2, vmax=0.5)
+        p2 = axs[2].pcolor(x, y, trend, vmin=0, vmax=1.5)
+         
+        def add_colourbar(ax, p):
+            pos = ax.get_position()
+            cbar_ax = fig.add_axes([pos.x0, 0.1, pos.x1 - pos.x0, 0.02])
+            cbar = fig.colorbar(p, cax=cbar_ax, orientation='horizontal')
+            cbar.ax.text(0.5, -3.5, r'Temperature ($^{\circ}$C)', fontsize=8,
+              rotation=0, transform=cbar.ax.transAxes, va='bottom', ha='center')
+
+        add_colourbar(axs[0], p0)
+        add_colourbar(axs[2], p2)
+
+        for ax in axs:
+            ax.set_aspect('equal')
+        plt.show()
+         
     def plot_multi_time_power_spectrum(self, times):
 
         fig = plt.figure()
@@ -193,11 +236,14 @@ class plot_power_spectrum(object):
         ax.legend()
     
 m = plot_power_spectrum()
-#m.toy_signal()
-#m.plot_multi_time_power_spectrum(np.arange(0,100,10))
+##m.toy_signal()
+##m.plot_multi_time_power_spectrum(np.arange(0,100,10))
 m.get_power_spec_stats_multi_model(['EXP13','EXP08'],
                                    [r'1/12$^{\circ}$',r'1/24$^{\circ}$'])
 m.format_axes()
-#m.add_power_law((-5/3))
-#m.add_power_law((-2), ls='--')
-plt.savefig('temperature_spectra_method2_new_tukey.png')
+##m.add_power_law((-5/3))
+##m.add_power_law((-2), ls='--')
+plt.savefig('temperature_spectra_method2_completeness.png')
+
+#m = plot_power_spectrum()
+#m.plot_regridded_detrended_example()

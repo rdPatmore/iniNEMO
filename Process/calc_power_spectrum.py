@@ -23,6 +23,14 @@ class power_spectrum(object):
             self.ds = self.ds[var]
         self.cfg = xr.open_dataset(self.path + model + '/domain_cfg.nc')
 
+        # remove halo
+        self.cfg = self.cfg.isel(x=slice(1,-1), y=slice(1,-1))
+        self.ds = self.ds.isel(x=slice(1,-1), y=slice(1,-1))
+
+        # add index
+        self.ds = self.ds.assign_coords(i=('x', np.arange(1,self.ds.x.size+1)),
+                                        j=('y', np.arange(1,self.ds.y.size+1)))
+
     def interp_to_regular_grid(self):
         ''' 
         fft requires a regular, square grid to function
@@ -35,7 +43,7 @@ class power_spectrum(object):
         # set cartesian grid as dims ready for interp
         self.ds['x'] = x_grid.squeeze()
         self.ds['y'] = y_grid.squeeze()
-        self.ds = self.ds.set_coords(['x', 'y'])
+        #self.ds = self.ds.set_coords(['x', 'y'])
         new_x = xr.DataArray(np.arange(self.ds.x.min(), 
                                        self.ds.x.max(),
                                        self.cfg.e1t.mean()), dims='x')
@@ -49,14 +57,17 @@ class power_spectrum(object):
         ''' remove low wavenumber signals since these are not resolved '''
 
         Nxm1 = self.ds.x.size - 1
-        Nym1 = self.ds.x.size - 1
+        Nym1 = self.ds.y.size - 1
         x_slope = (self.ds.isel(x=-1) - self.ds.isel(x=0)) / Nxm1       
         y_slope = (self.ds.isel(y=-1) - self.ds.isel(y=0)) / Nym1
      
-        x_detrend  = self.ds   - 0.5 * ( 2*self.ds.x.size - Nxm1) * x_slope
-        xy_detrend = x_detrend - 0.5 * ( 2*self.ds.y.size - Nym1) * y_slope
+        Nxp1 = self.ds.x.size + 1
+        Nyp1 = self.ds.y.size + 1
 
-        return detrend
+        x_detrend  = self.ds   - 0.5 * ( 2*self.ds.i - Nxp1) * x_slope
+        xy_detrend = x_detrend - 0.5 * ( 2*self.ds.j - Nyp1) * y_slope
+
+        return xy_detrend
         
     def azimuthalAverage_1(self, image, center=None):
         """
@@ -120,15 +131,19 @@ class power_spectrum(object):
         ''' calculate power_spectrum of 2d slice at depth '''
 
 
-        # select time and remove border
-        if not time:
-            model_slice = self.ds.isel(x=slice(1,-1), y=slice(1,-1))
+        # select time
+        if time:
+            model_slice = self.ds.isel(time_counter=time)
         else:
-            model_slice = self.ds.isel(
-                                time_counter=time, x=slice(1,-1), y=slice(1,-1))
+            model_slice = self.ds
 
         # get depth
-        depth_slice = model_slice[self.var].interp(deptht=10)
+        #depth_slice = model_slice.interp(deptht=10)
+        depth_slice = model_slice.isel(deptht=10)
+
+        # regrid and detrend
+        self.interp_to_regular_grid()
+        detrended = self.detrend()
 
         # windowing         
         tukey =  window(('tukey', 0.5), depth_slice.shape[1:])[None,:,:]
@@ -162,10 +177,8 @@ class power_spectrum(object):
 #        #plt.gca().set_xlim([1e-6,5e-5])
 #        plt.gca().set_ylim([2e1,2e2])
 #        plt.show()
-
-
-        
     
-m = power_spectrum('EXP13', 'votemper')
-m.detrend()
-#m.plot_multi_time_power_spectrum(np.arange(0,100,10))
+if __name__ == '__main__':
+    m = power_spectrum('EXP13', 'votemper')
+    m.detrend()
+    #m.plot_multi_time_power_spectrum(np.arange(0,100,10))
