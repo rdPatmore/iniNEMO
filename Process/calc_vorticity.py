@@ -1,6 +1,7 @@
 import xarray as xr
 import config
 import numpy as np
+import matplotlib.pyplot as plt
 
 class vorticity(object):
 
@@ -15,10 +16,10 @@ class vorticity(object):
         self.cfg = xr.open_dataset(self.path + '/domain_cfg.nc')
 
         # remove halo
-        self.cfg  = self.cfg.isel(x=slice(1,-1), y=slice(1,-1))
-        self.area = self.area.isel(x=slice(1,-1), y=slice(1,-1))
-        self.dsu  = self.dsu.isel(x=slice(1,-1), y=slice(1,-1))
-        self.dsv  = self.dsv.isel(x=slice(1,-1), y=slice(1,-1))
+        self.cfg  = self.cfg.isel(x=slice(1,-1), y=slice(1,-1)).squeeze()
+        self.area = self.area.isel(x=slice(1,-1), y=slice(1,-1))#.squeeze()
+        self.dsu  = self.dsu.isel(x=slice(1,-1), y=slice(1,-1))#.squeeze()
+        self.dsv  = self.dsv.isel(x=slice(1,-1), y=slice(1,-1))#.squeeze()
 
         # rename depth
         self.dsu = self.dsu.rename({'depthu':'depth'})
@@ -28,8 +29,8 @@ class vorticity(object):
         ''' calculate f at vorticity points'''
 
         omega = 7.2921e-5 
-        lat = self.cfg.gphif      # latitude on vorticity points
-        f = 2 * omega * np.sin(lat) # coriolis
+        lat = np.deg2rad(self.cfg.gphif) # latitude on vorticity points
+        f = 2 * omega * np.sin(lat)      # coriolis
         return f
 
     def relative_vorticity(self):
@@ -53,17 +54,6 @@ class vorticity(object):
         # calculate vorticity 
         udx = (u*dx).diff('y', label='lower').isel(x=slice(None,-1))
         vdy = (v*dy).diff('x', label='lower').isel(y=slice(None,-1))
-        print (' ')
-        print (' ')
-        print (udx)
-        print (' ')
-        print (' ')
-        print (vdy)
-        print (' ')
-        print (' ')
-        print (area_vort)
-        print (' ')
-        print (' ')
         zeta = (-udx + vdy) / area_vort
 
         return zeta
