@@ -37,10 +37,10 @@ def mask_bdy(scalar, year, month, day, res='12'):
         ds.to_netcdf('../DataOut/ORCA' + res + '/bdy_'+ scalar +'_' + bearing + 
                      '_y' + year + '_masked.nc')
 
-mask_bdy('V', '2014', '01', '03')
-mask_bdy('T', '2014', '01', '03')
-mask_bdy('U', '2014', '01', '03')
-mask_bdy('I', '2014', '01', '03')
+mask_bdy('V', '2013', '01', '03', res='48')
+mask_bdy('T', '2013', '01', '03', res='48')
+mask_bdy('U', '2013', '01', '03', res='48')
+mask_bdy('I', '2013', '01', '03', res='48')
 #mask_bdy('V', '2014', '12')
 #mask_bdy('T', '2014', '12')
 #mask_bdy('U', '2014', '12')

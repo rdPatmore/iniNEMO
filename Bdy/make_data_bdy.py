@@ -4,9 +4,11 @@ import numpy  as np
 def get_side(data, side, pos, res, offset=0):
     print ('SIDE: ', side)
     if res == '48':
-        mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP09/'
+        mesh_path ='/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP10/'
+    if res == '24':
+        mesh_path ='/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP08/'
     if res == '12':
-        mesh_path = '/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP04/'
+        mesh_path ='/work/n02/n02/ryapat30/nemo/nemoHEAD/cfgs/SOCHIC_ICE/EXP04/'
     domain_cfg = xr.open_dataset(mesh_path + 'mesh_mask.nc').rename({
         'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
     domain_cfg = domain_cfg.isel(X=slice(1,-1),Y=slice(1,-1))
@@ -292,7 +294,6 @@ def full_bounds(width, date='y2015m01', res='12'):
                    unlimited_dims='time_counter')
     dsI.to_netcdf('../DataOut/ORCA' + res + '/bdy_I_ring_' + date + '.nc',
                    unlimited_dims='time_counter')
-full_bounds(20, date='y2014')
 
 def all_pos_one_side(side, width=1):
     data_pathT = '../Masks/BdyData/bdy_T_west_masked.nc'
@@ -333,3 +334,4 @@ def all_pos_one_side(side, width=1):
 #        bdy_coords = xr.concat([bdy_coords, get_ring()], dim='xbT')
 #
 #bdy_coords.to_netcdf('coordinates_bdy.nc')
+full_bounds(20, date='y2013', res='48')

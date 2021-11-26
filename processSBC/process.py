@@ -7,7 +7,7 @@ import pandas as pd
 
 
 #path = '../SourceData/coordinates.nc'
-path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_12/coordinates.nc'
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_48/coordinates.nc'
 coord = xr.open_dataset(path, decode_times=False)
 #ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
@@ -240,7 +240,7 @@ def calc_noc_surface_resoring():
     # save
     ds.to_netcdf('orca_sbc_restore_y2015m01.nc')
 
-def regrid_dfs(variables, year, period):
+def regrid_dfs(variables, year, period, chunk=None):
     ''' target year of dfs data cut to patch and regrid '''
     
     if period == 3:
@@ -268,6 +268,7 @@ def regrid_dfs(variables, year, period):
         data = data.assign_coords(lon0=(((data.lon0 + 180) % 360) - 180))
         data = data.sortby('lon0', ascending=True)
         data = data.sortby('lat0', ascending=True)
+        data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
         try:
             time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
                                  periods=365 * 24 / period)
@@ -284,8 +285,10 @@ def regrid_dfs(variables, year, period):
             data = data.assign_coords(time=time)
         #data = data.isel(time=slice(1800,2100))
         data.time.encoding['dtype'] = np.float64
-        data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
-         #               time=slice(year + '-01-01', '2015-11-30'))
+        if chunk is not None:
+            data = data.sel(time=slice(year + '-' + str(chunk * 2 + 1).zfill(2),
+                                      year + '-' + str(chunk * 2 + 2).zfill(2)))
+            print (data)
         data = data.rename({'lon0': 'longitude', 'lat0': 'latitude'})
         data = regrid(data, coord, var)
         ds.append(data)
@@ -295,7 +298,13 @@ def regrid_dfs(variables, year, period):
     ds = clean_coords(ds)
     #ds.time.attrs = {'calendar': 'gregorian'}
 
-    ds.to_netcdf('ORCA12/DFS5.2_' + str(period).zfill(2) + '_y' + year + '.nc',
+    if chunk: 
+        chunk_str = '_' + str(chunk)
+    else:
+        chunk_str = ''
+
+    ds.to_netcdf('ORCA48/DFS5.2_' + str(period).zfill(2) 
+                 + '_y' + year + chunk_str + '.nc',
                  unlimited_dims='time', mode='w')
 
 def process_dfs(year):
@@ -305,6 +314,18 @@ def process_dfs(year):
 
     regrid_dfs(data_list_24, year, 24)
     regrid_dfs(data_list_03, year, 3)
+
+def process_dfs_chunks(year):
+    '''
+     download and process dfs 3 monthly data to avoid memory error on
+     archer
+    '''
+
+    data_list_03 = ['u10', 'v10', 't2', 'q2','msl']
+
+    for chunk in range(6):
+        print ('chunk: ', chunk)
+        regrid_dfs(data_list_03, year, 3, chunk=chunk)
 
 def regrid_sea_surface_restoring(coord):
     ''' cut sea surface restoring to patch and regrid '''
@@ -327,5 +348,5 @@ def regrid_sea_surface_restoring(coord):
     data.to_netcdf('ORCA48/sss_1m_conform.nc', unlimited_dims='time_counter')
 
 #regrid_sea_surface_restoring(coord)
-process_dfs('2014')
+process_dfs_chunks('2013')
 #calc_ecmwf_bulk()

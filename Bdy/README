@@ -1,0 +1,10 @@
+Standard procedure for creating bdy
+
+> create bounday files in 
+  /work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/
+
+> mask data 
+  Masks/mask_land.py
+
+> process bdy
+  Bdy/make_data_bdy.py
