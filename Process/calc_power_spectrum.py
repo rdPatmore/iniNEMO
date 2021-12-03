@@ -168,7 +168,7 @@ class power_spectrum(object):
         #freq = fft.fftfreq(nr, dx.values)
         #freq = fft.fftshift(fft.fftfreq(nr, dx.values) * dx.values)
         print (dx)
-        freq = fft.fftshift(fft.fftfreq(nr, dx.values))
+        freq = fft.fftshift(fft.fftfreq(nr, dx.values))*2*np.pi*1000
        
         return freq, np.array(power_spec)
 

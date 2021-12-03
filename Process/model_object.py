@@ -6,6 +6,7 @@ import dask
 import matplotlib.pyplot as plt
 import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
+from dask.distributed import Client, LocalCluster
 
 #dask.config.set(scheduler='single-threaded')
 
@@ -14,9 +15,9 @@ class model(object):
  
     def __init__(self, case):
         self.case = case
-        self.root = config.root()
-        self.path = config.data_path()
-        self.data_path = config.data_path() + self.case + '/'
+        self.root = config.root_old()
+        self.path = config.data_path_old()
+        self.data_path = config.data_path_old() + self.case + '/'
         def drop_coords(ds):
             for var in ['e3t','e3u','e3v']:
                 try:
@@ -29,7 +30,7 @@ class model(object):
         self.grid_keys = ['icemod']
         self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
         self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
-                      '/SOCHIC_PATCH_3h_20130101_20140101_']
+                           '/SOCHIC_PATCH_3h_20130101_20140101_']
         #self.file_names = ['/SOCHIC_PATCH_24h_20120101_20121231_']
         #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
         #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
@@ -80,6 +81,8 @@ class model(object):
                          'Giddy_2020/merged_raw.nc')
         self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
                                                 'latitude': 'lat'})
+        index = np.arange(self.giddy_raw.ctd_data_point.size)
+        self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
 
     def merge_state(self):
@@ -189,35 +192,46 @@ class model(object):
         return time_span
     #self.ds = self.ds.interp(time_counter=time_span.values, method='nearest')
         
-    def random_glider_lat_lon_shift(self, grid='grid_T'):
+    def random_glider_lat_lon_shift(self, grid='grid_T', load=True):
 
-        # nemo limits
-        nlon0 = self.ds[grid].lon.min()
-        nlon1 = self.ds[grid].lon.max()
-        nlat0 = self.ds[grid].lat.min()
-        nlat1 = self.ds[grid].lat.max()
+        if load:
+            # load shifted data
+            data = xr.open_dataset(self.data_path + 
+                                 'GliderRandomSampling/glider_uniform_'
+                                 + str(self.ind).zfill(2) + '.nc')
+            # get random shifts within nemo bounds
+            self.lon_shift = data.attrs['lon_offset']
+            self.lat_shift = data.attrs['lat_offset']
 
-        # glider limits
-        glon0 = self.giddy_raw.lon.min()
-        glon1 = self.giddy_raw.lon.max()
-        glat0 = self.giddy_raw.lat.min()
-        glat1 = self.giddy_raw.lat.max()
+        else:
+            # nemo limits
+            nlon0 = self.ds[grid].lon.min()
+            nlon1 = self.ds[grid].lon.max()
+            nlat0 = self.ds[grid].lat.min()
+            nlat1 = self.ds[grid].lat.max()
 
-        # max shift distances
-        lon_dist = glon0 - nlon0 + nlon1 - glon1
-        lat_dist = glat1 - nlat1 + nlat0 - glat0
+            # glider limits
+            glon0 = self.giddy_raw.lon.min()
+            glon1 = self.giddy_raw.lon.max()
+            glat0 = self.giddy_raw.lat.min()
+            glat1 = self.giddy_raw.lat.max()
+
+            # max shift distances
+            lon_dist = glon0 - nlon0 + nlon1 - glon1
+            lat_dist = glat1 - nlat1 + nlat0 - glat0
   
-        # lat lon space to left and bottom
-        left_space = glon0 - nlon0
-        bottom_space = glat1 - nlat1
+            # lat lon space to left and bottom
+            left_space = glon0 - nlon0
+            bottom_space = glat1 - nlat1
 
 
-        # get random shifts within nemo bounds
-        self.lon_shift = (- left_space + (lon_dist * np.random.random()))
-        self.lat_shift = (- bottom_space + (lat_dist * np.random.random()))
+            # get random shifts within nemo bounds
+            self.lon_shift = (- left_space   + 
+                             (lon_dist * np.random.random())).values
+            self.lat_shift = (- bottom_space +
+                             (lat_dist * np.random.random())).values
     
     def resample_original_raw_glider_path(self, sample_dist):
-        print (self.giddy_raw)
         self.giddy_raw['distance'] = xr.DataArray( 
                  gt.utils.distance(self.giddy_raw.lon,
                                    self.giddy_raw.lat).cumsum(),
@@ -356,7 +370,9 @@ class model(object):
                             'qt_oce', 'sfx', 'taum', 'windsp',
                             'precip', 'snowpre', 'bounds_nav_lon',
                             'bounds_nav_lat', 'deptht_bounds',
-                             'area', 'e3t'])
+                             'area', 'e3t','time_centered_bounds',
+                             'time_counter_bounds', 'time_centered',
+                             'mldr10_3'])
 
         # alter path to test sampling methods
         if resample_path:
@@ -366,14 +382,31 @@ class model(object):
             self.rotate_original_raw_glider_path(rotation)
 
         
-        # get glider lat-lons
-        self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
-                              dims='ctd_data_point')
-        self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
-                              dims='ctd_data_point')
+        ## get glider lat-lons
+        #self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
+        #                      dims='ctd_data_point')
+        #self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
+        #                      dims='ctd_data_point')
 
         # add lat-lat lon to grid_T dimentions
         self.x_y_to_lat_lon('grid_T')
+
+    def prep_remove_dives(self, remove='climb'):
+        if remove == 'climb':
+            token = 0
+        if remove == 'dive':
+            token = 0.5
+        dive_direction = self.giddy_raw.dives % 1
+        self.giddy_raw = self.giddy_raw.assign_coords(
+                         {'dive_direction': dive_direction})
+        #self.giddy_raw = self.giddy_raw.set_index(
+        #         ctd_data_point=['ctd_data_point','dive_direction','ctd_time'])
+        self.giddy_raw = self.giddy_raw.swap_dims(
+                                            {'ctd_data_point':'dive_direction'})
+        self.giddy_raw = self.giddy_raw.sel(dive_direction=token)
+        self.giddy_raw = self.giddy_raw.swap_dims(
+                                            {'dive_direction':'ctd_data_point'})
+        self.giddy_raw = self.giddy_raw.drop('dive_direction')
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
                                append=''):
@@ -381,7 +414,13 @@ class model(object):
         sample model along glider's raw path
         using giddy (2020)
         '''
-    
+
+        # get glider lat-lons
+        self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
+                              dims='ctd_data_point')
+        self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
+                              dims='ctd_data_point')
+
         # alias lat-lon for interpolation
         self.x = self.glider_lon
         self.y = self.glider_lat
@@ -397,16 +436,26 @@ class model(object):
         # lon lat gets overriden if these remain
         self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])
 
+        # reduce computational load - local reduction of time and space
+        xmin, xmax = self.x.min(), self.x.max()
+        ymin, ymax = self.y.min(), self.y.max()
+        tmin = self.giddy_raw.ctd_time.min()
+        tmax = self.giddy_raw.ctd_time.max()
+        dmax = self.giddy_raw.ctd_depth.max()
+        grid_T_redu = self.ds['grid_T'].sel(lon=slice(xmin,xmax),
+                                            lat=slice(ymin,xmax),
+                                            time_counter=slice(tmin,tmax),
+                                            deptht=slice(None,dmax))
         # interpolate
-        
-        self.glider_nemo = self.ds['grid_T'].interp(lon=self.x, lat=self.y,
+        grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
+        self.glider_nemo = grid_T_redu.interp(lon=self.x, lat=self.y,
                                      deptht=self.giddy_raw_no_ll.ctd_depth,
                                      time_counter=self.giddy_raw_no_ll.ctd_time)
 
         self.glider_nemo['dives'] = self.giddy_raw_no_ll.dives
         if random_offset:
-            self.glider_nemo.attrs['lon_offset'] = self.lon_shift.values
-            self.glider_nemo.attrs['lat_offset'] = self.lat_shift.values
+            self.glider_nemo.attrs['lon_offset'] = self.lon_shift
+            self.glider_nemo.attrs['lat_offset'] = self.lat_shift
 
         # drop obsolete coords
         self.glider_nemo = self.glider_nemo.drop_vars(['nav_lon',
@@ -434,6 +483,10 @@ class model(object):
                                    glider_raw.lat).cumsum(),
                                    dims='ctd_data_point')
         glider_raw = glider_raw.set_coords('distance')
+        print (' ')
+        print (' ')
+        print ('1')
+        print (glider_raw)
 
         # make time a variable so it doesn't dissapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
@@ -451,6 +504,8 @@ class model(object):
             if group.sizes['ctd_data_point'] < 2:
                 continue
             group = group.swap_dims({'ctd_data_point': 'ctd_depth'})
+ 
+            group = group.drop('dives')
 
             # remove duplicate index values
             _, index = np.unique(group['ctd_depth'], return_index=True)
@@ -459,16 +514,21 @@ class model(object):
             # interpolate
             depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
 
-            uniform = depth_uniform.expand_dims(dive=[label])
+            uniform = depth_uniform.expand_dims(dives=[label])
+            print (uniform)
             glider_uniform_i.append(uniform)
 
-        glider_uniform = xr.concat(glider_uniform_i, dim='dive')
+        glider_uniform = xr.concat(glider_uniform_i, dim='dives')
+        print (' ')
+        print (' ')
+        print ('2')
+        print (glider_uniform)
 
 
         # interpolate to 1 km horzontal grid
         glider_uniform_i = []
         for (label, group) in glider_uniform.groupby('ctd_depth'):
-            group = group.swap_dims({'dive': 'distance'})
+            group = group.swap_dims({'dives': 'distance'})
                 
             group = group.sortby('distance')
             group = group.dropna('distance', how='all')
@@ -477,7 +537,6 @@ class model(object):
             _, index = np.unique(group['distance'], return_index=True)
             group = group.isel(distance=index)
 
-            print (group)
             if group.sizes['distance'] < 2:
                 continue
 
@@ -487,6 +546,10 @@ class model(object):
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
+        print (' ')
+        print (' ')
+        print ('3')
+        print (glider_uniform)
 
         # convert time units back to datetime64
         glider_uniform['time_counter'] = glider_uniform.time_counter / 1e9 
@@ -496,10 +559,18 @@ class model(object):
 
         # add mixed layer depth
         glider_uniform = self.get_mld_from_interpolated_glider(glider_uniform)
+        print (' ')
+        print (' ')
+        print ('4')
+        print (glider_uniform)
 
         # add buoyancy gradient
         glider_uniform = self.buoyancy_gradients_in_mld_from_interp_data(
                               glider_uniform)
+        print (' ')
+        print (' ')
+        print ('5')
+        print (glider_uniform)
 
 
         glider_uniform.to_netcdf(self.data_path + 
@@ -647,6 +718,9 @@ class model(object):
         jan.to_netcdf(self.data_path + 'SOCHIC_201201_T.nc', encoding=encoding)
 
 if __name__ == '__main__':
+    cluster = LocalCluster(n_workers=1)
+    # explicitly connect to the cluster we just created
+    client = Client(cluster)
     m = model('EXP02')
     #m.save_area_mean_all()
     #m.save_area_std_all()
@@ -655,20 +729,21 @@ if __name__ == '__main__':
     #m.get_rho()
     #sample_dist=5000
     #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
-    ###m.prep_interp_to_raw_obs(rotate=False)
-    ###for ind in range(1):
-    ###    print ('ind: ', ind)
-    ###    m.interp_to_raw_obs_path(save=False)
-    ###    print ('done part 1')
-    ###    append='non_rotated_path_'
-    ###    #append='pre_resampled_path_' + str(sample_dist)  + '_'
-    ###    m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
-    ###    print ('done part 2')
+    m.prep_interp_to_raw_obs()
+    m.prep_remove_dives(remove='dive')
+    for ind in range(100):
+        m.ind = ind
+        print ('ind: ', ind)
+        m.interp_to_raw_obs_path(random_offset=True)
+        print ('done part 1')
+        append='dive_'
+        m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
+        print ('done part 2')
+
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
         m.interp_to_raw_obs_path()
-        m.interp_raw_obs_path_to_uniform_grid(ind='', append='raw_path')
-    interp_obs_to_model()
+        m.interp_raw_obs_path_to_uniform_grid(ind='', append='climbs')
     
     
     #print ('start')

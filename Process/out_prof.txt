@@ -1,0 +1,61 @@
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/alignment.py:307: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead
+  index = joiner(matching_indexes)
+a
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/alignment.py:307: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead
+  index = joiner(matching_indexes)
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
+  **blockwise_kwargs,
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
+  **blockwise_kwargs,
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
+  **blockwise_kwargs,
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
+  **blockwise_kwargs,
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
+  **blockwise_kwargs,
+slurmstepd: error: *** JOB 2079094 ON compute-6-3 CANCELLED AT 2021-12-03T17:57:59 ***

@@ -10,6 +10,8 @@ import matplotlib
 from skimage.filters import window
 import scipy.signal as sig
 
+matplotlib.rcParams.update({'font.size': 8})
+
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
 # in resolution as more submesoscale process are resolved.
@@ -169,7 +171,7 @@ class plot_power_spectrum(object):
          
     def plot_multi_time_power_spectrum(self, times):
 
-        fig = plt.figure()
+        fig = plt.figure(figsize=(3.2,4))
         model_spec = spec.power_spectrum('EXP13', 'votemper')
         for time in times:
             freq, power_spec = model_spec.calc_2d_fft(time)
@@ -203,36 +205,51 @@ class plot_power_spectrum(object):
 
     def get_power_spec_stats_multi_model(self, models, labels):
         c = ['red','blue']
+        fig, self.ax = plt.subplots(1,1,figsize=(4.5,4.5))
+        plt.subplots_adjust(left=0.12, bottom=0.1, right=0.98, top=0.98)
+       
         for i, model in enumerate(models):
             model_spec = spec.power_spectrum(model, 'votemper')
             freq, power_spec = model_spec.calc_power_spec()
             (lower, middle, upper) = np.quantile(power_spec, [0.1,0.5,0.9],
                                                  axis=0)
             
-            plt.fill_between(freq, lower, upper, alpha=0.2, color=c[i])
-            plt.loglog(freq, middle, color=c[i], label=labels[i])
+            self.ax.fill_between(freq, lower, upper, alpha=0.2, color=c[i])
+            self.ax.loglog(freq, middle, color=c[i], label=labels[i])
 
-            #plt.gca().set_ylim([2e0,3e2])
-            plt.gca().set_ylim([1e-1,4e2])
+            self.ax.set_ylim([1e-2,2e0])
+            self.ax.set_ylim([1e-1,5e2])
 
     def add_power_law(self, power, ls='-'):
         ''' adds Kolmogorov-esk power law to spectra plot ''' 
-       
-        y0 = 4e2 # start y pos of line
+      
+        try:
+            k = float(power)
+        except:
+            num, denom = power.split('/') 
+            k = float(num) / float(denom)
 
-        x = np.array([4e-2,4e-1])
-        c = y0 - (x[0] ** power)
-        y = c + (x ** power)
-        print (c)
-        print (x)
-        print (y)
+        y0 = 1e2 # start y pos of line
 
-        plt.loglog(x, y, ls=ls)
+        x = np.array([3.6e-1,1.05-0])
+        ystage=np.log(y0)-k*(np.log(x[0])-np.log(x))
+        y=np.exp(ystage)
+
+        #x = np.array([1e-1,1.5e-0])
+        #c = y0 - (x[0] ** (power))
+        #y = c + (x ** (power))
+        #print (c)
+        #print (x)
+        #print (y)
+
+        self.ax.loglog(x, y, ls=ls, color='grey')
+        plt.text(x[-1],y[-1],' k='+power, ha='left',
+                va='center', color='grey',fontsize='8')
 
     def format_axes(self):
         ax = plt.gca()
-        ax.set_xlabel('Frequency')
-        ax.set_ylabel('Temperature Spectra')
+        ax.set_xlabel(r'Wavenumber (km$^{-1}$)')
+        ax.set_ylabel('Temperature Power Spectral Density')
         ax.legend()
     
 m = plot_power_spectrum()
@@ -241,9 +258,10 @@ m = plot_power_spectrum()
 m.get_power_spec_stats_multi_model(['EXP13','EXP08'],
                                    [r'1/12$^{\circ}$',r'1/24$^{\circ}$'])
 m.format_axes()
-##m.add_power_law((-5/3))
-##m.add_power_law((-2), ls='--')
-plt.savefig('temperature_spectra_method2_completeness.png')
+m.add_power_law('-5/3')
+m.add_power_law('-2', ls='--')
+m.add_power_law('-3', ls=':')
+plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
 #m = plot_power_spectrum()
 #m.plot_regridded_detrended_example()
