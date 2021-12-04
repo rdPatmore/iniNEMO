@@ -24,8 +24,11 @@ class profile_stats(object):
         north = self.sample.lat.max()
         south = self.sample.lat.min()
 
+        dmax=self.sample.ctd_depth.max()
+
         restricted = self.model.sel(time_counter=slice(start,end),
-                         lon=slice(west,east), lat=slice(south,north))
+                         lon=slice(west,east), lat=slice(south,north),
+                         deptht=slice(None,dmax))
         restricted = restricted.swap_dims({'lon':'x', 'lat':'y'})
 
         return restricted
@@ -39,7 +42,7 @@ class profile_stats(object):
             ds = ds.expand_dims('sample')
             return ds
         file_paths = [self.data_path + 'GliderRandomSampling/glider_uniform_' +
-                      str(i).zfill(2) + '.nc' for i in range(5)]
+                      str(i).zfill(2) + '.nc' for i in range(100)]
         self.samples = xr.open_mfdataset(file_paths,
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim)
@@ -49,8 +52,8 @@ class profile_stats(object):
         clean_float_time = float_time.where(float_time > 0, np.nan)
         self.samples['time_counter'] = clean_float_time
 
-        #self.samples = self.samples.dropna('distance', how='all')
-        #self.samples = self.samples.dropna('ctd_depth', how='all')
+        self.samples = self.samples.dropna('distance', how='all')
+        self.samples = self.samples.dropna('ctd_depth', how='all')
 
     def get_model_patches(self):
         
@@ -62,10 +65,23 @@ class profile_stats(object):
         t2012 = xr.open_dataset(self.data_path + 
                                 'SOCHIC_PATCH_3h_20120101_20121231_grid_T.nc',
                                 chunks={'deptht':1})
-        t2012 = t2012.drop(['mldkz5','mldr10_1','sbt'])
+        t2012 = t2012.drop(['mldkz5','mldr10_1','sbt','tos','sos','zos','mldr10_3',
+                                      'wfo','qsr_oce','qns_oce','qt_oce',
+                                      'sfx','taum','windsp','precip',
+                                      'snowpre','e3t','bounds_nav_lon',
+                                      'bounds_nav_lat','area',
+                                      'deptht_bounds','time_centered_bounds',
+                                      'time_counter_bounds'])
         t2013 = xr.open_dataset(self.data_path + 
                                 'SOCHIC_PATCH_3h_20130101_20140101_grid_T.nc',
                                 chunks={'deptht':1})
+        t2013 = t2013.drop(['tos','sos','zos','mldr10_3',
+                                      'wfo','qsr_oce','qns_oce','qt_oce',
+                                      'sfx','taum','windsp','precip',
+                                      'snowpre','e3t','bounds_nav_lon',
+                                      'bounds_nav_lat','area',
+                                      'deptht_bounds','time_centered_bounds',
+                                      'time_counter_bounds'])
         self.model = xr.concat([t2012,t2013], 'time_counter')
 
         self.model = self.model.assign_coords(
@@ -84,11 +100,11 @@ class profile_stats(object):
         for i, sample in enumerate(range(set_size)):
             print (i, ' / ', set_size)
             self.sample = self.samples.isel(sample=sample)
-            model_patch = self.restrict_model_time_and_space().chunk(
-                                                            {'time_counter':-1})
+            model_patch = self.restrict_model_time_and_space().load()#.chunk(
+                                                            #{'time_counter':-1})
 
             # calculate stats over horizontal plane
-            mean = model_patch.quantile([0.1,0.5,0.9],['x','y','time_counter'])
+            mean = model_patch.mean(['x','y','time_counter'])
             quant = model_patch.quantile([0.1,0.5,0.9],['x','y','time_counter'])
             std = model_patch.std(['x','y','time_counter'])
            
@@ -99,8 +115,6 @@ class profile_stats(object):
         self.mean_model_patches = xr.concat(mean_model_patches, 'sets')
         self.decile_model_patches = xr.concat(decile_model_patches, 'sets')
         self.std_model_patches = xr.concat(std_model_patches, 'sets')
-        print (self.std_model_patches)
-        print ('d')
 
     def calc_glider_set(self):
 
@@ -130,11 +144,11 @@ class profile_stats(object):
 
         print ('e')
         # average over sets
-        mean_mean = self.mean_model_patches.mean('sets').load() 
+        mean_mean = self.mean_model_patches.mean('sets')
         print ('f')
-        decile_mean = self.decile_model_patches.mean('sets').load() 
+        decile_mean = self.decile_model_patches.mean('sets')
         print ('g')
-        std_mean = self.std_model_patches.mean('sets').load() 
+        std_mean = self.std_model_patches.mean('sets')
         print ('h')
 
         # save

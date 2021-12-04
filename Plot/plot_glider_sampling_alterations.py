@@ -13,11 +13,14 @@ class bootstrap_glider_samples(object):
         self.root = config.root_old()
         self.case = case
         self.data_path = config.data_path_old() + self.case + '/'
+
+    def get_glider_uniform(self):
         def expand_sample_dim(ds):
             ds = ds.expand_dims('sample')
             return ds
-        self.samples = xr.open_mfdataset(self.data_path + 
-               'GliderRandomSampling/glider_uniform_*.nc',
+        file_paths = [self.data_path + 'GliderRandomSampling/glider_uniform_' +
+                      self.append + str(i).zfill(2) + '.nc' for i in range(100)]
+        self.samples = xr.open_mfdataset(file_paths,
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim)
 
@@ -102,13 +105,15 @@ class bootstrap_glider_samples(object):
         quant.to_netcdf(direction + '_bootstraped_over_patches_decile.nc')
         std.to_netcdf(  direction + '_bootstraped_over_patches_std.nc')
 
-    def calc_mean_glider_stats(self):
+    def calc_mean_glider_stats(self, append=''):
         '''
         calculate averages of the statistics from all 100 glider samples
             - mean of means
             - mean of deciles
             - mean of standard deviations
         '''
+        self.append=append
+        self.get_glider_uniform()
 
         set_size = self.samples.sizes['sample']
 
@@ -130,9 +135,12 @@ class bootstrap_glider_samples(object):
         quant = set_of_hists.quantile([0.1,0.9],['sets'])
         std = set_of_hists.std(['sets'])
 
-        mean.to_netcdf('glider_bootstraped_over_patches_mean.nc')
-        quant.to_netcdf('glider_bootstraped_over_patches_decile.nc')
-        std.to_netcdf('glider_bootstraped_over_patches_std.nc')
+        mean.to_netcdf('glider_' + self.append +
+                       'bootstraped_over_patches_mean.nc')
+        quant.to_netcdf('glider_' + self.append + 
+                        'bootstraped_over_patches_decile.nc')
+        std.to_netcdf('glider_' + self.append + 
+                      'bootstraped_over_patches_std.nc')
 
     def plot_model_stats(self, direction='bgx', c='black'):
 
@@ -149,8 +157,10 @@ class bootstrap_glider_samples(object):
 
     def plot_glider_stats(self, c='red'):
 
-        mean   = xr.load_dataarray('glider_bootstraped_over_patches_mean.nc')
-        decile = xr.load_dataarray('glider_bootstraped_over_patches_decile.nc')
+        mean   = xr.load_dataarray('glider_' + self.append +
+                                   'bootstraped_over_patches_mean.nc')
+        decile = xr.load_dataarray('glider_' + self.append + 
+                                   'bootstraped_over_patches_decile.nc')
 
         hist_l = decile.sel(quantile=0.1)
         hist_u = decile.sel(quantile=0.9)
@@ -160,11 +170,12 @@ class bootstrap_glider_samples(object):
                      color=c, edgecolor=None, alpha=0.2)
         
 
-    def histogram_buoyancy_gradients_and_samples(self):
+    def histogram_buoyancy_gradients_and_samples(self, append=''):
         ''' 
         plot histogram of buoyancy gradients 
         ''' 
 
+        self.append = append
         self.figure, self.ax = plt.subplots(figsize=(5.5,4.5))
 
         sample_sizes = [10, 100, 1000]
@@ -176,9 +187,14 @@ class bootstrap_glider_samples(object):
         self.ax.set_xlabel('Buoyancy Gradient')
         self.ax.set_ylabel('PDF')
 
+        self.ax.set_ylim(0,3e8)
+        self.ax.set_xlim(1.5e-9,7e-8)
+
         plt.legend()
-        #plt.savefig('EXP02_bg_full_sampling_comparison.png', dpi=300)
-        plt.show()
+        plt.savefig('EXP02_bg_' + append + 'sampling_comparison.png', dpi=600)
 
 m = bootstrap_glider_samples('EXP02')
-#m.histogram_buoyancy_gradients_and_samples()
+#m.calc_mean_glider_stats(append='dive_')
+m.histogram_buoyancy_gradients_and_samples(append='dive_')
+m.histogram_buoyancy_gradients_and_samples(append='climb_')
+m.histogram_buoyancy_gradients_and_samples(append='')

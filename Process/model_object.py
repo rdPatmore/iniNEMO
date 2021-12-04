@@ -392,21 +392,28 @@ class model(object):
         self.x_y_to_lat_lon('grid_T')
 
     def prep_remove_dives(self, remove='climb'):
+        ''' remove dives and/or climbs before sampling and processing '''
         if remove == 'climb':
-            token = 0
+            token = 0.0
+            remove_index = self.giddy_raw.dives % 1
         if remove == 'dive':
             token = 0.5
-        dive_direction = self.giddy_raw.dives % 1
+            remove_index = self.giddy_raw.dives % 1
+        if remove == 'every_2':
+            # remove every other dive pair
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives) % 2
+
         self.giddy_raw = self.giddy_raw.assign_coords(
-                         {'dive_direction': dive_direction})
+                         {'remove_index': remove_index})
         #self.giddy_raw = self.giddy_raw.set_index(
         #         ctd_data_point=['ctd_data_point','dive_direction','ctd_time'])
         self.giddy_raw = self.giddy_raw.swap_dims(
-                                            {'ctd_data_point':'dive_direction'})
-        self.giddy_raw = self.giddy_raw.sel(dive_direction=token)
+                                            {'ctd_data_point':'remove_index'})
+        self.giddy_raw = self.giddy_raw.sel(remove_index=token)
         self.giddy_raw = self.giddy_raw.swap_dims(
-                                            {'dive_direction':'ctd_data_point'})
-        self.giddy_raw = self.giddy_raw.drop('dive_direction')
+                                            {'remove_index':'ctd_data_point'})
+        self.giddy_raw = self.giddy_raw.drop('remove_index')
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
                                append=''):
@@ -483,10 +490,6 @@ class model(object):
                                    glider_raw.lat).cumsum(),
                                    dims='ctd_data_point')
         glider_raw = glider_raw.set_coords('distance')
-        print (' ')
-        print (' ')
-        print ('1')
-        print (glider_raw)
 
         # make time a variable so it doesn't dissapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
@@ -515,14 +518,9 @@ class model(object):
             depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
 
             uniform = depth_uniform.expand_dims(dives=[label])
-            print (uniform)
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='dives')
-        print (' ')
-        print (' ')
-        print ('2')
-        print (glider_uniform)
 
 
         # interpolate to 1 km horzontal grid
@@ -546,10 +544,6 @@ class model(object):
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='ctd_depth')
-        print (' ')
-        print (' ')
-        print ('3')
-        print (glider_uniform)
 
         # convert time units back to datetime64
         glider_uniform['time_counter'] = glider_uniform.time_counter / 1e9 
@@ -559,18 +553,10 @@ class model(object):
 
         # add mixed layer depth
         glider_uniform = self.get_mld_from_interpolated_glider(glider_uniform)
-        print (' ')
-        print (' ')
-        print ('4')
-        print (glider_uniform)
 
         # add buoyancy gradient
         glider_uniform = self.buoyancy_gradients_in_mld_from_interp_data(
                               glider_uniform)
-        print (' ')
-        print (' ')
-        print ('5')
-        print (glider_uniform)
 
 
         glider_uniform.to_netcdf(self.data_path + 
@@ -730,13 +716,13 @@ if __name__ == '__main__':
     #sample_dist=5000
     #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
     m.prep_interp_to_raw_obs()
-    m.prep_remove_dives(remove='dive')
+    m.prep_remove_dives(remove='every_2')
     for ind in range(100):
         m.ind = ind
         print ('ind: ', ind)
         m.interp_to_raw_obs_path(random_offset=True)
         print ('done part 1')
-        append='dive_'
+        append='remove_0_1_'
         m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
         print ('done part 2')
 

@@ -48,7 +48,7 @@ def theta_Ro():
         t = t.isel(depth=10)
         
         p1 = flat_axs[i].pcolor(t.nav_lon, t.nav_lat, t, shading='nearest',
-                      cmap=plt.cm.RdBu, vmin=-0.5, vmax=0.5)
+                      cmap=plt.cm.RdBu, vmin=-0.3, vmax=0.3)
         flat_axs[i].set_aspect('equal')
         flat_axs[i].set_xlabel('Longitude')
         flat_axs[i].set_xlim([-3.8,3.8])

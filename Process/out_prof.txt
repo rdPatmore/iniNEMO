@@ -1,61 +1,58 @@
 /home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/alignment.py:307: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead
   index = joiner(matching_indexes)
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
+/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
+chunk and silence this warning, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
+    ...     array[indexer]
+
+To avoid creating the large chunks, set the option
+    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+    ...     array[indexer]
+  return self.array[key]
 a
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/alignment.py:307: FutureWarning: Index.__or__ operating as a set operation is deprecated, in the future this will be a logical operation matching Series.__or__.  Use index.union(other) instead
-  index = joiner(matching_indexes)
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
-chunk and silence this warning, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-    ...     array[indexer]
-
-To avoid creating the large chunks, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-    ...     array[indexer]
-  return self.array[key]
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
-  **blockwise_kwargs,
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
-chunk and silence this warning, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-    ...     array[indexer]
-
-To avoid creating the large chunks, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-    ...     array[indexer]
-  return self.array[key]
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
-  **blockwise_kwargs,
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
-chunk and silence this warning, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-    ...     array[indexer]
-
-To avoid creating the large chunks, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-    ...     array[indexer]
-  return self.array[key]
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
-  **blockwise_kwargs,
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
-chunk and silence this warning, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-    ...     array[indexer]
-
-To avoid creating the large chunks, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-    ...     array[indexer]
-  return self.array[key]
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
-  **blockwise_kwargs,
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/xarray/core/indexing.py:1361: PerformanceWarning: Slicing is producing a large chunk. To accept the large
-chunk and silence this warning, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': False}):
-    ...     array[indexer]
-
-To avoid creating the large chunks, set the option
-    >>> with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-    ...     array[indexer]
-  return self.array[key]
-/home/users/rh923364/.conda/envs/myenv/lib/python3.7/site-packages/dask/array/core.py:4300: PerformanceWarning: Increasing number of chunks by factor of 75
-  **blockwise_kwargs,
-slurmstepd: error: *** JOB 2079094 ON compute-6-3 CANCELLED AT 2021-12-03T17:57:59 ***
+b
+c
+0  /  100
+1  /  100
+2  /  100
+3  /  100
+4  /  100
+5  /  100
+6  /  100
+7  /  100
+8  /  100
+9  /  100
+10  /  100
+11  /  100
+12  /  100
+13  /  100
+14  /  100
+15  /  100
+16  /  100
+17  /  100
+18  /  100
+19  /  100
+20  /  100
+21  /  100
+22  /  100
+23  /  100
+24  /  100
+25  /  100
+26  /  100
+27  /  100
+28  /  100
+29  /  100
+30  /  100
+31  /  100
+32  /  100
+33  /  100
+34  /  100
