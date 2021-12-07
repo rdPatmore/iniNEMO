@@ -8,16 +8,20 @@ import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 
-#dask.config.set(scheduler='single-threaded')
+dask.config.set(scheduler='single-threaded')
 
 class model(object):
     ''' get model object and process '''
  
     def __init__(self, case):
         self.case = case
-        self.root = config.root_old()
-        self.path = config.data_path_old()
-        self.data_path = config.data_path_old() + self.case + '/'
+        self.root = config.root()
+        self.path = config.data_path()
+        self.data_path = config.data_path() + self.case + '/'
+
+        self.loaded_p = False
+
+    def load_all(self):
         def drop_coords(ds):
             for var in ['e3t','e3u','e3v']:
                 try:
@@ -84,6 +88,35 @@ class model(object):
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
+    def load_gridT_and_giddy(self):
+        ''' minimal loading for glider sampling of model '''
+
+        # grid T
+        self.ds = {}
+        self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        path = self.data_path + self.file_id + 'grid_T.nc'
+        self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':10})
+        self.ds['grid_T'] = self.ds['grid_T'].isel(x=slice(1,-1), y=slice(1,-1))
+
+        # drop variables
+        self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
+                            'wfo', 'qsr_oce', 'qns_oce',
+                            'qt_oce', 'sfx', 'taum', 'windsp',
+                            'precip', 'snowpre', 'bounds_nav_lon',
+                            'bounds_nav_lat', 'deptht_bounds',
+                            'area', 'e3t','time_centered_bounds',
+                            'time_counter_bounds', 'time_centered',
+                            'mldr10_3', 'time_instant',
+                            'time_instant_bounds'])
+        print (self.ds['grid_T'])
+
+        # glider
+        self.giddy_raw = xr.open_dataset(self.root + 
+                         'Giddy_2020/merged_raw.nc')
+        self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
+                                                'latitude': 'lat'})
+        index = np.arange(self.giddy_raw.ctd_data_point.size)
+        self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
     def merge_state(self):
         ''' merge all state variables into one file '''
@@ -122,34 +155,49 @@ class model(object):
 
     def get_pressure(self, save=False):
         ''' calculate pressure from depth '''
-        self.ds['grid_T']['p'] = gsw.p_from_z(-self.ds['grid_T'].deptht,
-                                               self.ds['grid_T'].nav_lat)
- 
-        if save:
-            self.ds['grid_T'].p.to_netcdf(config.data_path() +
-                                          self.case + '/p.nc')
+        if self.loaded_p:
+            print ('p already loaded') 
+        else:
+            self.loaded_p = True
+            data = self.ds['grid_T']
+            self.p = gsw.p_from_z(-data.deptht, data.nav_lat)
+            self.p.name = 'p'
+            if save:
+                self.p.to_netcdf(self.data_path + self.file_id + 'p.nc')
 
     def get_conservative_temperature(self, save=False):
         ''' calulate conservative temperature '''
-        self.ds['grid_T']['cons_temp'] = gsw.conversions.CT_from_pt(
-                                                     self.ds['grid_T'].vosaline,
-                                                     self.ds['grid_T'].votemper)
+        data = self.ds['grid_T']
+        #self.cons_temp = gsw.conversions.CT_from_pt(data.vosaline,
+        #                                            data.votemper)
+        self.cons_temp = xr.apply_ufunc(gsw.conversions.CT_from_pt,
+                                        data.vosaline, data.votemper,
+                                        dask='parallelized',
+                                        output_dtypes=[data.vosaline.dtype])
+        #self.cons_temp.compute()
+        self.cons_temp.name = 'cons_temp'
         if save:
-            self.ds['grid_T'].cons_temp.to_netcdf(
-                                     config.data_path() + self.case + 
-                                    '/conservative_temperature.nc')
+            self.cons_temp.to_netcdf(self.data_path + self.file_id
+                                   + 'conservative_temperature.nc',)
 
     def get_absolute_salinity(self, save=False):
         ''' calulate absolute_salinity '''
         self.get_pressure()
         data = self.ds['grid_T']
-        data['abs_sal'] = gsw.conversions.SA_from_SP(data.vosaline, 
-                                                     data.p,
-                                                     data.nav_lon,
-                                                     data.nav_lat)
+        #self.abs_sal = gsw.conversions.SA_from_SP(data.vosaline, 
+        #                                          self.p,
+        #                                          data.nav_lon,
+        #                                          data.nav_lat)
+        self.abs_sal = xr.apply_ufunc(gsw.conversions.SA_from_SP,data.vosaline, 
+                                      self.p, data.nav_lon, data.nav_lat,
+                                      dask='parallelized', 
+                                      output_dtypes=[data.vosaline.dtype])
+        #self.abs_sal.compute()
+        self.abs_sal.name = 'abs_sal'
         if save:
-            data.abs_sal.to_netcdf(config.data_path() + self.case + 
-                                  '/absolute_salinity.nc')
+            self.abs_sal.to_netcdf(self.data_path + self.file_id 
+                                + 'absolute_salinity.nc')
+
 
     def get_alpha_and_beta(self, save=False):
         ''' calculate the themo-haline contaction coefficients '''
@@ -170,18 +218,27 @@ class model(object):
         '''
         
         # load temp, sal, alpha, beta
-        ct = xr.open_dataset(self.data_path +
-                             '/conservative_temperature.nc').cons_temp
-        a_sal = xr.open_dataset(self.data_path +
-                                '/absolute_salinity.nc').abs_sal
-        p = xr.open_dataset(self.data_path + '/p.nc').p
+        gsw_file = xr.open_dataset(self.data_path + self.file_id +  'gsw.nc',
+                              chunks={'time_counter':1})
+        ct = gsw_file.cons_temp
+        a_sal = gsw_file.abs_sal
 
-        rho = gsw.density.sigma0(a_sal, ct) + 1000
-        #rho = rho.isel(x=slice(1,-1), y=slice(1,-1))
+        rho = xr.apply_ufunc(gsw.density.sigma0, a_sal, ct,
+                             dask='parallelized', output_dtypes=[a_sal.dtype]
+                             ) + 1000
 
         # save
         rho.name = 'rho'
-        rho.load().to_netcdf(self.data_path + 'rho.nc')
+        rho.to_netcdf(self.data_path + self.file_id + 'rho.nc')
+
+    def save_all_gsw(self):
+        ''' save p, conservative temperature and absolute salinity to netcdf '''
+
+        self.get_pressure()
+        self.get_conservative_temperature()
+        self.get_absolute_salinity()
+        gsw = xr.merge([self.p, self.cons_temp, self.abs_sal])
+        gsw.to_netcdf(self.data_path + self.file_id + 'gsw.nc')
         
     def get_nemo_glider_time(self, start_month='01'):
         ''' take a time sample based on time difference in glider sample '''
@@ -364,15 +421,6 @@ class model(object):
                                                 deptht=slice(None,1100),
                                                 time_counter=slice(time0,time1))
 
-        # drop surface variables
-        self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
-                            'wfo', 'qsr_oce', 'qns_oce',
-                            'qt_oce', 'sfx', 'taum', 'windsp',
-                            'precip', 'snowpre', 'bounds_nav_lon',
-                            'bounds_nav_lat', 'deptht_bounds',
-                             'area', 'e3t','time_centered_bounds',
-                             'time_counter_bounds', 'time_centered',
-                             'mldr10_3'])
 
         # alter path to test sampling methods
         if resample_path:
@@ -704,27 +752,37 @@ class model(object):
         jan.to_netcdf(self.data_path + 'SOCHIC_201201_T.nc', encoding=encoding)
 
 if __name__ == '__main__':
-    cluster = LocalCluster(n_workers=1)
-    # explicitly connect to the cluster we just created
+  
+    dask.config.set({'temporary_directory': 'Scratch'})
+    cluster = LocalCluster(n_workers=8)
     client = Client(cluster)
-    m = model('EXP02')
-    #m.save_area_mean_all()
-    #m.save_area_std_all()
-    #m.save_month()
-    #m.get_conservative_temperature(save=True)
-    #m.get_rho()
-    #sample_dist=5000
-    #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
-    m.prep_interp_to_raw_obs()
-    m.prep_remove_dives(remove='every_2')
-    for ind in range(100):
-        m.ind = ind
-        print ('ind: ', ind)
-        m.interp_to_raw_obs_path(random_offset=True)
-        print ('done part 1')
-        append='remove_0_1_'
-        m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
-        print ('done part 2')
+
+    def get_rho():
+        m = model('EXP08')
+        m.load_gridT_and_giddy()
+        #m.save_all_gsw()
+        m.get_rho()
+    get_rho()
+
+    def glider_sampling():
+        m = model('EXP08')
+        m.load_gridT_and_giddy()
+        #m.save_area_mean_all()
+        #m.save_area_std_all()
+        #m.save_month()
+        #m.get_conservative_temperature(save=True)
+        #sample_dist=5000
+        #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
+        m.prep_interp_to_raw_obs()
+        #m.prep_remove_dives(remove='every_2')
+        for ind in range(100):
+            m.ind = ind
+            print ('ind: ', ind)
+            m.interp_to_raw_obs_path(random_offset=True)
+            print ('done part 1')
+            append='remove_0_1_'
+            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
+            print ('done part 2')
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

@@ -22,6 +22,7 @@ class plot_power_spectrum(object):
     def __init__(self):
         print ('start')
         self.domain_lim = 1000
+        self.data_path = config.data_path_old()
 
     def toy_signal(self):
         ''' idealised signal for testing spectra code '''
@@ -251,17 +252,43 @@ class plot_power_spectrum(object):
         ax.set_xlabel(r'Wavenumber (km$^{-1}$)')
         ax.set_ylabel('Temperature Power Spectral Density')
         ax.legend()
+
+
+    def ini_figure(self):
+        self.fig, self.ax = plt.subplots(figsize=(3.5,3.5))
+
+    def add_glider_spectra(self, model, var='votemper', append='', c='orange'):
+        ''' plot glider spectrum with alterations'''
+
+        # get spectrum
+        path = self.data_path + model + '/Spec/'
+        spec = xr.load_dataset(path + 'glider_samples_' + var + 
+                               '_spectrum' + append + '.nc')
+        for group, samples in spec.groupby('sample'):
+            print (group)
+            self.ax.loglog(samples.freq, samples.temp_spec, c=c,
+                           alpha=0.005)
+        self.ax.loglog(spec.freq, spec.temp_spec_mean, c=c, alpha=1)
     
-m = plot_power_spectrum()
+def glider_sampling_alteration():
+    m = plot_power_spectrum()
+    m.ini_figure()
+    m.add_glider_spectra('EXP02', c='orange')
+    m.add_glider_spectra('EXP02', append='_dive', c='cyan')
+    m.add_glider_spectra('EXP02', append='_climb', c='teal')
+    plt.show()
+glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))
-m.get_power_spec_stats_multi_model(['EXP13','EXP08'],
-                                   [r'1/12$^{\circ}$',r'1/24$^{\circ}$'])
-m.format_axes()
-m.add_power_law('-5/3')
-m.add_power_law('-2', ls='--')
-m.add_power_law('-3', ls=':')
-plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
+def model_res_compare():
+    m = plot_power_spectrum()
+    m.get_power_spec_stats_multi_model(['EXP13','EXP08'],
+                                       [r'1/12$^{\circ}$',r'1/24$^{\circ}$'])
+    m.format_axes()
+    m.add_power_law('-5/3')
+    m.add_power_law('-2', ls='--')
+    m.add_power_law('-3', ls=':')
+    plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
 #m = plot_power_spectrum()
 #m.plot_regridded_detrended_example()

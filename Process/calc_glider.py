@@ -21,6 +21,7 @@ class glider_nemo(object):
                                     chunks={'time_counter':1})
 
     def load_nemo_bg(self):
+        ''' load *subset to giddy* extent buoyancy gradient of model '''
         self.nemo = xr.open_dataset(self.data_path + 'nemo_bg.nc',
                                     chunks={'time_counter':1})
 

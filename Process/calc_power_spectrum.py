@@ -6,17 +6,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
 from skimage.filters import window
+from scipy.io.matlab import mio
+import spectrum as sp
+from scipy import stats
 
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
 # in resolution as more submesoscale process are resolved.
 
 
-class power_spectrum(object):
+class power_spectrum_model(object):
 
     def __init__(self, model, var):
         self.var = var 
         self.path = config.data_path() + model
+
+    def get_model(self):
         if var in ['votemper', 'vosaline']:
             self.ds = xr.open_dataset(self.path + 
                             '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
@@ -194,21 +199,175 @@ class power_spectrum(object):
         detrended.to_netcdf(self.path + '/Spectra/' +
                           self.var + '_regular_grid_d10.nc')
 
+class power_spectrum_glider(object):
 
-        # get depth
-        #depth_slice = model_slice.interp(deptht=10)
-#    def plot_multi_time_power_spectrum(self, times):
-#
-#        fig = plt.figure()
-#        for time in times:
-#            freq, power_spec = self.calc_2d_fft(time)
-#            plt.loglog(freq, power_spec)
-#
-#        #plt.gca().set_xlim([1e-6,5e-5])
-#        plt.gca().set_ylim([2e1,2e2])
-#        plt.show()
-    
+    def __init__(self, model, var, append=''):
+        self.var = var 
+        self.append = append
+        self.path = config.data_path_old() + model + '/'
+
+    def get_glider(self):
+        ''' load process glider data '''
+
+        def expand_sample_dim(ds):
+            ds = ds.expand_dims('sample')
+            return ds
+        file_paths = [self.path + 'GliderRandomSampling/glider_uniform_' +
+                      self.append + str(i).zfill(2) + '.nc' for i in range(100)]
+        self.glider = xr.open_mfdataset(file_paths,
+                                         combine='nested', concat_dim='sample',
+                                         preprocess=expand_sample_dim)
+
+    def detrend(self, h):
+
+        n = len(h)
+        t = np.arange(n)
+        p = np.polyfit(t, h, 1)
+        self.h_detrended = h - np.polyval(p, t)
+
+    def multiTaper(self, x, dt=1., nw=3, nfft=None):
+        """
+        function [P,s,ci] = pmtmPH(x,dt,nw,qplot,nfft);
+        Computes the power spectrum using the multi-taper method with adaptive 
+        weighting.
+        Inputs:
+        x      - Input data vector.
+        dt     - Sampling interval, default is 1.
+        nw     - Time bandwidth product, acceptable values are
+        0:.5:length(x)/2-1, default is 3.  2*nw-1 dpss tapers
+        are applied except if nw=0 a boxcar window is applied 
+        and if nw=.5 (or 1) a single dpss taper is applied.
+        qplot  - Generate a plot: 1 for yes, else no.  
+        nfft   - Number of frequencies to evaluate P at, default is
+        length(x) for the two-sided transform. 
+        Outputs:
+        P      - Power spectrum computed via the multi-taper method.
+        s      - Frequency vector.
+        ci     - 95% confidence intervals. Note that both the degrees of freedom
+        calculated by pmtm.m and chi2conf.m, which pmtm.m calls, are
+        incorrect.  Here a quick approximation method is used to
+        determine the chi-squared 95% confidence limits for v degrees
+        of freedom.  The degrees of freedom are close to but no larger
+        than (2*nw-1)*2; if the degrees of freedom are greater than
+        roughly 30, the chi-squared distribution is close to Gaussian.
+        The vertical ticks at the top of the plot indicate the size of
+        the full band-width.  The distance between ticks would remain
+        fixed in a linear plot.  For an accurate spectral estimate,
+        the true spectra should not vary abruptly on scales less than
+        the full-bandwidth.
+        Other toolbox functions called: dpps.m; and if nfft does not equal 
+        length(x)    , cz.m
+        Peter Huybers
+        MIT, 2003
+        phuybers@mit.edu
+
+        Adapted from Matlab to Python by Nicolas Barrier"""
+        if nfft is None:
+            nfft=len(x)
+
+        nx=len(x)
+        k=np.min([np.round(2*nw),nx])
+        k=np.max([k-1,1])
+        s=np.arange(0,1/dt,1/(nfft*dt));
+        w=nw/(dt*nx) # half-bandwidth of the dpss
+        
+        E,V=sp.dpss(nx,NW=nw,k=k)
+ 
+        if nx<=nfft:
+            tempx=np.transpose(np.tile(x,(k,1)))
+            Pk=np.abs(np.fft.fft(E*tempx,n=nfft,axis=0))**2
+        else:
+            raise IOError('Not implemented yet')
+        
+        #Iteration to determine adaptive weights:    
+        if k>1:
+            xmat=np.mat(x).T
+            sig2 = xmat.T*xmat/nx; # power
+            P    = (Pk[:,0]+Pk[:,1])/2.;   # initial spectrum estimate
+            Ptemp= np.zeros(nfft);
+            P1   = np.zeros(nfft);
+            tol  = .0005*sig2/nfft;    
+            a    = sig2*(1-V);
+            while np.sum(np.abs(P-P1)/nfft)>tol:
+                Pmat=np.mat(P).T
+                Vmat=np.mat(V)
+                amat=np.mat(a)
+                temp1=np.mat(np.ones((1,k)))
+                temp2=np.mat(np.ones((nfft,1)))
+                b=(Pmat*temp1)/(Pmat*Vmat+temp2*amat); # weights
+                temp3=np.mat(np.ones((nfft,1)))*Vmat
+                temp3=np.array(temp3)
+                b=np.array(b)
+                wk=b**2*temp3       
+                P1=np.sum(wk*Pk,axis=1)/np.sum(wk,axis=1)
+                Ptemp=P1; P1=P; P=Ptemp;                 # swap P and P1
+
+            #b2=b**2
+            #temp1=np.mat(np.ones((nfft,1)))*V
+            temp1=b**2
+            temp2=np.mat(np.ones((nfft,1)))*Vmat
+            num=2*np.sum(temp1*np.array(temp2),axis=1)**2
+            
+            temp1=b**4
+            temp2=np.mat(np.ones((nfft,1)))*np.mat(V**2)
+            den=np.sum(temp1*np.array(temp2),axis=1)
+            v=num/den
+            
+        select=np.arange(0,(nfft+1)/2+1).astype(np.int64)
+        P=P[select]
+        s=s[select]
+        v=v[select]
+
+        temp1=1/(1-2/(9*v)-1.96*np.sqrt(2./(9*v)))**3
+        temp2=1/(1-2/(9*v)+1.96*np.sqrt(2/(9*v)))**3
+
+        ci=np.array([temp1,temp2])
+        
+        return P,s,ci
+
+    def calc_spectrum(self):
+         ''' 
+         Calculate power spectrum with multi-taper method according to
+         Giddy 2020
+         '''
+
+         # detrended takes rho from pr
+         var10_stack = self.glider[self.var].sel(ctd_depth=10, method='nearest')
+         
+         #plt.figure()
+         fs=np.linspace(0,0.5,1000)
+         Pset = []
+         for i in range(var10_stack.sample.size):
+             print (i)
+             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
+             self.detrend(var10)
+             PEm,sEm,ciEm = self.multiTaper(self.h_detrended)
+             PEm = np.interp(fs,sEm,PEm)
+             Pset.append(PEm) 
+             #plt.loglog(fs,PEm, alpha=0.02, c='orange')
+         mean_spec = np.nanmean(Pset, axis=0)
+         #print (mean_spec.shape)
+         #plt.loglog(fs, mean_spec, lw=1.0, alpha=1, c='orange')
+         #plt.show()
+         ds = xr.Dataset(data_vars=dict(
+                         temp_spec=(['sample','freq'], Pset),
+                         temp_spec_mean=(['freq'], mean_spec)),
+                         coords=dict(freq=fs),
+                         attrs=dict(description=self.var + 
+                                      ' power spectrum for 100 glider samples'))
+         ds.to_netcdf(self.path + 'Spec/glider_samples_' + self.var + 
+                               '_spectrum_' + self.append.rstrip('_') + '.nc')
+
 if __name__ == '__main__':
-    m = power_spectrum('EXP13', 'votemper')
-    m.prep_for_calc_power_spec()
-    #m.plot_multi_time_power_spectrum(np.arange(0,100,10))
+    m = power_spectrum_glider('EXP08', 'votemper', append='dive_')
+    print ('')
+    print ('1')
+    print ('')
+    m.get_glider()
+    print ('')
+    print ('2')
+    print ('')
+    m.calc_spectrum()
+    print ('')
+    print ('3')
+    print ('')

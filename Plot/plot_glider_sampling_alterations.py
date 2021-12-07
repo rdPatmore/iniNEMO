@@ -3,6 +3,9 @@ import config
 import iniNEMO.Process.model_object as mo
 import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib
+
+matplotlib.rcParams.update({'font.size': 8})
 
 class bootstrap_glider_samples(object):
     '''
@@ -193,8 +196,63 @@ class bootstrap_glider_samples(object):
         plt.legend()
         plt.savefig('EXP02_bg_' + append + 'sampling_comparison.png', dpi=600)
 
+    def plot_profiles(self):
+        
+        # initialise figure
+        fig, axs = plt.subplots(1,2, figsize=(5.5,3.5))
+        plt.subplots_adjust(top=0.97,right=0.97, wspace=0.05, bottom=0.13)
+
+        # load data 
+        path = self.data_path + 'Stats/'
+        model_decile = xr.open_dataset(path + 'model_profiles_decile.nc')
+        glider_decile = xr.open_dataset(path + 'glider_profiles_decile.nc')
+
+        # alias model deciles
+        model_l = model_decile.sel(quantile=0.1)
+        model_m = model_decile.sel(quantile=0.5)
+        model_u = model_decile.sel(quantile=0.9)
+
+        # alias glider deciles
+        glider_l = glider_decile.sel(quantile=0.1)
+        glider_m = glider_decile.sel(quantile=0.5)
+        glider_u = glider_decile.sel(quantile=0.9)
+   
+        # plot model temp
+        axs[0].plot(model_m.votemper, -model_m.deptht, c='black')
+        axs[0].fill_betweenx(-model_l.deptht, model_l.votemper, model_u.votemper,
+                             alpha=0.2, color='black')
+        # plot glider temp
+        axs[0].plot(glider_m.votemper, -glider_m.ctd_depth, c='red')
+        axs[0].fill_betweenx(-glider_l.ctd_depth, glider_l.votemper, 
+                             glider_u.votemper, alpha=0.2, color='red')
+        # plot model salt
+        axs[1].plot(model_m.vosaline, -model_m.deptht, c='black',
+                    label='model')
+        axs[1].fill_betweenx(-model_l.deptht, model_l.vosaline, model_u.vosaline,
+                             alpha=0.2, color='black')
+        # plot glider salt
+        axs[1].plot(glider_m.vosaline, -glider_m.ctd_depth, c='red',
+                    label='glider')
+        axs[1].fill_betweenx(-glider_l.ctd_depth, glider_l.vosaline, 
+                             glider_u.vosaline, alpha=0.2, color='red')
+
+        # data limits
+        for ax in axs:
+            ax.set_ylim(-900,0)
+
+        # labels
+        axs[1].yaxis.set_ticklabels([])
+        axs[0].set_ylabel('Depth (m)')
+        axs[0].set_xlabel(r'Potential Temperature ($^{\circ}$C)')
+        axs[1].set_xlabel('Practical Salinity (psu)')
+
+        axs[1].legend()
+
+        plt.savefig(self.case + '_glider_sampling_depth_profiles.png', dpi=600)
+
 m = bootstrap_glider_samples('EXP02')
-#m.calc_mean_glider_stats(append='dive_')
-m.histogram_buoyancy_gradients_and_samples(append='dive_')
-m.histogram_buoyancy_gradients_and_samples(append='climb_')
-m.histogram_buoyancy_gradients_and_samples(append='')
+#m.calc_mean_glider_stats(append='remove_0_1_')
+#m.histogram_buoyancy_gradients_and_samples(append='dive_')
+#m.histogram_buoyancy_gradients_and_samples(append='climb_')
+#m.histogram_buoyancy_gradients_and_samples(append='remove_0_1_')
+m.plot_profiles()

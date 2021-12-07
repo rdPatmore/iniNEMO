@@ -2,7 +2,7 @@
  
 #these are all the default values anyway 
 #SBATCH --ntasks=1 
-#SBATCH --cpus-per-task=1  
+#SBATCH --cpus-per-task=8
 #SBATCH --threads-per-core=1 
  
 # the job name and output file
