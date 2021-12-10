@@ -238,7 +238,7 @@ class model(object):
         self.get_conservative_temperature()
         self.get_absolute_salinity()
         gsw = xr.merge([self.p, self.cons_temp, self.abs_sal])
-        gsw.to_netcdf(self.data_path + self.file_id + 'gsw.nc')
+        gsw.load().to_netcdf(self.data_path + self.file_id + 'gsw.nc')
         
     def get_nemo_glider_time(self, start_month='01'):
         ''' take a time sample based on time difference in glider sample '''
@@ -404,7 +404,7 @@ class model(object):
         preliminary processing for sampling model like a glider
         '''
         
-        rho = xr.open_dataarray(self.data_path + 'rho.nc')
+        rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc')
         self.ds['grid_T'] = xr.merge([self.ds['grid_T'], rho])
 
         # shift glider time to nemo time
@@ -464,7 +464,7 @@ class model(object):
         self.giddy_raw = self.giddy_raw.drop('remove_index')
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
-                               append=''):
+                               append='', load_offset=False):
         '''
         sample model along glider's raw path
         using giddy (2020)
@@ -483,7 +483,7 @@ class model(object):
         if random_offset:
             # this shift is centered on the model and may shift
             # glider out of bounds
-            self.random_glider_lat_lon_shift()
+            self.random_glider_lat_lon_shift(load=load_offset)
             self.x = self.x + self.lon_shift
             self.y = self.y + self.lat_shift
 
@@ -754,7 +754,7 @@ class model(object):
 if __name__ == '__main__':
   
     dask.config.set({'temporary_directory': 'Scratch'})
-    cluster = LocalCluster(n_workers=8)
+    cluster = LocalCluster(n_workers=1)
     client = Client(cluster)
 
     def get_rho():
@@ -762,7 +762,6 @@ if __name__ == '__main__':
         m.load_gridT_and_giddy()
         #m.save_all_gsw()
         m.get_rho()
-    get_rho()
 
     def glider_sampling():
         m = model('EXP08')
@@ -774,15 +773,16 @@ if __name__ == '__main__':
         #sample_dist=5000
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
         m.prep_interp_to_raw_obs()
-        #m.prep_remove_dives(remove='every_2')
+        m.prep_remove_dives(remove='dive')
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
-            append='remove_0_1_'
+            append='dive_'
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
+    glider_sampling()
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

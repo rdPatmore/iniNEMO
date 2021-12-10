@@ -77,8 +77,9 @@ class raw_glider_plotting(object):
         ''' Plot raw glider sampling rates. Spatial and temporal '''
 
         # plot prep
-        fig, axs = plt.subplots(1, 2, figsize=(4.5,4))
-        plt.subplots_adjust(right=0.83, top=0.98, bottom=0.15)
+        fig, axs = plt.subplots(2, 2, figsize=(4.5,4))
+        plt.subplots_adjust(right=0.83, top=0.98, bottom=0.15, wspace=0.05,
+                            hspace=0.06)
 
         # calcs
         self.interpolate_to_unifrom_depths()
@@ -88,44 +89,82 @@ class raw_glider_plotting(object):
         # load for faster plotting
         self.glider_uniform = self.glider_uniform.load()
 
-        glider_stacked = self.glider_uniform.stack(z=('dive','ctd_depth'))
-        glider_stacked = glider_stacked.fillna(0.0)
+        def sub_set(ds, token):
+            print (ds)
+            remove_index = ds.dive % 1
+            dsn = ds.assign_coords({'remove_index': remove_index})
+            print (dsn)
+            dsn = dsn.swap_dims({'dive':'remove_index'})
+            #ds = ds.where(remove_index!=token, drop=True)
+            dsn = dsn.sel(remove_index=token)
+            dsn = dsn.swap_dims({'remove_index':'dive'})
+            dsn = dsn.drop('remove_index')
+            print (dsn)
+            return dsn
+        glider_dive = sub_set(self.glider_uniform, 0.0)  # remove climbs
+        glider_climb = sub_set(self.glider_uniform, 0.5) # remove dives
+
+        glider_stacked_d = glider_dive.stack(z=('dive','ctd_depth'))
+        glider_stacked_d = glider_stacked_d.fillna(0.0)
+
+        glider_stacked_c = glider_climb.stack(z=('dive','ctd_depth'))
+        glider_stacked_c = glider_stacked_c.fillna(0.0)
         #glider_stacked = glider_stacked.where(glider_stacked.distance>0.0,
         #                                      drop=True)
         #glider_stacked = glider_stacked.dropna('z')
 
         y_range=[0,1000]
-
         x_range=[0,5]
-        # plot sampling distance bar chart
-        print (glider_stacked.distance.values)
-        axs[0].hist2d(glider_stacked.distance, glider_stacked.ctd_depth,
-                      bins=[100,1000], range=[x_range,y_range],
-                      norm=matplotlib.colors.LogNorm(),
-                      vmin=1, vmax=500)
-        axs[0].set_ylabel('Depth (m)')
-        axs[0].set_xlabel('Distance Between Samples\n(km)')
 
-        x_range=[0,5]
-        # plot sampling rate bar chart
-        p = axs[1].hist2d(glider_stacked.dt, glider_stacked.ctd_depth,
+        def plot_hist(ds, row, cmap):
+            # plot sampling distance bar chart
+            axs[row,0].hist2d(ds.distance, ds.ctd_depth,
                           bins=[100,1000], range=[x_range,y_range],
-                          norm=matplotlib.colors.LogNorm(),
+                          norm=matplotlib.colors.LogNorm(), cmap=cmap,
                           vmin=1, vmax=500)
-        axs[1].set_xlabel('Time Between Samples\n(Hours)')
-        axs[1].yaxis.set_ticklabels([])
 
-        axs[0].invert_yaxis()
-        axs[1].invert_yaxis()
+            # plot sampling rate bar chart
+            p = axs[row,1].hist2d(ds.dt, ds.ctd_depth,
+                              bins=[100,1000], range=[x_range,y_range],
+                              norm=matplotlib.colors.LogNorm(), cmap=cmap,
+                              vmin=1, vmax=500)
+            return p
+
+        pd = plot_hist(glider_stacked_d, 0, plt.cm.inferno)
+        pc = plot_hist(glider_stacked_c, 1, plt.cm.inferno)
+
+        axs[0,0].set_ylabel('Depth [m]')
+        axs[1,0].set_ylabel('Depth [m]')
+        axs[1,0].set_xlabel('Distance Between Samples\n[km]')
+        axs[1,1].set_xlabel('Time Between Samples\n[Hours]')
+        axs[0,1].yaxis.set_ticklabels([])
+        axs[1,1].yaxis.set_ticklabels([])
+        axs[0,0].xaxis.set_ticklabels([])
+        axs[0,1].xaxis.set_ticklabels([])
+
+        for ax in axs.ravel():
+            ax.invert_yaxis()
       
         # colour bar
-        print (p[-1])
-        pos = axs[1].get_position()
-        cbar_ax = fig.add_axes([0.85, pos.y0, 0.02, pos.y1 - pos.y0])
-        cbar = fig.colorbar(p[-1], cax=cbar_ax, orientation='vertical')
+        pos0 = axs[0,1].get_position()
+        pos1 = axs[1,1].get_position()
+        cbar_ax = fig.add_axes([0.85, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(pc[-1], cax=cbar_ax, orientation='vertical')
         cbar.ax.text(5.8, 0.5, 'Number of Samples', fontsize=8, rotation=90,
                      transform=cbar.ax.transAxes, va='center', ha='right')
-        plt.savefig('glider_sampling_frequencies.png', dpi=600)
+
+        for ax in axs[0]:
+            ax.text(0.95, 0.95, 'climb -> dive', transform=ax.transAxes,
+                    bbox=dict(facecolor='lightgrey', alpha=1.0,
+                              edgecolor='None'), ha='right', va='top',
+                    fontsize=6)
+        for ax in axs[1]:
+            ax.text(0.95, 0.05, 'dive -> climb', transform=ax.transAxes,
+                    bbox=dict(facecolor='lightgrey', alpha=1.0,
+                              edgecolor='None'), ha='right', va='bottom',
+                    fontsize=6)
+
+        plt.savefig('glider_sampling_frequencies.png', dpi=1200)
 
         
 glider = raw_glider_plotting()

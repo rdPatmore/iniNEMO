@@ -2,7 +2,7 @@
  
 #these are all the default values anyway 
 #SBATCH --ntasks=1 
-#SBATCH --cpus-per-task=1  
+#SBATCH --cpus-per-task=8  
 #SBATCH --threads-per-core=1 
  
 # the job name and output file
@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=8
  
-python -u calc_profile_statistics.py
+python -u calc_rossby_stats.py

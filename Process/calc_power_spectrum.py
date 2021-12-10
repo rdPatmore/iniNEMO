@@ -204,7 +204,7 @@ class power_spectrum_glider(object):
     def __init__(self, model, var, append=''):
         self.var = var 
         self.append = append
-        self.path = config.data_path_old() + model + '/'
+        self.path = config.data_path() + model + '/'
 
     def get_glider(self):
         ''' load process glider data '''
@@ -355,11 +355,11 @@ class power_spectrum_glider(object):
                          coords=dict(freq=fs),
                          attrs=dict(description=self.var + 
                                       ' power spectrum for 100 glider samples'))
-         ds.to_netcdf(self.path + 'Spec/glider_samples_' + self.var + 
+         ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                                '_spectrum_' + self.append.rstrip('_') + '.nc')
 
 if __name__ == '__main__':
-    m = power_spectrum_glider('EXP08', 'votemper', append='dive_')
+    m = power_spectrum_glider('EXP08', 'votemper', append='climb_')
     print ('')
     print ('1')
     print ('')

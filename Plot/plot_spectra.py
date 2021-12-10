@@ -22,7 +22,8 @@ class plot_power_spectrum(object):
     def __init__(self):
         print ('start')
         self.domain_lim = 1000
-        self.data_path = config.data_path_old()
+        self.data_path_old = config.data_path_old()
+        self.data_path = config.data_path()
 
     def toy_signal(self):
         ''' idealised signal for testing spectra code '''
@@ -256,27 +257,46 @@ class plot_power_spectrum(object):
 
     def ini_figure(self):
         self.fig, self.ax = plt.subplots(figsize=(3.5,3.5))
+        plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
-    def add_glider_spectra(self, model, var='votemper', append='', c='orange'):
+    def add_glider_spectra(self, model, var='votemper', append='', c='orange',
+                           label='', old=False):
         ''' plot glider spectrum with alterations'''
 
         # get spectrum
-        path = self.data_path + model + '/Spec/'
+        if old:
+            path = self.data_path_old + model + '/Spec/'
+        else:
+            path = self.data_path + model + '/Spectra/'
         spec = xr.load_dataset(path + 'glider_samples_' + var + 
                                '_spectrum' + append + '.nc')
-        for group, samples in spec.groupby('sample'):
-            print (group)
-            self.ax.loglog(samples.freq, samples.temp_spec, c=c,
-                           alpha=0.005)
-        self.ax.loglog(spec.freq, spec.temp_spec_mean, c=c, alpha=1)
+        #for group, samples in spec.groupby('sample'):
+        #    print (group)
+        #    self.ax.loglog(samples.freq, samples.temp_spec, c=c,
+        #                   alpha=0.01, lw=0.5)
+        decile = spec.temp_spec.quantile([0.1,0.9], ['sample'])
+        spec_l = decile.sel(quantile=0.1) 
+        spec_u = decile.sel(quantile=0.9) 
+        self.ax.fill_between(spec_l.freq, spec_l, spec_u, alpha=0.2, color=c,
+                             edgecolor=None)
+        self.ax.loglog(spec.freq, spec.temp_spec_mean, c=c, alpha=1, lw=0.8,
+                       label=label)
     
+    def finishing_touches(self):
+        self.ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
+        self.ax.set_ylabel('Temperature Power Spectral Density')
+        self.ax.set_ylim(1e-9,1e2)
+        self.fig.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95))
 def glider_sampling_alteration():
     m = plot_power_spectrum()
     m.ini_figure()
-    m.add_glider_spectra('EXP02', c='orange')
-    m.add_glider_spectra('EXP02', append='_dive', c='cyan')
-    m.add_glider_spectra('EXP02', append='_climb', c='teal')
-    plt.show()
+    #m.add_glider_spectra('EXP08', c='orange', label='full path')
+    #m.add_glider_spectra('EXP08', append='_climb', c='teal', label='no climb')
+    m.add_glider_spectra('EXP02', c='orange', label='full path', old=True)
+    #m.add_glider_spectra('EXP02', append='_climb', c='teal', label='no climb',
+    #                     old=True)
+    m.finishing_touches()
+    plt.savefig('EXP02_glider_spectra_full_only.png', dpi=1200)
 glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))
