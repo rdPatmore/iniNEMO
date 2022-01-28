@@ -51,6 +51,8 @@ class vorticity(object):
             self.f = self.f.load()
             self.f.name = 'cori'
             self.f.to_netcdf(self.path + '/cori.nc')
+     
+        return self.f
 
     def relative_vorticity(self, save=False):
         ''' calculate relative vorticty '''

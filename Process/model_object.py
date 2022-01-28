@@ -167,7 +167,7 @@ class model(object):
 
     def get_conservative_temperature(self, save=False):
         ''' calulate conservative temperature '''
-        data = self.ds['grid_T']
+        data = self.ds['grid_T'].chunk({'time_counter':1})
         #self.cons_temp = gsw.conversions.CT_from_pt(data.vosaline,
         #                                            data.votemper)
         self.cons_temp = xr.apply_ufunc(gsw.conversions.CT_from_pt,
@@ -183,7 +183,7 @@ class model(object):
     def get_absolute_salinity(self, save=False):
         ''' calulate absolute_salinity '''
         self.get_pressure()
-        data = self.ds['grid_T']
+        data = self.ds['grid_T'].chunk({'time_counter':1})
         #self.abs_sal = gsw.conversions.SA_from_SP(data.vosaline, 
         #                                          self.p,
         #                                          data.nav_lon,
@@ -451,6 +451,22 @@ class model(object):
             # remove every other dive pair
             token = 1.0 
             remove_index = np.floor(self.giddy_raw.dives) % 2
+        if remove == 'every_8':
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives) % 8
+        if remove == 'every_8_and_climb':
+            # remove all dives and sample every 8
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 8
+        if remove == 'every_8_and_dive':
+            # remove all climbs and sample every 8
+            token = 0.5 
+            remove_index = self.giddy_raw.dives % 8
+        if remove == 'burst_3_20':
+            # sample 3 on 20 off
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 24
+            remove_index = xr.where(remove_index < 3, 0.0, remove_index)
 
         self.giddy_raw = self.giddy_raw.assign_coords(
                          {'remove_index': remove_index})
@@ -469,7 +485,7 @@ class model(object):
         sample model along glider's raw path
         using giddy (2020)
         '''
-
+ 
         # get glider lat-lons
         self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
                               dims='ctd_data_point')
@@ -754,17 +770,20 @@ class model(object):
 if __name__ == '__main__':
   
     dask.config.set({'temporary_directory': 'Scratch'})
-    cluster = LocalCluster(n_workers=1)
+    cluster = LocalCluster(n_workers=10)
     client = Client(cluster)
+    #from dask.distributed import Client, progress
+    #client = Client(threads_per_worker=1, n_workers=10)
 
     def get_rho():
-        m = model('EXP08')
+        m = model('EXP10')
         m.load_gridT_and_giddy()
-        #m.save_all_gsw()
-        m.get_rho()
+        m.save_all_gsw()
+        #m.get_rho()
+    get_rho()
 
-    def glider_sampling():
-        m = model('EXP08')
+    def glider_sampling(remove=False):
+        m = model('EXP10')
         m.load_gridT_and_giddy()
         #m.save_area_mean_all()
         #m.save_area_std_all()
@@ -773,16 +792,27 @@ if __name__ == '__main__':
         #sample_dist=5000
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
         m.prep_interp_to_raw_obs()
-        m.prep_remove_dives(remove='dive')
+        if remove:
+            m.prep_remove_dives(remove='every_2')
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
-            append='dive_'
+            append='every_2_'
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
-    glider_sampling()
+        #inds = np.arange(100)
+        #m.ds['grid_T'] = m.ds['grid_T'].expand_dims(ind=inds)
+        #m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+        #m.interp_raw_obs_path_to_uniform_grid(append=append)
+        #print (m.ds['grid_T'])
+        ##print (inds)
+        ##print (djkfs)
+        #futures = client.map(process_all, inds, **dict(m=m))
+        #client.gather(futures)
+        #xr.apply_ufunc(process_all, inds, dask="parallelized")
+    #glider_sampling(remove=True)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

@@ -260,7 +260,7 @@ class plot_power_spectrum(object):
         plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
     def add_glider_spectra(self, model, var='votemper', append='', c='orange',
-                           label='', old=False):
+                           label='', old=False, ls='-'):
         ''' plot glider spectrum with alterations'''
 
         # get spectrum
@@ -274,29 +274,65 @@ class plot_power_spectrum(object):
         #    print (group)
         #    self.ax.loglog(samples.freq, samples.temp_spec, c=c,
         #                   alpha=0.01, lw=0.5)
+        #if c=='teal':
+        #    spec['temp_spec_mean'] = spec.temp_spec_mean/2
+        #    spec['temp_spec'] = spec.temp_spec/2
+        #if append=='_interp_2000_multi_taper':
+        #    spec['temp_spec_mean'] = spec.temp_spec_mean*2
+        #    spec['temp_spec'] = spec.temp_spec*2
+        #if append=='_multi_taper':
+        #    spec['temp_spec_mean'] = spec.temp_spec_mean*2
+        #    spec['temp_spec'] = spec.temp_spec*2
+        #if append=='_interp_500_multi_taper':
+        #    spec['temp_spec_mean'] = spec.temp_spec_mean*2
+        #    spec['temp_spec'] = spec.temp_spec*2
+        #    spec['temp_spec_mean'] = spec.temp_spec_mean*4
+        #    spec['temp_spec'] = spec.temp_spec*4
         decile = spec.temp_spec.quantile([0.1,0.9], ['sample'])
         spec_l = decile.sel(quantile=0.1) 
         spec_u = decile.sel(quantile=0.9) 
-        self.ax.fill_between(spec_l.freq, spec_l, spec_u, alpha=0.2, color=c,
-                             edgecolor=None)
-        self.ax.loglog(spec.freq, spec.temp_spec_mean, c=c, alpha=1, lw=0.8,
-                       label=label)
+        self.ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.2,
+                             color=c, edgecolor=None)
+        self.ax.loglog(spec.freq*1000, spec.temp_spec_mean, c=c, alpha=1,
+                       lw=0.8, label=label, ls=ls)
     
     def finishing_touches(self):
         self.ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
         self.ax.set_ylabel('Temperature Power Spectral Density')
-        self.ax.set_ylim(1e-9,1e2)
-        self.fig.legend(loc='upper right', bbox_to_anchor=(0.95, 0.95))
+        self.ax.set_ylim(1e-5,1e5)
+        #self.ax.set_xlim(2e-2,0.5)
+        self.fig.legend(loc='upper right', bbox_to_anchor=(0.99, 0.99),
+                        fontsize=6)
 def glider_sampling_alteration():
     m = plot_power_spectrum()
     m.ini_figure()
-    #m.add_glider_spectra('EXP08', c='orange', label='full path')
-    #m.add_glider_spectra('EXP08', append='_climb', c='teal', label='no climb')
-    m.add_glider_spectra('EXP02', c='orange', label='full path', old=True)
+    m.add_glider_spectra('EXP08', append='_multi_taper', c='navy',
+                         label='full path')
+    m.add_glider_spectra('EXP08', append='_burst_3_20_multi_taper',
+                                 c='limegreen', label='burst 3 on - 20 off')
+    #m.add_glider_spectra('EXP08', c='orange', append='_multi_taper',
+    #                      label='interval 1000 m multi-taper')
+    #m.add_glider_spectra('EXP08', append='_interp_500_multi_taper', c='teal',
+    #                     label='interval 500 m multi-taper')
+
+    #m.add_glider_spectra('EXP08', append='_interp_2000_fft', c='blue', ls='--',
+    #                     label='interval 2000 m fft')
+    #m.add_glider_spectra('EXP08', append='_fft', c='orange', ls='--',
+    #                     label='interval 1000 m fft')
+    #m.add_glider_spectra('EXP08', append='_interp_500_fft', c='teal', ls='--',
+    #                     label='interval 500 m fft')
+    #m.add_glider_spectra('EXP08', append='_interp_2000_welch', c='blue',
+    #                     ls=':', label='interval 2000 m welch')
+    #m.add_glider_spectra('EXP08', append='_welch', c='orange',
+    #                     ls=':', label='interval 1000 m welch')
+    #m.add_glider_spectra('EXP08', append='_interp_500_welch', c='teal', ls=':',
+    #                     label='interval 500 m welch')
+    #m.add_glider_spectra('EXP02', c='orange', label='full path', old=True)
     #m.add_glider_spectra('EXP02', append='_climb', c='teal', label='no climb',
     #                     old=True)
     m.finishing_touches()
-    plt.savefig('EXP02_glider_spectra_full_only.png', dpi=1200)
+    #plt.show()
+    plt.savefig('EXP08_glider_spectra_burst_3_20.png', dpi=1200)
 glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))

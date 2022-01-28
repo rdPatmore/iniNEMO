@@ -201,10 +201,11 @@ class power_spectrum_model(object):
 
 class power_spectrum_glider(object):
 
-    def __init__(self, model, var, append=''):
+    def __init__(self, model, var, append='', fs=1000):
         self.var = var 
         self.append = append
         self.path = config.data_path() + model + '/'
+        self.fs = fs
 
     def get_glider(self):
         ''' load process glider data '''
@@ -216,11 +217,27 @@ class power_spectrum_glider(object):
                       self.append + str(i).zfill(2) + '.nc' for i in range(100)]
         self.glider = xr.open_mfdataset(file_paths,
                                          combine='nested', concat_dim='sample',
-                                         preprocess=expand_sample_dim)
+                                         preprocess=expand_sample_dim,
+                                         parallel=True)[self.var]
 
-    def detrend(self, h):
+    def get_transects(self, data):
+        a = np.abs(np.diff(data.lat, 
+           append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
+        idx = np.where(a>0.006)[0]
+        da = np.split(data, idx)
+        transect = np.arange(len(da))
+        for i, arr in enumerate(da):
+            da[i] = da[i].assign_coords({'transect':i})
+        da = xr.concat(da, dim='distance')
+        return da
+
+    def detrend(self, h, remove_mean=False):
+
+        if remove_mean:
+            h = h - h.mean()
 
         n = len(h)
+        print ('detrend length', n)
         t = np.arange(n)
         p = np.polyfit(t, h, 1)
         self.h_detrended = h - np.polyval(p, t)
@@ -322,52 +339,140 @@ class power_spectrum_glider(object):
         temp2=1/(1-2/(9*v)+1.96*np.sqrt(2/(9*v)))**3
 
         ci=np.array([temp1,temp2])
-        
+
         return P,s,ci
 
-    def calc_spectrum(self):
-         ''' 
-         Calculate power spectrum with multi-taper method according to
-         Giddy 2020
-         '''
+    def glider_fft(self, signal):
+        signal = signal.values
+        N = len(signal)
+        xdft = fft.fft(signal)
+        xdft = xdft[:int(N/2)+1]
+        #psdx = (self.fs/N) * np.abs(xdft)**2
+        psdx = (self.fs/N**2) * np.abs(xdft)**2
+        psdx[1:-1] = 2*psdx[1:-1]
+        freq= np.linspace(0,1/(2*self.fs),len(psdx)) # if fs is set to distance
+        return freq, psdx
 
-         # detrended takes rho from pr
-         var10_stack = self.glider[self.var].sel(ctd_depth=10, method='nearest')
+
+    def glider_welch(self, signal):
+        from scipy.signal import welch, hanning
+        
+        #freq= np.linspace(0,1/(2*self.fs),len(psdx)) # if fs is set to distance
+        fs = 1/self.fs
+        
+        nblock = 300
+        overlap = 20
+        win = hanning(nblock, True)
+        
+        f, Pxxf = welch(signal, fs, window=win, noverlap=overlap, nfft=nblock,
+                        return_onesided=True, detrend=False)
+        
+        return f, Pxxf
+        
          
-         #plt.figure()
-         fs=np.linspace(0,0.5,1000)
-         Pset = []
-         for i in range(var10_stack.sample.size):
-             print (i)
-             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
-             self.detrend(var10)
-             PEm,sEm,ciEm = self.multiTaper(self.h_detrended)
-             PEm = np.interp(fs,sEm,PEm)
-             Pset.append(PEm) 
-             #plt.loglog(fs,PEm, alpha=0.02, c='orange')
-         mean_spec = np.nanmean(Pset, axis=0)
-         #print (mean_spec.shape)
-         #plt.loglog(fs, mean_spec, lw=1.0, alpha=1, c='orange')
-         #plt.show()
-         ds = xr.Dataset(data_vars=dict(
-                         temp_spec=(['sample','freq'], Pset),
-                         temp_spec_mean=(['freq'], mean_spec)),
-                         coords=dict(freq=fs),
-                         attrs=dict(description=self.var + 
-                                      ' power spectrum for 100 glider samples'))
-         ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
-                               '_spectrum_' + self.append.rstrip('_') + '.nc')
+
+    def calc_spectrum(self, proc='multi_taper'):
+        ''' 
+        Calculate power spectrum with multi-taper method according to
+        #Giddy 2020
+        '''
+
+        var10_stack = self.glider.sel(ctd_depth=10, method='nearest')
+        
+        #plt.figure()
+        freq=np.linspace(0,1/(2*self.fs),4000) # if fs is set to distance
+        #fs=np.linspace(0,0.5,1000) # if fs is set to grid number (i.e. 1)
+        #fs=np.logspace(-8,0,1000)
+        Pset = []
+        for i in range(var10_stack.sample.size):
+            print ('sample: ', i)
+            var10 = var10_stack.isel(sample=i).dropna(dim='distance')
+            var10 = self.get_transects(var10)
+            for (label, transect) in var10.groupby('transect'):
+                print ('transect: ', label)
+                if len(transect) <= 6:
+                    continue
+                self.detrend(transect, remove_mean=False)
+                if proc == 'multi_taper':
+                    PEm,sEm,ciEm = self.multiTaper(self.h_detrended, dt=self.fs)
+                    PEm = 2 * PEm * self.fs# / (len(self.h_detrended)**2)
+                if proc == 'fft':
+                    sEm, PEm = self.glider_fft(self.h_detrended)
+                if proc == 'welch':
+                    sEm, PEm = self.glider_welch(self.h_detrended)
+                PEm = np.interp(freq,sEm,PEm)
+                print ('PEm shape', PEm.shape)
+                Pset.append(PEm) 
+                print ('Pset shape', np.array(Pset).shape)
+            #plt.loglog(fs,PEm, alpha=0.02, c='orange')
+        Pset = np.stack(Pset)
+        print ('Pset shape', Pset.shape)
+        mean_spec = np.nanmean(Pset, axis=0)
+
+        ## overwrite freqencies with from cell metric to km metric
+        #fs = fs / self.fs
+
+        #print (mean_spec.shape)
+        #plt.loglog(fs, mean_spec, lw=1.0, alpha=1, c='orange')
+        #plt.show()
+        ds = xr.Dataset(data_vars=dict(
+                        temp_spec=(['sample','freq'], Pset),
+                        temp_spec_mean=(['freq'], mean_spec)),
+                        coords=dict(freq=freq),
+                        attrs=dict(description=self.var + 
+                                     ' power spectrum for 100 glider samples'))
+        if self.append == '':
+            ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
+                              '_spectrum' + self.append.rstrip('_') +
+                        '_' + proc + '.nc')
+        else:
+            ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
+                              '_spectrum_' + self.append.rstrip('_') +
+                        '_' + proc + '.nc')
+
+    def calc_variance(self, proc='fft'):
+        ''' calculate integral under first sample spectrum '''
+        
+        spec = xr.open_dataset(self.path + 'Spectra/glider_samples_'
+                              + self.var + '_spectrum' +
+                              self.append.rstrip('_') + '_' + proc + '.nc')
+        sample = spec.temp_spec.isel(sample=0)
+        ds = sample.freq.diff(dim='freq')
+        integ = (sample.isel(freq=slice(None,-1)) * ds).sum(dim='freq')
+        print (integ.values)
 
 if __name__ == '__main__':
-    m = power_spectrum_glider('EXP08', 'votemper', append='climb_')
-    print ('')
-    print ('1')
-    print ('')
+    m = power_spectrum_glider('EXP08', 'votemper', 
+                              append='',
+                              fs=1000)
     m.get_glider()
-    print ('')
-    print ('2')
-    print ('')
-    m.calc_spectrum()
-    print ('')
-    print ('3')
-    print ('')
+    #m.get_transects()
+    m.calc_spectrum(proc='multi_taper')
+
+
+
+    #for fs in [500,1000,2000]:
+    #    if fs == 1000:
+    #        m = power_spectrum_glider('EXP08', 'votemper', 
+    #                              append='',
+    #                              fs=fs)
+    #    else:
+    #        m = power_spectrum_glider('EXP08', 'votemper', 
+    #                              append='_interp_'+str(fs)+'_',
+    #                              fs=fs)
+    #    m.calc_variance(proc='welch')
+    #proc = 'multi_taper'
+    #m = power_spectrum_glider('EXP08', 'votemper', append='interp_2000_',
+    #                          fs=2000)
+    #m.get_glider()
+    #m.calc_spectrum(proc=proc)
+
+    #m = power_spectrum_glider('EXP08', 'votemper', append='',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc=proc)
+
+    #m = power_spectrum_glider('EXP08', 'votemper', append='interp_500_',
+    #                          fs=500)
+    #m.get_glider()
+    #m.calc_spectrum(proc=proc)

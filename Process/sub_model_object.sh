@@ -1,7 +1,7 @@
 #!/bin/bash
  
 #these are all the default values anyway 
-#SBATCH --ntasks=1 
+#SBATCH --ntasks=10
 #SBATCH --cpus-per-task=1
 #SBATCH --threads-per-core=1 
  
