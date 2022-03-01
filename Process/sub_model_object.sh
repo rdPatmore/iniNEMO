@@ -1,7 +1,7 @@
 #!/bin/bash
  
 #these are all the default values anyway 
-#SBATCH --ntasks=10
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --threads-per-core=1 
  
@@ -10,7 +10,7 @@
 #SBATCH --output=myout.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
-#SBATCH --time=0-24:00:00 #(2 days and 0 hours, default is 24 hours) 
+#SBATCH --time=2-00:00:00 #(2 days and 0 hours, default is 24 hours) 
 #SBATCH --mem=100GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway

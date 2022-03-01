@@ -9,6 +9,7 @@ from skimage.filters import window
 from scipy.io.matlab import mio
 import spectrum as sp
 from scipy import stats
+import itertools
 
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
@@ -220,16 +221,63 @@ class power_spectrum_glider(object):
                                          preprocess=expand_sample_dim,
                                          parallel=True)[self.var]
 
-    def get_transects(self, data):
-        a = np.abs(np.diff(data.lat, 
-           append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-        idx = np.where(a>0.006)[0]
+#    def get_transects(self, data):
+#        a = np.abs(np.diff(data.lat, 
+#           append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
+#        idx = np.where(a>0.006)[0]
+#        da = np.split(data, idx)
+#        transect = np.arange(len(da))
+#        for i, arr in enumerate(da):
+#            da[i] = da[i].assign_coords({'transect':i})
+#        da = xr.concat(da, dim='distance')
+#        return da
+
+    def get_transects(self, data, concat_dim='distance', method='cycle', shrink=None):
+        if method == '2nd grad':
+            a = np.abs(np.diff(data.lat, 
+            append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
+            idx = np.where(a>0.006)[0]
+        crit = [0,1,2,3]
+        if method == 'cycle':
+            idx=[]
+            crit_iter = itertools.cycle(crit)
+            start = True
+            a = next(crit_iter)
+            for i in range(data[concat_dim].size)[::shrink]:
+                da = data.isel({concat_dim:i})
+                if (a == 0) and (start == True):
+                    test = ((da.lat < -60.10) and (da.lon > 0.176))
+                elif a == 0:
+                    test = (da.lon > 0.176)
+                elif a == 1:
+                    test = (da.lat > -59.93)
+                elif a == 2:
+                    test = (da.lon < -0.173)
+                elif a == 3:
+                    test = (da.lat > -59.93)
+                if test: 
+                    start = False
+                    idx.append(i)
+                    a = next(crit_iter)
         da = np.split(data, idx)
+        print (da)
         transect = np.arange(len(da))
+        pop_list=[]
         for i, arr in enumerate(da):
-            da[i] = da[i].assign_coords({'transect':i})
-        da = xr.concat(da, dim='distance')
+            if len(da[i]) < 1:
+                pop_list.append(i) 
+            else:
+                da[i] = da[i].assign_coords({'transect':i})
+        for i in pop_list:
+            da.pop(i)
+        da = xr.concat(da, dim=concat_dim)
+    
+        # remove initial and mid path excursions
+        da = da.where(da.transect>1, drop=True)
+        da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
+        print (da)
         return da
+
 
     def detrend(self, h, remove_mean=False):
 
@@ -237,7 +285,7 @@ class power_spectrum_glider(object):
             h = h - h.mean()
 
         n = len(h)
-        print ('detrend length', n)
+        #print ('detrend length', n)
         t = np.arange(n)
         p = np.polyfit(t, h, 1)
         self.h_detrended = h - np.polyval(p, t)
@@ -305,6 +353,22 @@ class power_spectrum_glider(object):
             P1   = np.zeros(nfft);
             tol  = .0005*sig2/nfft;    
             a    = sig2*(1-V);
+            #if  np.sum(np.abs(P-P1)/nfft)>tol:
+            #    print ('win')
+            #    # if first guess is already within tollerance
+            #    Pmat=np.mat(P).T
+            #    Vmat=np.mat(V)
+            #    amat=np.mat(a)
+            #    temp1=np.mat(np.ones((1,k)))
+            #    temp2=np.mat(np.ones((nfft,1)))
+            #    b=(Pmat*temp1)/(Pmat*Vmat+temp2*amat); # weights
+            #    temp3=np.mat(np.ones((nfft,1)))*Vmat
+            #    temp3=np.array(temp3)
+            #    b=np.array(b)
+            #    wk=b**2*temp3       
+            #    P1=np.sum(wk*Pk,axis=1)/np.sum(wk,axis=1)
+            #    Ptemp=P1; P1=P; P=Ptemp;                 # swap P and P1
+
             while np.sum(np.abs(P-P1)/nfft)>tol:
                 Pmat=np.mat(P).T
                 Vmat=np.mat(V)
@@ -383,17 +447,25 @@ class power_spectrum_glider(object):
         freq=np.linspace(0,1/(2*self.fs),4000) # if fs is set to distance
         #fs=np.linspace(0,0.5,1000) # if fs is set to grid number (i.e. 1)
         #fs=np.logspace(-8,0,1000)
-        Pset = []
+        #for i in range(var10_stack.sample.size):
+        mean_set = []
+        ldecile_set = []
+        udecile_set = []
         for i in range(var10_stack.sample.size):
+        #for i in range(10):
             print ('sample: ', i)
             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
             var10 = self.get_transects(var10)
+            print (var10)
+            Pset_transect = []
             for (label, transect) in var10.groupby('transect'):
-                print ('transect: ', label)
+                #print ('transect: ', label)
                 if len(transect) <= 6:
                     continue
                 self.detrend(transect, remove_mean=False)
                 if proc == 'multi_taper':
+                    if np.mean(self.h_detrended) == 0.0:
+                        continue
                     PEm,sEm,ciEm = self.multiTaper(self.h_detrended, dt=self.fs)
                     PEm = 2 * PEm * self.fs# / (len(self.h_detrended)**2)
                 if proc == 'fft':
@@ -401,13 +473,19 @@ class power_spectrum_glider(object):
                 if proc == 'welch':
                     sEm, PEm = self.glider_welch(self.h_detrended)
                 PEm = np.interp(freq,sEm,PEm)
-                print ('PEm shape', PEm.shape)
-                Pset.append(PEm) 
-                print ('Pset shape', np.array(Pset).shape)
-            #plt.loglog(fs,PEm, alpha=0.02, c='orange')
-        Pset = np.stack(Pset)
-        print ('Pset shape', Pset.shape)
-        mean_spec = np.nanmean(Pset, axis=0)
+                Pset_transect.append(PEm) 
+            Pset_transect_stack = np.stack(Pset_transect)
+
+            mean_spec = np.nanmean(Pset_transect_stack, axis=0)
+            ldecile_spec = np.quantile(Pset_transect_stack, 0.1, axis=0)
+            udecile_spec = np.quantile(Pset_transect_stack, 0.9, axis=0)
+            mean_set.append(mean_spec) 
+            ldecile_set.append(ldecile_spec) 
+            udecile_set.append(udecile_spec) 
+
+        mean_Pset = np.stack(mean_set)
+        ldecile_Pset = np.stack(ldecile_set)
+        udecile_Pset = np.stack(udecile_set)
 
         ## overwrite freqencies with from cell metric to km metric
         #fs = fs / self.fs
@@ -416,19 +494,20 @@ class power_spectrum_glider(object):
         #plt.loglog(fs, mean_spec, lw=1.0, alpha=1, c='orange')
         #plt.show()
         ds = xr.Dataset(data_vars=dict(
-                        temp_spec=(['sample','freq'], Pset),
-                        temp_spec_mean=(['freq'], mean_spec)),
+                        temp_spec_mean=(['sample','freq'], mean_Pset),
+                        temp_spec_l_decile=(['sample','freq'], ldecile_Pset),
+                        temp_spec_u_decile=(['sample','freq'], udecile_Pset)),
                         coords=dict(freq=freq),
                         attrs=dict(description=self.var + 
                                      ' power spectrum for 100 glider samples'))
         if self.append == '':
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum' + self.append.rstrip('_') +
-                        '_' + proc + '.nc')
+                        '_' + proc + '_transect_clean_pfit1.nc')
         else:
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum_' + self.append.rstrip('_') +
-                        '_' + proc + '.nc')
+                        '_' + proc + '_transect_clean_pfit1.nc')
 
     def calc_variance(self, proc='fft'):
         ''' calculate integral under first sample spectrum '''
@@ -442,14 +521,52 @@ class power_spectrum_glider(object):
         print (integ.values)
 
 if __name__ == '__main__':
-    m = power_spectrum_glider('EXP08', 'votemper', 
-                              append='',
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='climb_',
                               fs=1000)
     m.get_glider()
-    #m.get_transects()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='dive_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_8_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_2_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_8_and_climb_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_8_and_dive_',
+                              fs=1000)
+    m.get_glider()
     m.calc_spectrum(proc='multi_taper')
 
-
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_500_',
+                              fs=500)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_2000_',
+                              fs=2000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper')
 
     #for fs in [500,1000,2000]:
     #    if fs == 1000:

@@ -260,7 +260,8 @@ class plot_power_spectrum(object):
         plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
     def add_glider_spectra(self, model, var='votemper', append='', c='orange',
-                           label='', old=False, ls='-'):
+                           label='', old=False, ls='-', old_spec_calc=False,
+                           simple_calc=False):
         ''' plot glider spectrum with alterations'''
 
         # get spectrum
@@ -288,30 +289,48 @@ class plot_power_spectrum(object):
         #    spec['temp_spec'] = spec.temp_spec*2
         #    spec['temp_spec_mean'] = spec.temp_spec_mean*4
         #    spec['temp_spec'] = spec.temp_spec*4
-        decile = spec.temp_spec.quantile([0.1,0.9], ['sample'])
-        spec_l = decile.sel(quantile=0.1) 
-        spec_u = decile.sel(quantile=0.9) 
+        #print (spec)
+        if old_spec_calc:
+            spec_mean = spec.temp_spec_mean
+            decile = spec.temp_spec.quantile([0.1,0.9], ['sample'])
+            spec_l = decile.sel(quantile=0.1) 
+            spec_u = decile.sel(quantile=0.9) 
+        elif simple_calc:
+            spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
+            spec_l = spec.temp_spec_l_decile.mean(dim='sample', skipna=True)
+            spec_u = spec.temp_spec_u_decile.mean(dim='sample', skipna=True)
+        else:
+            l_mag_mean = np.abs(spec.temp_spec_mean - spec.temp_spec_l_decile
+                               ).mean(dim='sample', skipna=True)
+            u_mag_mean = np.abs(spec.temp_spec_mean - spec.temp_spec_u_decile
+                               ).mean(dim='sample', skipna=True)
+            spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
+            spec_l = spec_mean + u_mag_mean
+            spec_u = spec_mean - l_mag_mean
         self.ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.2,
                              color=c, edgecolor=None)
-        self.ax.loglog(spec.freq*1000, spec.temp_spec_mean, c=c, alpha=1,
+        self.ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
                        lw=0.8, label=label, ls=ls)
     
     def finishing_touches(self):
         self.ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
         self.ax.set_ylabel('Temperature Power Spectral Density')
-        self.ax.set_ylim(1e-5,1e5)
-        #self.ax.set_xlim(2e-2,0.5)
+        #self.ax.set_ylim(1e-5,1e5)
+        self.ax.set_xlim(2e-2,1)
         self.fig.legend(loc='upper right', bbox_to_anchor=(0.99, 0.99),
                         fontsize=6)
 def glider_sampling_alteration():
     m = plot_power_spectrum()
     m.ini_figure()
-    m.add_glider_spectra('EXP08', append='_multi_taper', c='navy',
-                         label='full path')
-    m.add_glider_spectra('EXP08', append='_burst_3_20_multi_taper',
-                                 c='limegreen', label='burst 3 on - 20 off')
-    #m.add_glider_spectra('EXP08', c='orange', append='_multi_taper',
-    #                      label='interval 1000 m multi-taper')
+    m.add_glider_spectra('EXP10', 
+                       append='_every_8_multi_taper_transect_pfit1',
+                         c='limegreen', label='every 8')
+    m.add_glider_spectra('EXP10', 
+                       append='_every_8_and_climb_multi_taper_transect_pfit1', c='navy',
+                         label='every 8 - climb')
+    m.add_glider_spectra('EXP10', c='orange',
+                         append='_every_8_and_dive_multi_taper_transect_pfit1',
+                         label='every 8 - dive')
     #m.add_glider_spectra('EXP08', append='_interp_500_multi_taper', c='teal',
     #                     label='interval 500 m multi-taper')
 
@@ -332,7 +351,7 @@ def glider_sampling_alteration():
     #                     old=True)
     m.finishing_touches()
     #plt.show()
-    plt.savefig('EXP08_glider_spectra_burst_3_20.png', dpi=1200)
+    plt.savefig('EXP10_glider_spectra_every_8_climb_and_dive_transect_polyfit1.png', dpi=1200)
 glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))

@@ -8,7 +8,6 @@ import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 
-dask.config.set(scheduler='single-threaded')
 
 class model(object):
     ''' get model object and process '''
@@ -107,7 +106,8 @@ class model(object):
                             'area', 'e3t','time_centered_bounds',
                             'time_counter_bounds', 'time_centered',
                             'mldr10_3', 'time_instant',
-                            'time_instant_bounds'])
+                            'time_instant_bounds'])#.isel(x=slice(0,50),
+                                                   #      y=slice(0,50)).load()
         print (self.ds['grid_T'])
 
         # glider
@@ -238,7 +238,7 @@ class model(object):
         self.get_conservative_temperature()
         self.get_absolute_salinity()
         gsw = xr.merge([self.p, self.cons_temp, self.abs_sal])
-        gsw.load().to_netcdf(self.data_path + self.file_id + 'gsw.nc')
+        gsw.to_netcdf(self.data_path + self.file_id + 'gsw.nc')
         
     def get_nemo_glider_time(self, start_month='01'):
         ''' take a time sample based on time difference in glider sample '''
@@ -254,7 +254,7 @@ class model(object):
         if load:
             # load shifted data
             data = xr.open_dataset(self.data_path + 
-                                 'GliderRandomSampling/glider_uniform_'
+                             'GliderRandomSampling/glider_uniform_interp_1000_'
                                  + str(self.ind).zfill(2) + '.nc')
             # get random shifts within nemo bounds
             self.lon_shift = data.attrs['lon_offset']
@@ -563,7 +563,8 @@ class model(object):
         timedelta = glider_raw.time_counter-np.datetime64('1970-01-01 00:00:00')
         glider_raw['time_counter'] = timedelta.astype(np.int64)
 
-        uniform_distance = np.arange(0, glider_raw.distance.max(),1000)
+        uniform_distance = np.arange(0, glider_raw.distance.max(),
+                                     self.interp_dist)
 
         glider_uniform_i = []
         # interpolate to 1 m vertical grid
@@ -769,21 +770,22 @@ class model(object):
 
 if __name__ == '__main__':
   
-    dask.config.set({'temporary_directory': 'Scratch'})
-    cluster = LocalCluster(n_workers=10)
-    client = Client(cluster)
+    dask.config.set(scheduler='single-threaded')
+    #dask.config.set({'temporary_directory': 'Scratch'})
+    #cluster = LocalCluster(n_workers=1)
+    #client = Client(cluster)
     #from dask.distributed import Client, progress
     #client = Client(threads_per_worker=1, n_workers=10)
 
     def get_rho():
         m = model('EXP10')
         m.load_gridT_and_giddy()
-        m.save_all_gsw()
-        #m.get_rho()
-    get_rho()
+        #m.save_all_gsw()
+        m.get_rho()
 
-    def glider_sampling(remove=False):
+    def glider_sampling(remove=False, append='', interp_dist=1000):
         m = model('EXP10')
+        m.interp_dist=interp_dist
         m.load_gridT_and_giddy()
         #m.save_area_mean_all()
         #m.save_area_std_all()
@@ -793,14 +795,13 @@ if __name__ == '__main__':
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
         m.prep_interp_to_raw_obs()
         if remove:
-            m.prep_remove_dives(remove='every_2')
+            m.prep_remove_dives(remove=append)
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
-            append='every_2_'
-            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
+            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append + '_')
             print ('done part 2')
         #inds = np.arange(100)
         #m.ds['grid_T'] = m.ds['grid_T'].expand_dims(ind=inds)
@@ -812,7 +813,11 @@ if __name__ == '__main__':
         #futures = client.map(process_all, inds, **dict(m=m))
         #client.gather(futures)
         #xr.apply_ufunc(process_all, inds, dask="parallelized")
-    #glider_sampling(remove=True)
+        print (' ')
+        print ('successfully ended')
+        print (' ')
+    glider_sampling(remove=True, append='every_8_and_climb', interp_dist=1000)
+    glider_sampling(remove=True, append='every_8_and_dive', interp_dist=1000)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

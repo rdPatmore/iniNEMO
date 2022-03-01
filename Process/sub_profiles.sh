@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=8
  
-python -u calc_rossby_stats.py
+python -u calc_power_spectrum.py

@@ -1,4 +1,5 @@
 *.nc
+*.mp4
 *.png
 *.slurm
 *.out
