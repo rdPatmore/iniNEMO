@@ -6,7 +6,7 @@
 #SBATCH --threads-per-core=1 
  
 # the job name and output file
-#SBATCH --job-name=nemo_mean #(default is the script name)
+#SBATCH --job-name=mo_res #(default is the script name)
 #SBATCH --output=myout.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
@@ -16,6 +16,6 @@
 #again, these are the defaults anyway
 #SBATCH --partition=cluster
 #SBATCH --account=shared
-#export OMP_NUM_THREADS=8
+#export OMP_NUM_THREADS=1
  
 python -u model_object.py

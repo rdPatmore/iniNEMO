@@ -10,6 +10,7 @@ from scipy.io.matlab import mio
 import spectrum as sp
 from scipy import stats
 import itertools
+import matplotlib.pyplot as plt
 
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
@@ -213,14 +214,16 @@ class power_spectrum_glider(object):
 
         def expand_sample_dim(ds):
             ds = ds.expand_dims('sample')
+            ds['lon_offset'] = ds.attrs['lon_offset']
+            ds['lat_offset'] = ds.attrs['lat_offset']
+            ds = ds.set_coords(['lon_offset','lat_offset'])
             return ds
         file_paths = [self.path + 'GliderRandomSampling/glider_uniform_' +
                       self.append + str(i).zfill(2) + '.nc' for i in range(100)]
         self.glider = xr.open_mfdataset(file_paths,
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim,
-                                         parallel=True)[self.var]
-
+                                         parallel=True)[self.var].load()
 #    def get_transects(self, data):
 #        a = np.abs(np.diff(data.lat, 
 #           append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
@@ -232,13 +235,17 @@ class power_spectrum_glider(object):
 #        da = xr.concat(da, dim='distance')
 #        return da
 
-    def get_transects(self, data, concat_dim='distance', method='cycle', shrink=None):
+    def get_transects(self, data, concat_dim='distance', method='cycle',
+                      shrink=None):
         if method == '2nd grad':
             a = np.abs(np.diff(data.lat, 
             append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
             idx = np.where(a>0.006)[0]
         crit = [0,1,2,3]
         if method == 'cycle':
+            #data = data.isel(distance=slice(0,400))
+            data['orig_lon'] = data.lon - data.lon_offset
+            data['orig_lat'] = data.lat - data.lat_offset
             idx=[]
             crit_iter = itertools.cycle(crit)
             start = True
@@ -246,21 +253,20 @@ class power_spectrum_glider(object):
             for i in range(data[concat_dim].size)[::shrink]:
                 da = data.isel({concat_dim:i})
                 if (a == 0) and (start == True):
-                    test = ((da.lat < -60.10) and (da.lon > 0.176))
+                    test = ((da.orig_lat < -60.04) and (da.orig_lon > 0.176))
                 elif a == 0:
-                    test = (da.lon > 0.176)
+                    test = (da.orig_lon > 0.176)
                 elif a == 1:
-                    test = (da.lat > -59.93)
+                    test = (da.orig_lat > -59.93)
                 elif a == 2:
-                    test = (da.lon < -0.173)
+                    test = (da.orig_lon < -0.173)
                 elif a == 3:
-                    test = (da.lat > -59.93)
+                    test = (da.orig_lat > -59.93)
                 if test: 
                     start = False
                     idx.append(i)
                     a = next(crit_iter)
         da = np.split(data, idx)
-        print (da)
         transect = np.arange(len(da))
         pop_list=[]
         for i, arr in enumerate(da):
@@ -271,11 +277,9 @@ class power_spectrum_glider(object):
         for i in pop_list:
             da.pop(i)
         da = xr.concat(da, dim=concat_dim)
-    
         # remove initial and mid path excursions
         da = da.where(da.transect>1, drop=True)
         da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-        print (da)
         return da
 
 
@@ -455,8 +459,8 @@ class power_spectrum_glider(object):
         #for i in range(10):
             print ('sample: ', i)
             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
-            var10 = self.get_transects(var10)
-            print (var10)
+            #var10 = self.get_transects(var10)
+            #print (var10)
             Pset_transect = []
             for (label, transect) in var10.groupby('transect'):
                 #print ('transect: ', label)
@@ -503,11 +507,11 @@ class power_spectrum_glider(object):
         if self.append == '':
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum' + self.append.rstrip('_') +
-                        '_' + proc + '_transect_clean_pfit1.nc')
+                        '_' + proc + '_pre_transect_clean_pfit1.nc')
         else:
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum_' + self.append.rstrip('_') +
-                        '_' + proc + '_transect_clean_pfit1.nc')
+                        '_' + proc + '_pre_transect_clean_pfit1.nc')
 
     def calc_variance(self, proc='fft'):
         ''' calculate integral under first sample spectrum '''
@@ -522,51 +526,40 @@ class power_spectrum_glider(object):
 
 if __name__ == '__main__':
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='climb_',
+                              append='burst_3_20_transects_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='dive_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_8_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_2_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_8_and_climb_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_8_and_dive_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='every_2_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='every_8_and_climb_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='every_8_and_dive_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
 
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_500_',
-                              fs=500)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_2000_',
-                              fs=2000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='interp_1000_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='interp_500_',
+    #                          fs=500)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
+    #                          append='interp_2000_',
+    #                          fs=2000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper')
 
     #for fs in [500,1000,2000]:
     #    if fs == 1000:

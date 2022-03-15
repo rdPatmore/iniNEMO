@@ -21,8 +21,9 @@ class bootstrap_glider_samples(object):
         def expand_sample_dim(ds):
             ds = ds.expand_dims('sample')
             return ds
-        self.samples = xr.open_mfdataset(self.data_path + 
-                                    'GliderRandomSampling/glider_uniform_*.nc',
+        prep = 'GliderRandomSampling/glider_uniform_interp_1000_' 
+        sample_list = [self.data_path + prep + i.zfill(2) for i in range(100)]
+        self.samples = xr.open_mfdataset(sample_list, 
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim)
 

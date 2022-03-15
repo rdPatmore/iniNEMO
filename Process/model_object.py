@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
+import itertools
 
 
 class model(object):
@@ -462,10 +463,20 @@ class model(object):
             # remove all climbs and sample every 8
             token = 0.5 
             remove_index = self.giddy_raw.dives % 8
-        if remove == 'burst_3_20':
+        if remove == 'burst_3_21':
             # sample 3 on 20 off
             token = 0.0 
             remove_index = self.giddy_raw.dives % 24
+            remove_index = xr.where(remove_index < 3, 0.0, remove_index)
+        if remove == 'burst_9_21':
+            # sample 3 on 20 off
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 24
+            remove_index = xr.where(remove_index < 9, 0.0, remove_index)
+        if remove == 'burst_3_9':
+            # sample 3 on 20 off
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 12
             remove_index = xr.where(remove_index < 3, 0.0, remove_index)
 
         self.giddy_raw = self.giddy_raw.assign_coords(
@@ -478,6 +489,64 @@ class model(object):
         self.giddy_raw = self.giddy_raw.swap_dims(
                                             {'remove_index':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('remove_index')
+
+
+    def get_transects(self, concat_dim='ctd_data_point', method='cycle',
+                      shrink=None):
+        ''' split path into transects '''
+
+        data = self.giddy_raw
+        if method == '2nd grad':
+            a = np.abs(np.diff(data.lat, 
+            append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
+            idx = np.where(a>0.006)[0]
+        crit = [0,1,2,3]
+        if method == 'cycle':
+            #data = data.isel(distance=slice(0,400))
+            #data['orig_lon'] = data.lon - data.lon_offset
+            #data['orig_lat'] = data.lat - data.lat_offset
+            idx=[]
+            crit_iter = itertools.cycle(crit)
+            start = True
+            a = next(crit_iter)
+            for i in range(data[concat_dim].size)[::shrink]:
+                da = data.isel({concat_dim:i})
+                print (i)
+                if (a == 0) and (start == True):
+                    test = ((da.lat < -60.10) and (da.lon > 0.176))
+                elif a == 0:
+                    test = (da.lon > 0.176)
+                elif a == 1:
+                    test = (da.lat > -59.93)
+                elif a == 2:
+                    test = (da.lon < -0.173)
+                elif a == 3:
+                    test = (da.lat > -59.93)
+                if test: 
+                    start = False
+                    idx.append(i)
+                    a = next(crit_iter)
+                    print (idx)
+        var_list = []
+        for da in list(data.keys()):
+            da = np.split(data[da], idx)
+            transect = np.arange(len(da))
+            pop_list=[]
+            for i, arr in enumerate(da):
+                if len(da[i]) < 1:
+                    pop_list.append(i) 
+                else:
+                    da[i] = da[i].assign_coords({'transect':i})
+            for i in pop_list:
+                da.pop(i)
+            var_list.append(xr.concat(da, dim=concat_dim))
+        da = xr.merge(var_list)
+        print (da)
+        # remove initial and mid path excursions
+        da = da.where(da.transect>1, drop=True)
+        da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
+        self.giddy_raw = da.load()
+        print (self.giddy_raw)
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
                                append='', load_offset=False):
@@ -624,9 +693,11 @@ class model(object):
                               glider_uniform)
 
 
+        if self.transects:
+            append = append + '_transects'
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
-                                  + append + str(ind).zfill(2) + '.nc')
+                                  + append + '_' + str(ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):
@@ -777,15 +848,17 @@ if __name__ == '__main__':
     #from dask.distributed import Client, progress
     #client = Client(threads_per_worker=1, n_workers=10)
 
-    def get_rho():
-        m = model('EXP10')
+    def get_rho(case):
+        m = model(case)
         m.load_gridT_and_giddy()
-        #m.save_all_gsw()
+        m.save_all_gsw()
         m.get_rho()
 
-    def glider_sampling(remove=False, append='', interp_dist=1000):
-        m = model('EXP10')
+    def glider_sampling(case, remove=False, append='', interp_dist=1000,
+                        transects=False):
+        m = model(case)
         m.interp_dist=interp_dist
+        m.transects=transects
         m.load_gridT_and_giddy()
         #m.save_area_mean_all()
         #m.save_area_std_all()
@@ -794,14 +867,16 @@ if __name__ == '__main__':
         #sample_dist=5000
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
         m.prep_interp_to_raw_obs()
+        if transects:
+            m.get_transects(shrink=100)
         if remove:
-            m.prep_remove_dives(remove=append)
+            m.prep_remove_dives(remove=append.rstrip('_transects'))
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
             print ('done part 1')
-            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append + '_')
+            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
         #inds = np.arange(100)
         #m.ds['grid_T'] = m.ds['grid_T'].expand_dims(ind=inds)
@@ -816,8 +891,10 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling(remove=True, append='every_8_and_climb', interp_dist=1000)
-    glider_sampling(remove=True, append='every_8_and_dive', interp_dist=1000)
+    glider_sampling(remove=True, append='burst_9_21_transects', 
+                    interp_dist=1000, transects=True)
+    glider_sampling(remove=True, append='burst_3_12_transects', 
+                    interp_dist=1000, transects=True)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
