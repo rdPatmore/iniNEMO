@@ -452,6 +452,12 @@ class model(object):
             # remove every other dive pair
             token = 1.0 
             remove_index = np.floor(self.giddy_raw.dives) % 2
+        if remove == 'every_3':
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives) % 3
+        if remove == 'every_4':
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives) % 4
         if remove == 'every_8':
             token = 1.0 
             remove_index = np.floor(self.giddy_raw.dives) % 8
@@ -874,7 +880,7 @@ if __name__ == '__main__':
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
@@ -891,10 +897,10 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling(remove=True, append='burst_9_21_transects', 
-                    interp_dist=1000, transects=True)
-    glider_sampling(remove=True, append='burst_3_12_transects', 
-                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove=True, append='every_3', 
+                    interp_dist=1000, transects=False)
+    glider_sampling('EXP10', remove=True, append='every_4', 
+                    interp_dist=1000, transects=False)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

@@ -323,17 +323,17 @@ def glider_sampling_alteration():
     m = plot_power_spectrum()
     m.ini_figure()
     m.add_glider_spectra('EXP10', 
-                         append='_interp_250_multi_taper_transect_clean_pfit1',
-                         c='limegreen', label='interp 250')
-    m.add_glider_spectra('EXP10', 
-                         append='_interp_500_multi_taper_transect_clean_pfit1',
-                         c='navy', label='interp 500')
-    m.add_glider_spectra('EXP10', 
                          append='_interp_1000_multi_taper_transect_clean_pfit1',
-                         c='orange', label='interp 1000')
+                         c='limegreen', label='full path')
     m.add_glider_spectra('EXP10', 
-                         append='_interp_2000_multi_taper_transect_clean_pfit1',
-                         c='red', label='interp 2000')
+                         append='_burst_9_21_transects_multi_taper_pre_transect_clean_pfit1',
+                         c='navy', label='burst 9-21 pre-t')
+    m.add_glider_spectra('EXP10', 
+                         append='_burst_3_20_transects_multi_taper_pre_transect_clean_pfit1',
+                         c='orange', label='burst 3-21 pre-t')
+    m.add_glider_spectra('EXP10', 
+                         append='_burst_3_9_transects_multi_taper_pre_transect_clean_pfit1',
+                         c='red', label='burst 3-9 pre-t')
     #m.add_glider_spectra('EXP08', append='_interp_500_multi_taper', c='teal',
     #                     label='interval 500 m multi-taper')
 
@@ -354,7 +354,7 @@ def glider_sampling_alteration():
     #                     old=True)
     m.finishing_touches()
     #plt.show()
-    plt.savefig('EXP10_glider_interp_extra_transect_clean_polyfit1.png', dpi=1200)
+    plt.savefig('EXP10_glider_burst_3_21_9_21_3_9_transect_clean_polyfit1.png', dpi=1200)
 glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))

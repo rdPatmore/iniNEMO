@@ -217,13 +217,15 @@ class power_spectrum_glider(object):
             ds['lon_offset'] = ds.attrs['lon_offset']
             ds['lat_offset'] = ds.attrs['lat_offset']
             ds = ds.set_coords(['lon_offset','lat_offset'])
+            ds = ds['votemper']
             return ds
         file_paths = [self.path + 'GliderRandomSampling/glider_uniform_' +
                       self.append + str(i).zfill(2) + '.nc' for i in range(100)]
         self.glider = xr.open_mfdataset(file_paths,
                                          combine='nested', concat_dim='sample',
                                          preprocess=expand_sample_dim,
-                                         parallel=True)[self.var].load()
+                                         parallel=True).load()
+                                         #parallel=True)[self.var].load()
 #    def get_transects(self, data):
 #        a = np.abs(np.diff(data.lat, 
 #           append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
@@ -439,7 +441,7 @@ class power_spectrum_glider(object):
         
          
 
-    def calc_spectrum(self, proc='multi_taper'):
+    def calc_spectrum(self, proc='multi_taper', get_transects=False):
         ''' 
         Calculate power spectrum with multi-taper method according to
         #Giddy 2020
@@ -459,8 +461,9 @@ class power_spectrum_glider(object):
         #for i in range(10):
             print ('sample: ', i)
             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
-            #var10 = self.get_transects(var10)
-            #print (var10)
+            print (var10)
+            if get_transects:
+                var10 = self.get_transects(var10)
             Pset_transect = []
             for (label, transect) in var10.groupby('transect'):
                 #print ('transect: ', label)
@@ -526,10 +529,15 @@ class power_spectrum_glider(object):
 
 if __name__ == '__main__':
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='burst_3_20_transects_',
+                              append='every_4_',
                               fs=1000)
     m.get_glider()
-    m.calc_spectrum(proc='multi_taper')
+    m.calc_spectrum(proc='multi_taper', get_transects=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_3_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects=True)
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='every_2_',
     #                          fs=1000)

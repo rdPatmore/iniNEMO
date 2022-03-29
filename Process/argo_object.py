@@ -40,15 +40,23 @@ class argo(object):
         self.ds = self.ds.where((self.ds.profiledate > date0) &
                                 (self.ds.profiledate < date1), drop=True)
 
-    def cut_to_sochic_patch(self):
+    def cut_to_sochic_patch(self, buff=None):
         ''' cut area to match sochic model region '''
 
         grid = xr.open_dataset(config.data_path() +
                               'ORCA/coordinates_subset.nc', decode_times=False)
-        lon0 = grid.nav_lon.min()
-        lon1 = grid.nav_lon.max()
-        lat0 = grid.nav_lat.min()
-        lat1 = grid.nav_lat.max()
+
+        if buff:
+            buffx = buff[0]
+            buffy = buff[1]
+        else:
+            buffx = 0.0
+            buffy = 0.0
+
+        lon0 = grid.nav_lon.min() - buffx
+        lon1 = grid.nav_lon.max() + buffx
+        lat0 = grid.nav_lat.min() - buffy
+        lat1 = grid.nav_lat.max() + buffy
 
         self.ds = self.ds.where((self.ds.profilelon > lon0) &
                                 (self.ds.profilelon < lon1) &
@@ -69,14 +77,14 @@ class argo(object):
     def mean_by_month(self):
         self.ds = self.ds.mean(['iLAT','iLON'], skipna=True)
 
-    def save_processed_mld(self):
+    def save_processed_mld(self, append=''):
         ''' save lateral mean of all data '''
 
+        path = '/storage/silver/SO-CHIC/Ryan/Argo/'
         if self.clim:
-            self.ds.to_netcdf(
-                      '/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy_clim.nc')
+            self.ds.to_netcdf(path + 'argo_giddy_clim' + append + '.nc')
         else:
-            self.ds.to_netcdf('/storage/silver/SO-CHIC/Ryan/Argo/argo_giddy.nc')
+            self.ds.to_netcdf(path + 'argo_giddy' + append + '.nc')
 
 def cut_argo_time_specific():
     m = argo()
@@ -87,7 +95,7 @@ def cut_argo_time_specific():
 
 def cut_argo_time_climatology():
     m = argo(climatology=True)
-    m.cut_to_sochic_patch()
+    m.cut_to_sochic_patch(buff=[4,4])
     m.mean_by_month()
-    m.save_processed_mld()
+    m.save_processed_mld(append='buffer_4deg')
 cut_argo_time_climatology()
