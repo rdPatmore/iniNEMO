@@ -72,54 +72,6 @@ class bootstrap_glider_samples(object):
         #self.model_mld = xr.open_dataset(self.data_path +
         #                   'SOCHIC_PATCH_3h_20120101_20121231_grid_T.nc').mld
 
-
-#    def get_transects(self, data, concat_dim='distance', method='cycle',
-#                      shrink=None):
-#        if method == '2nd grad':
-#            a = np.abs(np.diff(data.lat, 
-#            append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-#            idx = np.where(a>0.006)[0]
-#        crit = [0,1,2,3]
-#        if method == 'cycle':
-#            #data = data.isel(distance=slice(0,400))
-#            data['orig_lon'] = data.lon - data.lon_offset
-#            data['orig_lat'] = data.lat - data.lat_offset
-#            idx=[]
-#            crit_iter = itertools.cycle(crit)
-#            start = True
-#            a = next(crit_iter)
-#            for i in range(data[concat_dim].size)[::shrink]:
-#                da = data.isel({concat_dim:i})
-#                if (a == 0) and (start == True):
-#                    test = ((da.orig_lat < -60.04) and (da.orig_lon > 0.176))
-#                elif a == 0:
-#                    test = (da.orig_lon > 0.176)
-#                elif a == 1:
-#                    test = (da.orig_lat > -59.93)
-#                elif a == 2:
-#                    test = (da.orig_lon < -0.173)
-#                elif a == 3:
-#                    test = (da.orig_lat > -59.93)
-#                if test: 
-#                    start = False
-#                    idx.append(i)
-#                    a = next(crit_iter)
-#        da = np.split(data, idx)
-#        transect = np.arange(len(da))
-#        pop_list=[]
-#        for i, arr in enumerate(da):
-#            if len(da[i]) < 1:
-#                pop_list.append(i) 
-#            else:
-#                da[i] = da[i].assign_coords({'transect':i})
-#        for i in pop_list:
-#            da.pop(i)
-#        da = xr.concat(da, dim=concat_dim)
-#        # remove initial and mid path excursions
-#        da = da.where(da.transect>1, drop=True)
-#        da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-#        return da
-
     def get_model_buoyancy_gradients(self):
         ''' restrict the model time to glider time '''
     
@@ -139,9 +91,44 @@ class bootstrap_glider_samples(object):
         print (' ')
         self.bg = bg.sel(time_counter=slice(start,end))
 
+    def get_glider_timeseries(self, n, save=False):
+        ''' get upper and lower deciles and mean time series of
+            of glider sample sets
+        '''
+        set_size = self.samples.sizes['sample']
+
+        # get random group
+        random = np.random.randint(set_size, size=(set_size,n))
+
+        ts_set = [] # set of time_series
+        for sample in random:
+            sample_set = self.samples.isel(sample=sample)#.b_x_ml
+            set_mean = sample_set.mean('sample').expand_dims('sets')
+            ts_set.append(set_mean)
+        ts_array = xr.concat(ts_set, dim='sets')
+        set_mean = ts_array.mean('sets')
+        set_dec = ts_array.quantile([0.1,0.9],'sets')
+        set_mean.name = 'bg_ts_mean'
+        set_dec.name = 'bg_ts_dec'
+        ds = xr.merge([set_mean, set_dec])
+        if save:
+            ds.to_netcdf(self.data_path + '/BgGliderSamples' + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                          str(n).zfill(2) + '_timeseries.nc')
+
+    def get_full_model_timeseries(self, save=False):
+        ''' get model mean time_series '''
+        self.get_model_buoyancy_gradients()
+        bg_mean = self.bg.mean(['x','y']).load()
+        if save:
+            bg_mean.bx.name = 'bx_ts_mean'
+            bg_mean.by.name = 'by_ts_mean'
+            bg_mean.to_netcdf(self.data_path + '/BgGliderSamples' +
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_timeseries.nc')
+
     def get_hist_stats(self, hist_set, bins):    
         ''' get mean, lower and upper deciles of group of histograms '''
-        bin_centers = bins[:-1] + bins[1:] / 2
+        bin_centers = (bins[:-1] + bins[1:]) / 2
         hist_array = xr.DataArray(hist_set, dims=('sets', 'bin_centers'), 
                                   coords={'bin_centers': bin_centers})
         hist_mean = hist_array.mean('sets')
@@ -160,7 +147,7 @@ class bootstrap_glider_samples(object):
         random = np.random.randint(set_size, size=(set_size,n))
 
         hists = []
-        for sample in random:
+        for i, sample in enumerate(random):
             sample_set = self.samples.isel(sample=sample)#.b_x_ml
             set_stacked = sample_set.stack(z=('distance','sample'))
             hist, bins = np.histogram(set_stacked.dropna('z', how='all'),
@@ -169,7 +156,7 @@ class bootstrap_glider_samples(object):
             hists.append(hist)
         hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(hists, bins)
         if save:
-            bin_centers = bins[:-1] + bins[1:] / 2
+            bin_centers = (bins[:-1] + bins[1:]) / 2
             hist_ds = xr.Dataset({'hist_mean':(['bin_centers'], hist_mean),
                                   'hist_l_dec':(['bin_centers'], hist_l_quant),
                                   'hist_u_dec':(['bin_centers'], hist_u_quant)},
@@ -179,7 +166,7 @@ class bootstrap_glider_samples(object):
                                'bin_right'  : (['bin_centers'], bins[1:])})
             hist_ds.to_netcdf(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
-                          str(n) + '_hist.nc')
+                          str(n).zfill(2) + '_hist.nc')
         return hist_mean, hist_l_quant, hist_u_quant 
 
     def get_glider_sample_lims(self, n=1):
@@ -250,11 +237,11 @@ class bootstrap_glider_samples(object):
         stacked_bgy = self.bg.by.stack(z=('time_counter','x','y'))
 
         hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
-                                    range=self.hist_range, density=True, bins=20)
+                                   range=self.hist_range, density=True, bins=20)
         hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
-                                    range=self.hist_range, density=True, bins=20)
+                                   range=self.hist_range, density=True, bins=20)
         if save:
-            bin_centers = bins[:-1] + bins[1:] / 2
+            bin_centers = (bins[:-1] + bins[1:]) / 2
             hist_ds = xr.Dataset({'hist_x':(['bin_centers'], hist_x),
                                      'hist_y':(['bin_centers'], hist_y)},
                                       coords={
@@ -281,16 +268,16 @@ class bootstrap_glider_samples(object):
                                           (self.bg.nav_lat < group.y1),
                                            drop=True)
                 stacked_bgx.append(
-                                 subset_bg.bx.stack(z=('time_counter','x','y')))
+                                subset_bg.bx.stack(z=('time_counter','x','y')))
                 stacked_bgy.append(
-                                 subset_bg.by.stack(z=('time_counter','x','y')))
+                                subset_bg.by.stack(z=('time_counter','x','y')))
             stacked_bgx = xr.concat(stacked_bgx, dim='z')
             stacked_bgy = xr.concat(stacked_bgy, dim='z')
 
             hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
-                                     range=self.hist_range, density=True, bins=100)
+                                 range=self.hist_range, density=True, bins=100)
             hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
-                                     range=self.hist_range, density=True, bins=100)
+                                 range=self.hist_range, density=True, bins=100)
             hists_x.append(hist_x)
             hists_y.append(hist_y)
         x_mean, x_l_dec, x_u_dec = self.get_hist_stats(hists_x, bins)
@@ -300,8 +287,7 @@ class bootstrap_glider_samples(object):
     def render_glider_sample_set(self, n=1, c='green', style='plot'):
         ds = xr.open_dataset(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
-                           str(n) + '_hist.nc')
-        print (ds)
+                           str(n).zfill(2) + '_hist.nc')
         if style=='bar':
             self.ax.bar(ds.bin_left, 
                     ds.hist_u_dec - ds.hist_l_dec, 
@@ -309,19 +295,31 @@ class bootstrap_glider_samples(object):
                     color=c,
                     alpha=0.2,
                     bottom=ds.hist_l_dec, 
+                    align='edge',
                     label='gliders: ' + str(n))
+            self.ax.scatter(ds.bin_centers, ds.hist_mean, c=c, s=4, zorder=10)
         if style=='plot':
             self.ax.fill_between(ds.bin_centers, ds.hist_l_dec,
                                                  ds.hist_u_dec,
                                  color=c, edgecolor=None, alpha=0.2)
-            self.ax.plot(ds.bin_centers, ds.hist_mean, c=c,
+            self.ax.plot(ds.bin_centers, ds.hist_mean, c=c, lw=0.8,
                          label='gliders: ' + str(n))
 
-    def add_model_lines(self):
-        hist_x, hist_y, bins = self.get_model_hist()
-        bin_centers = bins[:-1] + bins[1:] / 2
-        self.ax.plot(bin_centers, hist_x, c='black', lw=2, zorder=1,
-                     label='Model')
+    def add_model_means(self, style='plot'):
+        ds = xr.open_dataset(self.data_path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist.nc')
+        if style=='bar':
+            self.ax.hlines(ds.hist_x, ds.bin_left, ds.bin_right,
+                       transform=self.ax.transData,
+                       colors='black', lw=0.8, label='model_bx')
+            self.ax.hlines(ds.hist_y, ds.bin_left, ds.bin_right,
+                       transform=self.ax.transData,
+                       colors='orange', lw=0.8, label='model_by')
+        if style=='plot':
+            self.ax.plot(ds.bin_centers, ds.hist_x, c='black', lw=0.8,
+                         label='model bx')
+            self.ax.plot(ds.bin_centers, ds.hist_y, c='red', lw=0.8,
+                         label='model by')
 
     def add_model_bootstrapped_samples(self):
         ''' add model buoyancy gradients and std as a bars '''
@@ -356,10 +354,10 @@ class bootstrap_glider_samples(object):
         stacked_bgy = self.bg.bgy.stack(z=('time_counter','x','y'))
         
         print (stacked_bgx)
-        plt.hist(stacked_bgx, bins=50, density=True, alpha=0.3,
+        plt.hist(stacked_bgx, bins=20, density=True, alpha=0.3,
                  label='model bgx', fill=False, edgecolor='red',
                  histtype='step')
-        plt.hist(stacked_bgy, bins=50, density=True, alpha=0.3,
+        plt.hist(stacked_bgy, bins=20, density=True, alpha=0.3,
                  label='model bgy', fill=False, edgecolor='blue',
                  histtype='step')
         
@@ -377,19 +375,68 @@ class bootstrap_glider_samples(object):
 
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
-            self.render_glider_sample_set(n=n, c=colours[i])
+            self.render_glider_sample_set(n=n, c=colours[i], style='bar')
         print ('model')
-        plt.show()
-        #self.add_model_bar()
+        self.add_model_means(style='bar')
 
         self.ax.set_xlabel('Buoyancy Gradient')
         self.ax.set_ylabel('PDF')
 
         plt.legend()
-        self.ax.set_xlim(0, 2e-8)
-        self.ax.set_ylim(0, 3.6e8)
+        self.ax.set_xlim(self.hist_range[0], self.hist_range[1])
+        self.ax.set_ylim(0, 3e8)
         plt.savefig(self.case + '_bg_sampling_skill.png', dpi=600)
 
+    def plot_rmse_over_ensemble_sizes(self):
+        ''' plot the root mean squared error of the 1 s.d. from the 
+            **real** mean
+        '''
+        m = xr.open_dataset(self.data_path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist.nc')
+        
+        def pre_proc(ds):
+            ds = ds.expand_dims('ensemble_size')
+            return ds
+         
+        prep = '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
+        ensemble_list = [self.data_path + prep + str(i).zfill(2) + '_hist.nc'
+                         for i in range(1,31)]
+        ensembles = xr.open_mfdataset(ensemble_list, 
+                                   combine='nested', concat_dim='ensemble_size',
+                                     preprocess=pre_proc).load()
+        ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
+
+        m_bg_abs = (0.5*(m.hist_x**2 + m.hist_y**2))** 0.5
+
+        # rmse
+        def rmsep(pred, true):
+            norm = (pred - true)/true 
+            return np.sqrt(((norm)**2).mean(dim='bin_centers')) * 100
+
+        rmse_l = rmsep(ensembles.hist_l_dec, m_bg_abs)
+        rmse_u = rmsep(ensembles.hist_u_dec, m_bg_abs)
+        rmse_mean = rmsep(ensembles.hist_mean, m_bg_abs)
+
+        fig, ax = plt.subplots(1)
+        #ax.plot(m_bg_abs, c='black')
+        #ax.plot(m.hist_x, c='navy')
+        #ax.plot(m.hist_y, c='navy')
+        #ax.plot(ensembles.hist_l_dec.isel(ensemble_size=1), c='green')
+        #ax.plot(ensembles.hist_u_dec.isel(ensemble_size=1), c='green')
+        #ax.plot(ensembles.hist_l_dec.isel(ensemble_size=19), c='red')
+        #ax.plot(ensembles.hist_u_dec.isel(ensemble_size=19), c='red')
+        ax.plot(rmse_u.ensemble_size, rmse_u, c='navy', label='upper decile')
+        ax.plot(rmse_l.ensemble_size, rmse_l, c='green', label='lower decile')
+        #ax.plot(rmse_mean.ensemble_size, rmse_mean, c='black')
+
+        plt.legend()
+
+        ax.set_ylim(0,75)
+        ax.set_xlabel('ensemble size')
+        ax.set_ylabel('RMSE of buoyancy gradients (%)')
+
+        plt.savefig(self.case + '_bg_RMSE.png', dpi=600)
+        
     def plot_error_bars(self):
         
         means = []
@@ -410,15 +457,37 @@ class bootstrap_glider_samples(object):
         plt.errorbar(sample_sizes, means, stds)
         plt.show()
 
+    def plot_timeseries(self):
 
 
-m = bootstrap_glider_samples('EXP10', var='b_x_ml', load_samples=False)
-m.plot_histogram_buoyancy_gradients_and_samples()
-#m = bootstrap_glider_samples('EXP10', var='b_x_ml', load_samples=True)
-#m.get_full_model_hist(save=True)
-#for n in range(1,21):
-#    print (n)
-#    m.get_glider_sampled_hist(n=n, save=True)
+
+def plot_hist():
+    cases = ['EXP10', 'EXP08', 'EXP13']
+    for case in cases:
+        print ('case: ', case)
+        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False)
+        m.plot_histogram_buoyancy_gradients_and_samples()
+        m.plot_rmse_over_ensemble_sizes()
+
+def prep_hist():
+    cases = ['EXP10', 'EXP08', 'EXP13']
+    for case in cases:
+        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True)
+        #m.get_full_model_hist(save=True)
+        for n in range(1,31):
+            print (n)
+            m.get_glider_sampled_hist(n=n, save=True)
+
+def prep_time_series():
+    cases = ['EXP10', 'EXP08', 'EXP13']
+    for case in cases:
+        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False)
+        m.get_full_model_timeseries(save=True)
+        #for n in range(1,31):
+        #    print ('n :', n)
+        #    m.get_glider_timeseries(n=n, save=True)
+
+prep_time_series()
 print ('done 1')
 #m = bootstrap_glider_samples('EXP08')
 #m.histogram_buoyancy_gradients_and_samples()

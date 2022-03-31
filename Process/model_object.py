@@ -20,6 +20,10 @@ class model(object):
         self.data_path = config.data_path() + self.case + '/'
 
         self.loaded_p = False
+        
+        # parameters for reducing nemo domain when glider sampling
+        self.south_limit = None
+        self.north_limit = None
 
     def load_all(self):
         def drop_coords(ds):
@@ -251,6 +255,7 @@ class model(object):
     #self.ds = self.ds.interp(time_counter=time_span.values, method='nearest')
         
     def random_glider_lat_lon_shift(self, grid='grid_T', load=True):
+                                    
 
         if load:
             # load shifted data
@@ -267,6 +272,10 @@ class model(object):
             nlon1 = self.ds[grid].lon.max()
             nlat0 = self.ds[grid].lat.min()
             nlat1 = self.ds[grid].lat.max()
+
+            # reduce sampling patch
+            if self.south_limit: nlat0 = self.south_limit
+            if self.north_limit: nlat1 = self.north_limit
 
             # glider limits
             glon0 = self.giddy_raw.lon.min()
@@ -861,11 +870,16 @@ if __name__ == '__main__':
         m.get_rho()
 
     def glider_sampling(case, remove=False, append='', interp_dist=1000,
-                        transects=False):
+                        transects=False, south_limit=None, north_limit=None):
         m = model(case)
         m.interp_dist=interp_dist
         m.transects=transects
         m.load_gridT_and_giddy()
+
+        # reductions of nemo domain
+        m.south_limit = south_limit
+        m.north_limit = north_limit
+
         #m.save_area_mean_all()
         #m.save_area_std_all()
         #m.save_month()
@@ -880,7 +894,7 @@ if __name__ == '__main__':
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
@@ -897,10 +911,10 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', remove=True, append='every_3', 
-                    interp_dist=1000, transects=False)
-    glider_sampling('EXP10', remove=True, append='every_4', 
-                    interp_dist=1000, transects=False)
+    glider_sampling('EXP10', remove=False, append='interp_1000_north_patch', 
+                    interp_dist=1000, transects=False, south_limit=-59.9858036)
+    glider_sampling('EXP10', remove=False, append='interp_1000_south_patch', 
+                    interp_dist=1000, transects=False, north_limit=-59.9858036)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
