@@ -56,12 +56,12 @@ class bootstrap_glider_samples(object):
         # depth average
         #self.samples = self.samples.mean('ctd_depth', skipna=True)
         #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
-        self.samples = self.samples.sel(ctd_depth=10, method='nearest')
+        #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
 
-        for i in range(self.samples.sample.size):
-            print ('sample: ', i)
-            var10 = self.samples.isel(sample=i).dropna(dim='distance')
-            var10 = get_transects(var10)
+        #for i in range(self.samples.sample.size):
+        #    print ('sample: ', i)
+        #    var10 = self.samples.isel(sample=i).dropna(dim='distance')
+        #    self.samples = get_transects(var10)
 
         # set time to float for averaging
         float_time = self.samples.time_counter.astype('float64')
@@ -115,52 +115,71 @@ class bootstrap_glider_samples(object):
             # get random group
             random = np.random.randint(set_size, size=(set_size,n))
 
-            ts_set = [] # set of time_series
-            for sample in random:
-                sample_set = self.samples.isel(sample=sample)
-                # retain time
-                sample_set = sample_set.reset_coords('time_counter') 
-                set_mean = sample_set.mean('sample')
-                set_mean = set_mean.expand_dims('sets')
-                ts_set.append(set_mean)
-            ts_array = xr.concat(ts_set, dim='sets')
-            ts_array = ts_array.set_coords('time_counter')
-            ts_array['time_counter'] = ts_array.time_counter.mean('sets').astype(
+            d_set = [] # set of time_series
+            w_set = [] # set of time_series
+            mean_set = []
+            for i, samples in enumerate(random):
+                print (i)
+                sample_set = self.samples.isel(sample=samples)
+
+                # mean
+                sample_set = sample_set.reset_coords('time_counter') # retain t
+                sample_mean = sample_set.mean(['sample','ctd_depth']) 
+                sample_mean = sample_mean.set_coords('time_counter')
+                mean_set.append(sample_mean)
+
+                # standard deviations
+                sample_set['time_counter'] = sample_set.time_counter.astype(
                                                                'datetime64[ns]')
-            ts_array = ts_array.swap_dims({'distance':'time_counter'}).dropna('time_counter')
-    
-            # stds 
-            #dstd = ts_array.set_coords('time_counter')
-            #dstd['time_counter'] = dstd.time_counter.mean('sets').astype(
-            #                                                   'datetime64[ns]')
-            ts_array=ts_array.sortby('time_counter')
-            dstd = ts_array
-            #dims=['distance']
-            #daily_std = dstd.groupby('time_counter.dayofyear').std(dim=dims)
-            #weekly_std = dstd.groupby('time_counter.week').std(dim=dims)
-            dims=['time_counter']
-            #plt.plot(dstd.time_counter)
-            #plt.show()
-            daily_std = dstd.resample(time_counter='1D').std(dim=dims)
-            weekly_std = dstd.resample(time_counter='1W').std(dim=dims)
-            daily_std = daily_std.mean('sets',skipna=True).b_x_ml
-            weekly_std = weekly_std.mean('sets',skipna=True).b_x_ml
+                sample_set = sample_set.stack(
+                                 {'ensemble':('distance','sample','ctd_depth')})
+                sample_set = sample_set.swap_dims({'ensemble':'time_counter'})
+                sample_set = sample_set.dropna('time_counter').sortby(
+                                                                 'time_counter')
+                dims=['time_counter']
+                d_std = sample_set.resample(
+                                    time_counter='1D',skipna=True).std(dim=dims)
+                w_std = sample_set.resample(
+                                    time_counter='1W',skipna=True).std(dim=dims)
+                d_set.append(d_std)
+                w_set.append(w_std)
+
+            d_arr = xr.concat(d_set, dim='sets')
+            w_arr = xr.concat(w_set, dim='sets')
+            mean_arr = xr.concat(w_set, dim='sets')
+                
+            ## set mean
+            #d_std = d_arr.mean('sets')
+            #w_std = w_arr.mean('sets')
 
             # rename time for compatability
-            daily_std = daily_std.rename({'time_counter':'day'})
-            weekly_std = weekly_std.rename({'time_counter':'day'})
+            d_arr    = d_arr.rename({'time_counter':'day'})
+            w_arr    = w_arr.rename({'time_counter':'day'})
+            d_arr    = d_arr.rename({'b_x_ml':'b_x_ml_day_std'})
+            w_arr    = w_arr.rename({'b_x_ml':'b_x_ml_week_std'})
+            mean_arr = mean_arr.rename({'b_x_ml':'b_x_ml_mean'})
 
-            ts_array = ts_array.assign({'b_x_ml_day_std':daily_std,
-                                        'b_x_ml_week_std':weekly_std})
+            ts_array = xr.merge([d_arr,w_arr,mean_arr])
+
+            #ts_array = ts_array.assign({'b_x_ml_day_std':daily_std,
+            #                           'b_x_ml_week_std':weekly_std})
+            
             # stats
             set_mean = ts_array.mean('sets')
-            set_dec = ts_array.quantile([0.1,0.9],'sets')
-            set_mean = set_mean.rename(dict(b_x_ml='bg_ts_mean'))
-            set_dec = set_dec.rename(dict(b_x_ml='bg_ts_dec'))
+            set_quant = ts_array.quantile([0.05,0.1,0.25,0.75,0.9,0.95],'sets')
+            set_mean = set_mean.rename({
+                                  'b_x_ml_day_std':'b_x_ml_day_std_set_mean',
+                                  'b_x_ml_week_std':'b_x_ml_week_std_set_mean',
+                                  'b_x_ml_mean':'b_x_ml_mean_set_mean'})
+            set_quant = set_quant.rename({
+                                  'b_x_ml_day_std':'b_x_ml_day_std_set_quant',
+                                  'b_x_ml_week_std':'b_x_ml_week_std_set_quant',
+                                  'b_x_ml_mean':'b_x_ml_mean_set_quant'})
 
             # create ds
-            ds = xr.merge([ts_array,set_mean, set_dec], compat='override')
-            ds = ds.set_coords('time_counter')
+            ds = xr.merge([ts_array,set_mean,set_quant], compat='override')
+            #ds = ds.set_coords('time_counter')
+            print (ds)
             ensemble_set.append(ds)
        
         # group of stats for different ensemble sizes
@@ -721,22 +740,28 @@ class bootstrap_glider_samples(object):
 
         fig, ax = plt.subplots(1)
 
+        def render(ax, g_ens, c='black'):
+            ax.fill_between(g_ens.day,
+                            g_ens.b_x_ml_day_std_set_quant.sel(quantile=0.05),
+                            g_ens.b_x_ml_day_std_set_quant.sel(quantile=0.95),
+                            color=c)
+            ax.plot(g_ens.day, g_ens.b_x_ml_day_std_set_mean, c=c)
+
         # model
-        print (m)
         ax.plot(m.day, m.bx_ts_day_std, c='black')
         ax.plot(m.day, m.by_ts_day_std, c='red')
         
         # 1 glider
         g1 = g.isel(ensemble_size=0)
-        ax.plot(g1.day, g1.b_x_ml_day_std, c='navy')
+        render(ax, g1, c='navy')
 
         # 4 glider
         g1 = g.isel(ensemble_size=3)
-        ax.plot(g1.day, g1.b_x_ml_day_std, c='green')
+        render(ax, g1, c='green')
 
         # 30 glider
         g1 = g.isel(ensemble_size=29)
-        ax.plot(g1.day, g1.b_x_ml_day_std, c='orange')
+        render(ax, g1, c='orange')
 
         plt.show()
 

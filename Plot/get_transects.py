@@ -3,7 +3,16 @@ import numpy  as np
 import itertools
 
 def get_transects(data, concat_dim='distance', method='cycle',
-                  shrink=None):
+                  shrink=None, drop_trans=[False,False,False,False],
+                  offset=False):
+    '''
+    drop_tran: drop sides
+               SW -> NE
+               E
+               SE -> NW
+               W
+    '''
+
     if method == '2nd grad':
         a = np.abs(np.diff(data.lat, 
         append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
@@ -11,8 +20,15 @@ def get_transects(data, concat_dim='distance', method='cycle',
     crit = [0,1,2,3]
     if method == 'cycle':
         #data = data.isel(distance=slice(0,400))
-        data['orig_lon'] = data.lon - data.lon_offset
-        data['orig_lat'] = data.lat - data.lat_offset
+
+        # shift back to origin
+        if offset:
+            data['orig_lon'] = data.lon - data.lon_offset
+            data['orig_lat'] = data.lat - data.lat_offset
+        else:
+            data['orig_lon'] = data.lon
+            data['orig_lat'] = data.lat
+
         idx=[]
         crit_iter = itertools.cycle(crit)
         start = True
@@ -47,5 +63,19 @@ def get_transects(data, concat_dim='distance', method='cycle',
     # remove initial and mid path excursions
     da = da.where(da.transect>1, drop=True)
     da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
+ 
+    # catagorise
+    #category = (np.tile([0,1,2,3], 1 + (da.size/4)))[:ds.size]
+    category = da.transect%4
+    print (np.unique(category))
+    da = da.assign_coords({'vertex': da.transect%4})
+    print(da)
+    import matplotlib.pyplot as plt
+    v0 = da.where(da.vertex==0)
+    print (v0)
+    v0 = v0.swap_dims({'ctd_data_point':'transects'})
+    for (_, v) in v0.groupby('transects'):
+        plt.plot(v.lon, v.lat)
+    plt.show()
     return da
 

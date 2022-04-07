@@ -10,12 +10,12 @@
 #SBATCH --output=myout.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
-#SBATCH --time=0-03:00:00 #(2 days and 0 hours, default is 24 hours) 
+#SBATCH --time=0-12:00:00 #(2 days and 0 hours, default is 24 hours) 
 #SBATCH --mem=64GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
 #SBATCH --partition=cluster
 #SBATCH --account=shared
  
-python -u plot_glider_sampling_alterations.py
+python -u plot_bootstrap_glider_sampling.py
 

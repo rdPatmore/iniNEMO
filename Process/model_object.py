@@ -870,7 +870,8 @@ if __name__ == '__main__':
         m.get_rho()
 
     def glider_sampling(case, remove=False, append='', interp_dist=1000,
-                        transects=False, south_limit=None, north_limit=None):
+                        transects=False, south_limit=None, north_limit=None,
+                        rotate=False):
         m = model(case)
         m.interp_dist=interp_dist
         m.transects=transects
@@ -886,7 +887,7 @@ if __name__ == '__main__':
         #m.get_conservative_temperature(save=True)
         #sample_dist=5000
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
-        m.prep_interp_to_raw_obs()
+        m.prep_interp_to_raw_obs(rotate=rotate)
         if transects:
             m.get_transects(shrink=100)
         if remove:
@@ -894,7 +895,7 @@ if __name__ == '__main__':
         for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
@@ -911,10 +912,9 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', remove=False, append='interp_1000_north_patch', 
-                    interp_dist=1000, transects=False, south_limit=-59.9858036)
-    glider_sampling('EXP10', remove=False, append='interp_1000_south_patch', 
-                    interp_dist=1000, transects=False, north_limit=-59.9858036)
+    glider_sampling('EXP10', remove=False, append='interp_1000_rotate', 
+                    interp_dist=1000, transects=False, rotate=True)
+                    #interp_dist=1000, transects=False, north_limit=-59.9858036)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
