@@ -67,7 +67,7 @@ def get_sampled_path(model, append, post_transect=True):
     #glider['lat'] = glider.lat - glider.attrs['lat_offset']
 
     if post_transect:
-        glider = get_transects(glider.votemper)
+        glider = get_transects(glider.votemper, offset=True)
     return glider
 
 def get_raw_path():
@@ -167,4 +167,20 @@ def plot_paths():
     axs[1,3].axis('off')
     plt.savefig('transect_method.png', dpi=300)
 
-plot_paths()
+def test_get_vertex():
+    fig, ax = plt.subplots(1,1, figsize=(7.5,2.5))
+    #plt.subplots_adjust(hspace=0.05,wspace=0.05, bottom=0.15,right=0.98,left=0.1)
+    # plot post transect
+    full_path = get_sampled_path('EXP10', 'interp_1000') 
+    #full_path = full_path.where(da.vertex==2., drop=True)
+    #v0 = v0.swap_dims({'ctd_data_point':'transects'})
+    for (l, v) in full_path.groupby('vertex'):
+        plt.plot(v.lon, v.lat, label=l)
+    plt.legend()
+    plt.show()
+    cmap = plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
+    for (l,trans) in full_path.groupby('transect'):
+        ax.plot(trans.lon, trans.lat)
+    #plt.show()
+    
+test_get_vertex()

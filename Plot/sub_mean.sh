@@ -6,8 +6,8 @@
 #SBATCH --threads-per-core=1 
  
 # the job name and output file
-#SBATCH --job-name=nemo_mean #(default is the script name)
-#SBATCH --output=myout.txt #(default is ~/slurm-<job ID>.out)
+#SBATCH --job-name=std_08 #(default is the script name)
+#SBATCH --output=myout_08.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
 #SBATCH --time=0-12:00:00 #(2 days and 0 hours, default is 24 hours) 

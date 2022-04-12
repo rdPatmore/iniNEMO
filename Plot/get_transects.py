@@ -61,21 +61,33 @@ def get_transects(data, concat_dim='distance', method='cycle',
         da.pop(i)
     da = xr.concat(da, dim=concat_dim)
     # remove initial and mid path excursions
+    print (' ')
+    print (' ')
+    print (' ')
+    print (' ')
+    print (' ')
+    print (' ')
+    print (da.transect)
     da = da.where(da.transect>1, drop=True)
-    da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
- 
+    print (da.lat)
+    print (da.lat.idxmin())
+    da = da.where(da.transect != da.lat.idxmin(skipna=True).transect, drop=True)
+
+
     # catagorise
-    #category = (np.tile([0,1,2,3], 1 + (da.size/4)))[:ds.size]
     category = da.transect%4
-    print (np.unique(category))
     da = da.assign_coords({'vertex': da.transect%4})
-    print(da)
-    import matplotlib.pyplot as plt
-    v0 = da.where(da.vertex==0)
-    print (v0)
-    v0 = v0.swap_dims({'ctd_data_point':'transects'})
-    for (_, v) in v0.groupby('transects'):
-        plt.plot(v.lon, v.lat)
-    plt.show()
+
+    #category = (np.tile([0,1,2,3], 1 + (da.size/4)))[:ds.size]
+    #print (np.unique(category))
+    #print(da)
+    #import matplotlib.pyplot as plt
+    #da['vertex'] = da.vertex.where(da.vertex==2.)
+    #da = da.where(da.vertex==2., drop=True)
+    #print (np.unique(da.vertex))
+    #v0 = v0.swap_dims({'ctd_data_point':'transects'})
+    #for (_, v) in da.groupby('vertex'):
+    #    plt.plot(v.lon, v.lat)
+    #plt.show()
     return da
 

@@ -181,7 +181,7 @@ if __name__ == '__main__':
     #client = Client(cluster)
 
     nc_preamble = 'SOCHIC_PATCH_3h_20121209_20130331'
-    m = richardson('EXP10', nc_preamble)
+    m = richardson('EXP08', nc_preamble)
     start = time.time()
     m.buoyancy_gradients(save=True)
     #m.balanced_richardson_number(save=True)

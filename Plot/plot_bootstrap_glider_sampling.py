@@ -17,7 +17,7 @@ class bootstrap_glider_samples(object):
     '''
 
     def __init__(self, case, offset=False, var='b_x_ml', load_samples=True,
-                 subset=''):
+                 subset='', transect=False):
         self.root = config.root()
         self.case = case
         self.data_path = config.data_path() + self.case + '/'
@@ -28,6 +28,10 @@ class bootstrap_glider_samples(object):
             ds['lat_offset'] = ds.attrs['lat_offset']
             ds = ds.set_coords(['lon_offset','lat_offset','time_counter'])
             da = ds[var]
+       
+            # these two lines fail
+            #da = da.sel(ctd_depth=10, method='nearest')
+            #da = get_transects(da)
             return da
         if load_samples:
             sample_size = 100
@@ -55,13 +59,19 @@ class bootstrap_glider_samples(object):
 
         # depth average
         #self.samples = self.samples.mean('ctd_depth', skipna=True)
-        #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
+        self.samples = self.samples.sel(ctd_depth=10, method='nearest')
         #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
 
-        #for i in range(self.samples.sample.size):
-        #    print ('sample: ', i)
-        #    var10 = self.samples.isel(sample=i).dropna(dim='distance')
-        #    self.samples = get_transects(var10)
+        # get transects and remove 2 n-s excursions
+        # this cannot currently deal with depth-distance data (1-d only)
+        if transect:
+            sample_list = []
+            for i in range(self.samples.sample.size):
+                print ('sample: ', i)
+                var10 = self.samples.isel(sample=i)
+                sample_transect = get_transects(var10, offset=True)
+                sample_list.append(sample_transect)
+            self.samples=xr.concat(sample_list, dim='sample')
 
         # set time to float for averaging
         float_time = self.samples.time_counter.astype('float64')
@@ -82,12 +92,19 @@ class bootstrap_glider_samples(object):
 
 
 
-    def get_model_buoyancy_gradients(self):
+    def get_model_buoyancy_gradients(self, ml=False):
         ''' restrict the model time to glider time '''
     
         bg = xr.open_dataset(config.data_path() + self.case +
                              '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc',
                              chunks={'time_counter':10})
+        mld = xr.open_dataset(config.data_path() + self.case +
+                              '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
+                              chunks={'time_counter':10}).mldr10_3.load()
+        mld = mld.isel(x=slice(1,-2),y=slice(1,-2))
+
+        if ml:
+            bg = bg.where(bg.deptht < mld)
         
          
         clean_float_time = self.samples.time_counter
@@ -124,7 +141,8 @@ class bootstrap_glider_samples(object):
 
                 # mean
                 sample_set = sample_set.reset_coords('time_counter') # retain t
-                sample_mean = sample_set.mean(['sample','ctd_depth']) 
+                #sample_mean = sample_set.mean(['sample','ctd_depth']) 
+                sample_mean = sample_set.mean(['sample']) 
                 sample_mean = sample_mean.set_coords('time_counter')
                 mean_set.append(sample_mean)
 
@@ -132,11 +150,13 @@ class bootstrap_glider_samples(object):
                 sample_set['time_counter'] = sample_set.time_counter.astype(
                                                                'datetime64[ns]')
                 sample_set = sample_set.stack(
-                                 {'ensemble':('distance','sample','ctd_depth')})
+                                 {'ensemble':('distance','sample')})
+                                #{'ensemble':('distance','sample','ctd_depth')})
                 sample_set = sample_set.swap_dims({'ensemble':'time_counter'})
                 sample_set = sample_set.dropna('time_counter').sortby(
                                                                  'time_counter')
                 dims=['time_counter']
+                print (sample_set)
                 d_std = sample_set.resample(
                                     time_counter='1D',skipna=True).std(dim=dims)
                 w_std = sample_set.resample(
@@ -146,12 +166,8 @@ class bootstrap_glider_samples(object):
 
             d_arr = xr.concat(d_set, dim='sets')
             w_arr = xr.concat(w_set, dim='sets')
-            mean_arr = xr.concat(w_set, dim='sets')
+            mean_arr = xr.concat(mean_set, dim='sets')
                 
-            ## set mean
-            #d_std = d_arr.mean('sets')
-            #w_std = w_arr.mean('sets')
-
             # rename time for compatability
             d_arr    = d_arr.rename({'time_counter':'day'})
             w_arr    = w_arr.rename({'time_counter':'day'})
@@ -160,10 +176,9 @@ class bootstrap_glider_samples(object):
             mean_arr = mean_arr.rename({'b_x_ml':'b_x_ml_mean'})
 
             ts_array = xr.merge([d_arr,w_arr,mean_arr])
+            ts_array = ts_array.assign_coords({'time_counter_mean':
+                                            ts_array.time_counter.mean('sets')})
 
-            #ts_array = ts_array.assign({'b_x_ml_day_std':daily_std,
-            #                           'b_x_ml_week_std':weekly_std})
-            
             # stats
             set_mean = ts_array.mean('sets')
             set_quant = ts_array.quantile([0.05,0.1,0.25,0.75,0.9,0.95],'sets')
@@ -178,8 +193,6 @@ class bootstrap_glider_samples(object):
 
             # create ds
             ds = xr.merge([ts_array,set_mean,set_quant], compat='override')
-            #ds = ds.set_coords('time_counter')
-            print (ds)
             ensemble_set.append(ds)
        
         # group of stats for different ensemble sizes
@@ -193,7 +206,7 @@ class bootstrap_glider_samples(object):
     def get_full_model_day_week_std(self, save=False):
         ''' get std x,y,day/week of full model data '''
 
-        self.get_model_buoyancy_gradients()
+        self.get_model_buoyancy_gradients(ml=False)
         self.bg = self.bg.sel(deptht=10, method='nearest')
         self.bg = np.abs(self.bg)
 
@@ -278,15 +291,17 @@ class bootstrap_glider_samples(object):
                                   'hist_l_dec':(['bin_centers'], hist_l_quant),
                                   'hist_u_dec':(['bin_centers'], hist_u_quant)},
                                       coords={
-                               'bin_centers': (['bin_centers'], bin_centers),
-                               'bin_left'   : (['bin_centers'], bins[:-1]),
-                               'bin_right'  : (['bin_centers'], bins[1:])})
+                                  'bin_centers': (['bin_centers'], bin_centers),
+                                  'bin_left'   : (['bin_centers'], bins[:-1]),
+                                  'bin_right'  : (['bin_centers'], bins[1:])})
             hist_ds.to_netcdf(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                           str(n).zfill(2) + '_hist' + self.append + '.nc')
         return hist_mean, hist_l_quant, hist_u_quant 
 
-    def get_glider_sample_lims(self, n=1):
+    def get_glider_sample_lims(self):
+        ''' find the x and y extend of each glider sample '''
+
         x0_set, x1_set, y0_set, y1_set = [], [], [], []
         for sample in random:
             # limits for each sample of each sample set
@@ -311,7 +326,6 @@ class bootstrap_glider_samples(object):
         y1_set.name = 'y1'
  
         self.latlon_lims = xr.merge([x0_set, x1_set, y0_set, y1_set])
-
 
     def glider_sample_bootstrap_stats(self, n):
         set_size = self.samples.sizes['sample']
@@ -378,6 +392,11 @@ class bootstrap_glider_samples(object):
 
     def get_sampled_model_hist(self):
         ''' return mean and std of sampled model hists within a sample set '''
+
+
+        ### this is for testing how good the glider is at sampling 
+        ### the patch of ocean it is in rather than a given region
+        ### no need to have n samples
 
         hists_x, hists_y = [], []
         print ('MODEL')
@@ -728,40 +747,79 @@ class bootstrap_glider_samples(object):
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '.png', dpi=600)
 
-    def plot_variance(self):
+class bootstrap_plotting(object):
+    def __init__(self, append=''):
+        self.data_path = config.data_path()
+        if append == '':
+            self.append = ''
+        else:
+            self.append='_' + append
 
-        # get data
-        g = xr.open_dataset(self.data_path + '/BgGliderSamples' + 
-               '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_timeseries' +
-                self.append + '.nc')
-        m = xr.open_dataset(self.data_path + '/BgGliderSamples' +
-              '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_timeseries' + 
-                    self.append + '.nc')
+    def plot_variance(self, cases):
 
-        fig, ax = plt.subplots(1)
+        fig, axs = plt.subplots(3,2, figsize=(6.5,5.5))
 
-        def render(ax, g_ens, c='black'):
-            ax.fill_between(g_ens.day,
-                            g_ens.b_x_ml_day_std_set_quant.sel(quantile=0.05),
-                            g_ens.b_x_ml_day_std_set_quant.sel(quantile=0.95),
-                            color=c)
-            ax.plot(g_ens.day, g_ens.b_x_ml_day_std_set_mean, c=c)
+        def render(ax, g_ens, c='black', var='mean'):
+            pre = 'b_x_ml_' + var
+            if var == 'mean':
+                x = 'time_counter_mean'
+            else:
+                x = 'day'
+            ax.fill_between(g_ens[x],
+                            g_ens[pre + '_set_quant'].sel(quantile=0.05),
+                            g_ens[pre + '_set_quant'].sel(quantile=0.95),
+                            color=c, alpha=0.2)
+            ax.plot(g_ens[x], g_ens[pre + '_set_mean'], c=c)
+            ax.set_xlim(g_ens[x].min(skipna=True),
+                        g_ens.dropna('day')[x].max(skipna=True))
 
-        # model
-        ax.plot(m.day, m.bx_ts_day_std, c='black')
-        ax.plot(m.day, m.by_ts_day_std, c='red')
-        
-        # 1 glider
-        g1 = g.isel(ensemble_size=0)
-        render(ax, g1, c='navy')
+        for i, case in enumerate(cases): 
 
-        # 4 glider
-        g1 = g.isel(ensemble_size=3)
-        render(ax, g1, c='green')
+            # get data
+            path = self.data_path + case
+            prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
+            g = xr.open_dataset(path + prepend +  'glider_timeseries' +
+                                self.append + '.nc')
+            m_std = xr.open_dataset(path + prepend + 'day_week_std_timeseries' +
+                                 self.append + '.nc')
+            m_mean = xr.open_dataset(path + prepend + 'stats_timeseries' + 
+                                 self.append + '.nc')
 
-        # 30 glider
-        g1 = g.isel(ensemble_size=29)
-        render(ax, g1, c='orange')
+            # convert to datetime
+            g['time_counter_mean'] = g.time_counter_mean.astype(
+                                                               'datetime64[ns]')
+            #g = g.dropna('day')
+            #m_std = m_std.dropna('day')
+            #g['b_x_ml_week_std_set_quant'] = g.b_x_ml_week_std_set_quant.dropna('day')
+
+            # model - sdt
+            axs[i,1].plot(m_std.day, m_std.bx_ts_day_std, c='cyan')
+            axs[i,1].plot(m_std.day, m_std.by_ts_day_std, c='cyan', ls=':')
+
+            # model - mean
+            axs[i,0].plot(m_mean.time_counter, m_mean.bx_ts_mean, c='cyan')
+            axs[i,0].plot(m_mean.time_counter, m_mean.by_ts_mean, c='cyan',
+                                                                    ls=':')
+            
+            # 1 glider
+            g1 = g.isel(ensemble_size=0)
+            render(axs[i,1], g1, c='green', var='day_std')
+            render(axs[i,0], g1, c='green', var='mean')
+
+            # 4 glider
+            g1 = g.isel(ensemble_size=3)
+            render(axs[i,1], g1, c='red', var='day_std')
+            render(axs[i,0], g1, c='red', var='mean')
+
+            # 30 glider
+            g1 = g.isel(ensemble_size=29)
+            render(axs[i,1], g1, c='navy', var='day_std')
+            render(axs[i,0], g1, c='navy', var='mean')
+
+        for ax in axs[:,0]:
+            ax.set_ylim(0,2e-7)
+        for ax in axs[:,1]:
+            ax.set_ylim(0,1e-7)
 
         plt.show()
 
@@ -817,12 +875,14 @@ def plot_quantify_delta_bg():
         m.plot_quantify_delta_bg()
 
 
+bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
 
-m = bootstrap_glider_samples('EXP10', var='b_x_ml', load_samples=True,
-                             subset='')
-m.plot_variance()
-#m.get_full_model_day_week_std(save=True)
-#m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
+#for exp in ['EXP10','EXP13','EXP08']:
+#    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
+#                                  subset='')
+#    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
+#    m.get_full_model_day_week_std(save=True)
+
 #prep_hist()
 #plot_hist()
 #prep_timeseries()
