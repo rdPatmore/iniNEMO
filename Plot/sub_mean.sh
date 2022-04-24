@@ -17,5 +17,9 @@
 #SBATCH --partition=cluster
 #SBATCH --account=shared
  
+#export OMP_NUM_THREADS=1
+#export MKL_NUM_THREADS=1
+#export OPENBLAS_NUM_THREADS=1
+
 python -u plot_bootstrap_glider_sampling.py
 

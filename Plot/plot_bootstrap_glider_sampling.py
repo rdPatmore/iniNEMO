@@ -132,8 +132,10 @@ class bootstrap_glider_samples(object):
             # get random group
             random = np.random.randint(set_size, size=(set_size,n))
 
-            d_set = [] # set of time_series
-            w_set = [] # set of time_series
+            d_mean_set = [] # set of time_series
+            w_mean_set = [] # set of time_series
+            d_std_set = [] # set of time_series
+            w_std_set = [] # set of time_series
             mean_set = []
             for i, samples in enumerate(random):
                 print (i)
@@ -157,25 +159,37 @@ class bootstrap_glider_samples(object):
                                                                  'time_counter')
                 dims=['time_counter']
                 print (sample_set)
+                d_mean = sample_set.resample(
+                                   time_counter='1D',skipna=True).mean(dim=dims)
+                w_mean = sample_set.resample(
+                                   time_counter='1W',skipna=True).mean(dim=dims)
                 d_std = sample_set.resample(
                                     time_counter='1D',skipna=True).std(dim=dims)
                 w_std = sample_set.resample(
                                     time_counter='1W',skipna=True).std(dim=dims)
-                d_set.append(d_std)
-                w_set.append(w_std)
+                d_mean_set.append(d_mean)
+                w_mean_set.append(w_mean)
+                d_std_set.append(d_std)
+                w_std_set.append(w_std)
 
-            d_arr = xr.concat(d_set, dim='sets')
-            w_arr = xr.concat(w_set, dim='sets')
+            d_mean = xr.concat(d_mean_set, dim='sets')
+            w_mean = xr.concat(w_mean_set, dim='sets')
+            d_std = xr.concat(d_std_set, dim='sets')
+            w_std = xr.concat(w_std_set, dim='sets')
             mean_arr = xr.concat(mean_set, dim='sets')
                 
             # rename time for compatability
-            d_arr    = d_arr.rename({'time_counter':'day'})
-            w_arr    = w_arr.rename({'time_counter':'day'})
-            d_arr    = d_arr.rename({'b_x_ml':'b_x_ml_day_std'})
-            w_arr    = w_arr.rename({'b_x_ml':'b_x_ml_week_std'})
+            d_mean    = d_mean.rename({'time_counter':'day'})
+            w_mean    = w_mean.rename({'time_counter':'day'})
+            d_mean    = d_mean.rename({'b_x_ml':'b_x_ml_day_mean'})
+            w_mean    = w_mean.rename({'b_x_ml':'b_x_ml_week_mean'})
+            d_std    = d_std.rename({'time_counter':'day'})
+            w_std    = w_std.rename({'time_counter':'day'})
+            d_std    = d_std.rename({'b_x_ml':'b_x_ml_day_std'})
+            w_std    = w_std.rename({'b_x_ml':'b_x_ml_week_std'})
             mean_arr = mean_arr.rename({'b_x_ml':'b_x_ml_mean'})
 
-            ts_array = xr.merge([d_arr,w_arr,mean_arr])
+            ts_array = xr.merge([d_mean,w_mean,d_std,w_std,mean_arr])
             ts_array = ts_array.assign_coords({'time_counter_mean':
                                             ts_array.time_counter.mean('sets')})
 
@@ -183,13 +197,17 @@ class bootstrap_glider_samples(object):
             set_mean = ts_array.mean('sets')
             set_quant = ts_array.quantile([0.05,0.1,0.25,0.75,0.9,0.95],'sets')
             set_mean = set_mean.rename({
-                                  'b_x_ml_day_std':'b_x_ml_day_std_set_mean',
-                                  'b_x_ml_week_std':'b_x_ml_week_std_set_mean',
-                                  'b_x_ml_mean':'b_x_ml_mean_set_mean'})
+                                'b_x_ml_day_mean':'b_x_ml_day_mean_set_mean',
+                                'b_x_ml_week_mean':'b_x_ml_week_mean_set_mean',
+                                'b_x_ml_day_std':'b_x_ml_day_std_set_mean',
+                                'b_x_ml_week_std':'b_x_ml_week_std_set_mean',
+                                'b_x_ml_mean':'b_x_ml_mean_set_mean'})
             set_quant = set_quant.rename({
-                                  'b_x_ml_day_std':'b_x_ml_day_std_set_quant',
-                                  'b_x_ml_week_std':'b_x_ml_week_std_set_quant',
-                                  'b_x_ml_mean':'b_x_ml_mean_set_quant'})
+                                'b_x_ml_day_mean':'b_x_ml_day_mean_set_quant',
+                                'b_x_ml_week_mean':'b_x_ml_week_mean_set_quant',
+                                'b_x_ml_day_std':'b_x_ml_day_std_set_quant',
+                                'b_x_ml_week_std':'b_x_ml_week_std_set_quant',
+                                'b_x_ml_mean':'b_x_ml_mean_set_quant'})
 
             # create ds
             ds = xr.merge([ts_array,set_mean,set_quant], compat='override')
@@ -875,13 +893,14 @@ def plot_quantify_delta_bg():
         m.plot_quantify_delta_bg()
 
 
-bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
+#bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
 
 #for exp in ['EXP10','EXP13','EXP08']:
-#    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
-#                                  subset='')
-#    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
-#    m.get_full_model_day_week_std(save=True)
+for exp in ['EXP10']:
+    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
+                                  subset='')
+    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
+    #m.get_full_model_day_week_std(save=True)
 
 #prep_hist()
 #plot_hist()

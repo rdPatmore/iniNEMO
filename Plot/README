@@ -1,0 +1,7 @@
+21/04/22
+
+Awaiting production of 100-200 glider samples for EXP08 and EXP13
+
+once done:
+ - plot_compare_glider_path_geometry can run bar chart for vertex selection
+ - plot_bootstrap can run plot_variance, a time series of std and mean

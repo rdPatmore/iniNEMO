@@ -892,10 +892,10 @@ if __name__ == '__main__':
             m.get_transects(shrink=100)
         if remove:
             m.prep_remove_dives(remove=append.rstrip('_transects'))
-        for ind in range(100):
+        for ind in range(100,200):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
@@ -912,9 +912,13 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', remove=False, append='interp_1000_rotate', 
-                    interp_dist=1000, transects=False, rotate=True)
-                    #interp_dist=1000, transects=False, north_limit=-59.9858036)
+    glider_sampling('EXP13', remove=False, append='interp_1000', 
+                    interp_dist=1000, transects=False, rotate=False)
+    glider_sampling('EXP08', remove=False, append='interp_1000', 
+                    interp_dist=1000, transects=False, rotate=False)
+    ###
+    #north_limit=-59.9858036
+    ###
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

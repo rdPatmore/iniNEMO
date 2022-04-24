@@ -8,6 +8,8 @@ import dask
 import matplotlib
 from get_transects import get_transects
 
+dask.config.set({"array.slicing.split_large_chunks": True})
+
 matplotlib.rcParams.update({'font.size': 8})
 
 class glider_path_geometry(object):
@@ -63,17 +65,16 @@ class glider_path_geometry(object):
  
         self.latlon_lims = xr.merge([x0_set, x1_set, y0_set, y1_set])
 
-    def get_model_buoyancy_gradients_patch_set(self, ml=False):
+    def get_model_buoyancy_gradients_patch_set(self, ml=False, stats=None):
         ''' restrict the model time to glider time and sample areas '''
     
         # model
         bg = xr.open_dataset(config.data_path() + self.case +
                              '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc',
-                             chunks={'time_counter':10})
+                             chunks='auto')
+                             #chunks={'time_counter':1})
+        print (bg)
         bg = np.abs(bg.sel(deptht=10, method='nearest'))
-
-        # glider samples
-        self.get_glider_samples(n=100)
 
         # add lat-lon to dimensions
         bg = bg.assign_coords({'lon':(['x'], bg.nav_lon.isel(y=0)),
@@ -85,12 +86,12 @@ class glider_path_geometry(object):
         start = clean_float_time.min().astype('datetime64[ns]')
         end   = clean_float_time.max().astype('datetime64[ns]')
 
-        print (' ')
-        print (' ')
-        print ('start', start.values)
-        print ('end', end.values)
-        print (' ')
-        print (' ')
+        #print (' ')
+        #print (' ')
+        #print ('start', start.values)
+        #print ('end', end.values)
+        #print (' ')
+        #print (' ')
         bg = bg.sel(time_counter=slice(start,end))
         
         patch_set = []
@@ -103,18 +104,144 @@ class glider_path_geometry(object):
  
             patch = bg.sel(lon=slice(x0,x1),
                            lat=slice(y0,y1)).expand_dims(sample=[l])
+            if stats == 'mean':
+                patch = patch.mean(['lon','lat','time_counter']).load()
+            if stats == 'std':
+                patch = patch.std(['lon','lat','time_counter']).load()
             patch_set.append(patch)
 
-        self.model_patches = xr.concat(patch_set, dim='sample')
-         
-    def get_sample_and_glider_diff(self):
-        ''' get difference between mean/std bg for each sample-patch combo '''
+        self.model_patches = xr.concat(patch_set, dim='sample')#.load()#.chunk('auto')
+        print (self.model_patches)
+                                                      #{'lat':10,'lon':10})
 
-        self.get_model_buoyancy_gradients_patch_set()
+        return self.model_patches
+         
+    def get_sample_and_glider_diff_rotation(self, percentage=False,
+                                            samples=100):
+        '''
+        For each rotation choice,
+        get difference between mean/std bg for each sample-patch combo
+        '''
+
+        def get_diff(n, sample_type):
+            ''' get diff between model and glider'''
+
+            # glider stats
+            self.get_glider_samples(n=n, sample_type=sample_type)
+            g_mean = self.samples.mean('distance')
+
+            # model stats
+            m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
+            m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std')
+            #stat_dims = ['lat','lon','time_counter']
+            #m_mean = self.model_patches.mean(stat_dims).load()
+            #m_std  = self.model_patches.std(stat_dims).load()
+
+            if percentage:
+                denom_m_bx = np.abs(m_mean.bx) / 100.0
+                denom_m_by = np.abs(m_mean.by) / 100.0
+                denom_s_bx = np.abs(m_std.bx) / 100.0
+                denom_s_by = np.abs(m_std.by) / 100.0
+                f_append = '_percent'
+            else: 
+                denom = 1.0
+                f_append = ''
+
+            diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
+            diff_y_mean = (m_mean.by - g_mean) / denom_m_by
+            diff_x_std = (m_std.bx - g_std) / denom_s_bx
+            diff_y_std = (m_std.by - g_std) / denom_s_by
+
+            if sample_type != '':
+                sample_type = '_' + sample_type
+            diff_x_mean.name = 'diff_bx_mean' + sample_type
+            diff_y_mean.name = 'diff_by_mean' + sample_type
+            diff_x_std.name = 'diff_bx_std' + sample_type
+            diff_y_std.name = 'diff_by_std' + sample_type
+
+            return [diff_x_mean, diff_y_mean, diff_x_sdt, diff_y_std]
+
+        non_rot = get_diff(samples)
+        rot     = get_diff(samples, 'rotate')
+
+        diff_ds = xr.merge(non_rot, rot)
+
+        diff_ds.to_netcdf(self.data_path +  '/BgGliderSamples' + 
+                  '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_rotate_diff' +
+                  f_append + '_' + str(samples) + '_samples.nc')
+
+    def get_sample_and_glider_diff_vertex_set(self, percentage=False,
+                                              samples=100):
+        '''
+        For each vertex choice,
+        get difference between mean/std bg for each sample-patch combo
+        '''
+
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (0)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        # glider samples
+        self.get_glider_samples(n=samples)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (1)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+
+        # model patches
+        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
+        m_std = self.get_model_buoyancy_gradients_patch_set(stats='sdt')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (2)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
 
         # model stats
-        m_mean = self.model_patches.mean(['lat','lon','time_counter'])
-        m_std  = self.model_patches.std(['lat','lon','time_counter'])
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        #print (self.model_patches)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        #m_mean = self.model_patches.mean(['lat','lon','time_counter']).load()
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        #print (m_mean)
+        print (' ')
+        print (' ')
+        #print (self.model_patches)
+        print (' ')
+        print (' ')
+        #m_std  = self.model_patches.std(['lat','lon','time_counter']).load()
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (3)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
 
         # glider stats
         vertex_list = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
@@ -127,13 +254,45 @@ class glider_path_geometry(object):
                                              drop=True)
             g_mean_list.append(ver_sampled.mean('distance'))
             g_std_list.append(ver_sampled.std('distance'))
-        g_mean = xr.concat(g_mean_list, dim='vertex_choice')
-        g_std = xr.concat(g_std_list, dim='vertex_choice')
 
-        diff_x_mean = m_mean.bx - g_mean
-        diff_y_mean = m_mean.by - g_mean
-        diff_x_std = m_std.bx - g_std
-        diff_y_std = m_std.by - g_std
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (4)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        # join along new coord
+        vertex_coord = xr.DataArray(ver_label, dims='vertex_choice',
+                                               name='vertex_choice')
+        g_mean = xr.concat(g_mean_list, dim=vertex_coord)
+        g_std = xr.concat(g_std_list, dim=vertex_coord)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (5)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+
+        if percentage:
+            denom_m_bx = np.abs(m_mean.bx) / 100.0
+            denom_m_by = np.abs(m_mean.by) / 100.0
+            denom_s_bx = np.abs(m_std.bx) / 100.0
+            denom_s_by = np.abs(m_std.by) / 100.0
+            f_append = '_percent'
+        else: 
+            denom = 1.0
+            f_append = ''
+
+        diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
+        diff_y_mean = (m_mean.by - g_mean) / denom_m_by
+        diff_x_std = (m_std.bx - g_std) / denom_s_bx
+        diff_y_std = (m_std.by - g_std) / denom_s_by
 
         diff_x_mean.name = 'diff_bx_mean'
         diff_y_mean.name = 'diff_by_mean'
@@ -144,9 +303,10 @@ class glider_path_geometry(object):
                             diff_x_std,diff_y_std])
 
         diff_ds.to_netcdf(self.data_path +  '/BgGliderSamples' + 
-                  '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_vertex_diff.nc')
+                  '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_vertex_diff' +
+                  f_append + '_' + str(samples) + '_samples.nc')
 
-    def get_glider_samples(self, n=100):
+    def get_glider_samples(self, n=100, sample_type=''):
         ''' get set of 100 glider samples '''
         def expand_sample_dim(ds):
             ds['lon_offset'] = ds.attrs['lon_offset']
@@ -157,7 +317,12 @@ class glider_path_geometry(object):
 
         # load samples
         prep = 'GliderRandomSampling/glider_uniform_interp_1000_'
-        sample_list = [self.data_path + prep + 
+        print (self.data_path)
+        print (prep)
+        print (sample_type)
+        print (n)
+        print ([str(i).zfill(2) for i in range(n)])
+        sample_list = [self.data_path + prep + sample_type +
                        str(i).zfill(2) + '.nc' for i in range(n)]
         self.samples = xr.open_mfdataset(sample_list, 
                                      combine='nested', concat_dim='sample',
@@ -291,7 +456,7 @@ class glider_path_geometry(object):
     #             histtype='step', zorder=11)
 
     def render_glider_sample_set(self, da, c='green', style='plot'):
-        print (da)
+        #print (da)
         if style=='bar':
             self.ax.bar(da.bin_left, 
                     da.hist_quant.sel(quantile=0.95) -
@@ -341,7 +506,7 @@ class glider_path_geometry(object):
         ds = xr.open_dataset(self.data_path + '/BgGliderSamples' + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                           'vertex_hist.nc')
-        print (ds)
+        #print (ds)
         for i, ver in enumerate(vertex):
             da = ds.sel(vertex_choice=ver)
             print ('sample', i)
@@ -365,7 +530,7 @@ class glider_path_geometry_plotting(object):
         else:
             self.append='_' + append
 
-    def plot_model_and_glider_diff_bar(self,cases):
+    def plot_model_and_glider_diff_bar(self, cases):
         ''' 
         bar chart of difference between model patches and gliders
         mean and std across samples
@@ -383,7 +548,7 @@ class glider_path_geometry_plotting(object):
             path = self.data_path + case
             prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
             ds = xr.open_dataset(path + prepend +  'glider_vertex_diff' +
-                                 self.append + '.nc')
+                                 self.append + '_percent.nc')
 
             ds_mean = ds.mean('sample')
             ds_l_quant = ds.quantile(0.05, 'sample')
@@ -392,48 +557,59 @@ class glider_path_geometry_plotting(object):
             axs[0].bar(x_pos + offset[i], 
                        ds_u_quant.diff_bx_mean - ds_l_quant.diff_bx_mean,
                        width=0.15,
+                       alpha=0.2,
                        bottom=ds_l_quant.diff_bx_mean,
                        color=colours[i],
                        tick_label=ds.vertex_choice)
             axs[0].hlines(ds_mean.diff_bx_mean,
-                          x_pos + offset[i]-0.15,
-                          x_pos + offset[i])
+                          x_pos + offset[i]-0.075,
+                          x_pos + offset[i]+0.075,
+                          lw=2)
 
             axs[0].bar(x_pos + offset[i]+0.15, 
                        ds_u_quant.diff_by_mean - ds_l_quant.diff_by_mean,
                        width=0.15,
+                       alpha=0.2,
                        bottom=ds_l_quant.diff_by_mean,
                        color=colours[i],
                        tick_label=ds.vertex_choice)
             axs[0].hlines(ds_mean.diff_by_mean,
-                          x_pos + offset[i],
-                          x_pos + offset[i]+0.15)
+                          x_pos + offset[i]+0.075,
+                          x_pos + offset[i]+0.225,
+                          lw=2)
 
             axs[1].bar(x_pos + offset[i], 
                        ds_u_quant.diff_bx_std - ds_l_quant.diff_bx_std,
                        width=0.15,
                        bottom=ds_l_quant.diff_bx_std,
                        color=colours[i],
+                       alpha=0.2,
                        tick_label=ds.vertex_choice)
             axs[1].hlines(ds_mean.diff_bx_std,
-                          x_pos + offset[i],
-                          x_pos + offset[i]+0.15)
+                          x_pos + offset[i]-0.075,
+                          x_pos + offset[i]+0.075,
+                          lw=2)
 
             axs[1].bar(x_pos + offset[i]+0.15, 
                        ds_u_quant.diff_by_std - ds_l_quant.diff_by_std,
                        width=0.15,
+                       alpha=0.2,
                        bottom=ds_l_quant.diff_by_std,
                        color=colours[i],
                        tick_label=ds.vertex_choice)
             axs[1].hlines(ds_mean.diff_by_std,
-                          x_pos + offset[i]-0.15,
-                          x_pos + offset[i],
+                          x_pos + offset[i]+0.075,
+                          x_pos + offset[i]+0.225,
+                          lw=2,
                           zorder=10)
+        for ax in axs:
+             ax.axhline(0, lw=0.8)
 
         #self.ax.set_xlabel('Buoyancy Gradient')
         #self.ax.set_ylabel('PDF')
 
         plt.show()
+        #plt.savefig('multi_model_vertex_skill.png', dpi=600)
         #plt.savefig(self.case + '_bg_vertex_select.png', dpi=600)
 
     def plot_model_and_glider_diff_scatter(self,cases):
@@ -482,10 +658,22 @@ class glider_path_geometry_plotting(object):
 #        plt.legend()
 #        plt.savefig('EXP02_bg_glider_rotation.png', dpi=300)
 
-cases = ['EXP13','EXP08','EXP10']
 #cases = ['EXP10']
-m = glider_path_geometry_plotting()
-m.plot_model_and_glider_diff_bar(cases)
+#cases = ['EXP13','EXP08','EXP10']
+#m = glider_path_geometry_plotting()
+#m.plot_model_and_glider_diff_bar(cases)
+
+
+# save file of vertex percentage error
+cases = ['EXP10']
+#cases = ['EXP13','EXP08','EXP10']
+for  case in cases:
+    m = glider_path_geometry(case)
+    #m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=50)
+    #m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100)
+    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=200)
+
+
 #m.get_model_buoyancy_gradients_patch_set(ml=True)
 #m.plot_histogram_buoyancy_gradients_and_samples()
 #m.get_vertex_sets_all()
