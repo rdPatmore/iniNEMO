@@ -111,7 +111,6 @@ class glider_path_geometry(object):
             patch_set.append(patch)
 
         self.model_patches = xr.concat(patch_set, dim='sample')#.load()#.chunk('auto')
-        print (self.model_patches)
                                                       #{'lat':10,'lon':10})
 
         return self.model_patches
@@ -123,12 +122,13 @@ class glider_path_geometry(object):
         get difference between mean/std bg for each sample-patch combo
         '''
 
-        def get_diff(n, sample_type):
+        def get_diff(n, sample_type=''):
             ''' get diff between model and glider'''
 
             # glider stats
             self.get_glider_samples(n=n, sample_type=sample_type)
             g_mean = self.samples.mean('distance')
+            g_std = self.samples.std('distance')
 
             # model stats
             m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
@@ -142,10 +142,8 @@ class glider_path_geometry(object):
                 denom_m_by = np.abs(m_mean.by) / 100.0
                 denom_s_bx = np.abs(m_std.bx) / 100.0
                 denom_s_by = np.abs(m_std.by) / 100.0
-                f_append = '_percent'
             else: 
                 denom = 1.0
-                f_append = ''
 
             diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
             diff_y_mean = (m_mean.by - g_mean) / denom_m_by
@@ -159,12 +157,17 @@ class glider_path_geometry(object):
             diff_x_std.name = 'diff_bx_std' + sample_type
             diff_y_std.name = 'diff_by_std' + sample_type
 
-            return [diff_x_mean, diff_y_mean, diff_x_sdt, diff_y_std]
+            return [diff_x_mean, diff_y_mean, diff_x_std, diff_y_std]
 
         non_rot = get_diff(samples)
         rot     = get_diff(samples, 'rotate')
 
-        diff_ds = xr.merge(non_rot, rot)
+        diff_ds = xr.merge(non_rot + rot)
+
+        if percentage:
+            f_append = '_percent'
+        else: 
+            f_append = ''
 
         diff_ds.to_netcdf(self.data_path +  '/BgGliderSamples' + 
                   '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_rotate_diff' +
@@ -177,71 +180,12 @@ class glider_path_geometry(object):
         get difference between mean/std bg for each sample-patch combo
         '''
 
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (0)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
         # glider samples
         self.get_glider_samples(n=samples)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (1)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
 
         # model patches
         m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
-        m_std = self.get_model_buoyancy_gradients_patch_set(stats='sdt')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (2)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-
-        # model stats
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        #print (self.model_patches)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        #m_mean = self.model_patches.mean(['lat','lon','time_counter']).load()
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        #print (m_mean)
-        print (' ')
-        print (' ')
-        #print (self.model_patches)
-        print (' ')
-        print (' ')
-        #m_std  = self.model_patches.std(['lat','lon','time_counter']).load()
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (3)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
+        m_std = self.get_model_buoyancy_gradients_patch_set(stats='std')
 
         # glider stats
         vertex_list = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
@@ -255,29 +199,11 @@ class glider_path_geometry(object):
             g_mean_list.append(ver_sampled.mean('distance'))
             g_std_list.append(ver_sampled.std('distance'))
 
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (4)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
         # join along new coord
         vertex_coord = xr.DataArray(ver_label, dims='vertex_choice',
                                                name='vertex_choice')
         g_mean = xr.concat(g_mean_list, dim=vertex_coord)
         g_std = xr.concat(g_std_list, dim=vertex_coord)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        print (5)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
 
         if percentage:
             denom_m_bx = np.abs(m_mean.bx) / 100.0
@@ -321,6 +247,8 @@ class glider_path_geometry(object):
         print (prep)
         print (sample_type)
         print (n)
+        if sample_type != '':
+            sample_type = sample_type + '_' 
         print ([str(i).zfill(2) for i in range(n)])
         sample_list = [self.data_path + prep + sample_type +
                        str(i).zfill(2) + '.nc' for i in range(n)]
@@ -530,7 +458,7 @@ class glider_path_geometry_plotting(object):
         else:
             self.append='_' + append
 
-    def plot_model_and_glider_diff_bar(self, cases):
+    def plot_model_and_glider_diff_bar(self, cases, samples):
         ''' 
         bar chart of difference between model patches and gliders
         mean and std across samples
@@ -548,7 +476,8 @@ class glider_path_geometry_plotting(object):
             path = self.data_path + case
             prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
             ds = xr.open_dataset(path + prepend +  'glider_vertex_diff' +
-                                 self.append + '_percent.nc')
+                                 self.append + '_percent_' + str(samples) + 
+                                 '_samples.nc')
 
             ds_mean = ds.mean('sample')
             ds_l_quant = ds.quantile(0.05, 'sample')
@@ -604,13 +533,16 @@ class glider_path_geometry_plotting(object):
                           zorder=10)
         for ax in axs:
              ax.axhline(0, lw=0.8)
+             ax.set_ylim(-100,100)
 
+        
         #self.ax.set_xlabel('Buoyancy Gradient')
         #self.ax.set_ylabel('PDF')
 
-        plt.show()
+        #plt.show()
         #plt.savefig('multi_model_vertex_skill.png', dpi=600)
-        #plt.savefig(self.case + '_bg_vertex_select.png', dpi=600)
+        plt.savefig('multi_model_vertex_skill_' + str(samples) + 
+                    '_samples.png', dpi=600)
 
     def plot_model_and_glider_diff_scatter(self,cases):
 
@@ -658,20 +590,22 @@ class glider_path_geometry_plotting(object):
 #        plt.legend()
 #        plt.savefig('EXP02_bg_glider_rotation.png', dpi=300)
 
-#cases = ['EXP10']
+cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
-#m = glider_path_geometry_plotting()
-#m.plot_model_and_glider_diff_bar(cases)
+m = glider_path_geometry_plotting()
+m.plot_model_and_glider_diff_bar(cases, samples=50)
+m.plot_model_and_glider_diff_bar(cases, samples=100)
+m.plot_model_and_glider_diff_bar(cases, samples=200)
 
 
 # save file of vertex percentage error
-cases = ['EXP10']
+#cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
-for  case in cases:
-    m = glider_path_geometry(case)
-    #m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=50)
-    #m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100)
-    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=200)
+#for  case in cases:
+#    m = glider_path_geometry(case)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=200)
 
 
 #m.get_model_buoyancy_gradients_patch_set(ml=True)

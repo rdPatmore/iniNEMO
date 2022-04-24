@@ -691,76 +691,101 @@ class bootstrap_glider_samples(object):
             return ds
 
         # get data
-        prep = 'BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
-        ensemble_list = [self.data_path + prep + str(i).zfill(2) +
-                         '_timeseries' + self.append + '.nc' 
-                         for i in range(1,31)]
-        ensembles = xr.open_mfdataset(ensemble_list, 
-                                   combine='nested', concat_dim='ensemble_size',
-                                   preprocess=pre_proc).load()
-        ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
-        ensembles['time_counter'] = ensembles.time_counter / 1e9 
-        unit = "seconds since 1970-01-01 00:00:00"
-        ensembles.time_counter.attrs['units'] = unit
-        ensembles = xr.decode_cf(ensembles)
+        #prep = 'BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
+        #ensemble_list = [self.data_path + prep + str(i).zfill(2) +
+        #                 '_timeseries' + self.append + '.nc' 
+        #                 for i in range(1,31)]
+        #ensembles = xr.open_mfdataset(ensemble_list, 
+        #                           combine='nested', concat_dim='ensemble_size',
+        #                           preprocess=pre_proc).load()
+        #ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
+        #ensembles['time_counter'] = ensembles.time_counter / 1e9 
+        #unit = "seconds since 1970-01-01 00:00:00"
+        #ensembles.time_counter.attrs['units'] = unit
+        #ensembles = xr.decode_cf(ensembles)
 
+        g = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
+                    '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_timeseries' + 
+                    self.append + '.nc').dropna(dim='day')
         m = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                     self.append + '.nc')
 
+        t0 = '2013-01-01'
+        t1 = '2013-03-15'
         # change in bg
-        m0 = m.sel(time_counter=slice('2013-01-01 00:00:00',
-                                 '2013-01-15 00:00:00')).mean('time_counter')
-        m1 = m.sel(time_counter=slice('2013-03-01 00:00:00',
-                                 '2013-03-15 00:00:00')).mean('time_counter')
-        g0 = ensembles.where(
-                 (ensembles.time_counter>np.datetime64('2013-01-01 00:00:00')) &
-                 (ensembles.time_counter<np.datetime64('2013-01-15 00:00:00'))
-                             ).mean('distance')
-        g1 = ensembles.where(
-                 (ensembles.time_counter>np.datetime64('2013-03-01 00:00:00')) &
-                 (ensembles.time_counter<np.datetime64('2013-03-15 00:00:00'))
-                             ).mean('distance')
-        model_delta_x = m0.bx_ts_mean - m1.bx_ts_mean
-        model_delta_y = m0.by_ts_mean - m1.by_ts_mean
-        glider_delta_min = (g0.b_x_ml - g1.b_x_ml).min('sets')
-        glider_delta_max = (g0.b_x_ml - g1.b_x_ml).max('sets')
-        
+        m_week = m.resample(time_counter='1W',skipna=True).mean()
+        m0 = m_week.sel(time_counter=t0, method='nearest')
+        m1 = m_week.sel(time_counter=t1, method='nearest')
+
+        print (g)
+        g0_mean = g.b_x_ml_week_mean.sel(day=t0, method='nearest')
+        g1_mean = g.b_x_ml_week_mean.sel(day=t1, method='nearest')
+        g0_std = g.b_x_ml_week_std.sel(day=t0, method='nearest')
+        g1_std = g.b_x_ml_week_std.sel(day=t1, method='nearest')
+       
+        #m0 = m.sel(time_counter=slice('2013-01-01 00:00:00',
+        #                         '2013-01-15 00:00:00')).mean('time_counter')
+        #m1 = m.sel(time_counter=slice('2013-03-01 00:00:00',
+        #                         '2013-03-15 00:00:00')).mean('time_counter')
+        #g0 = ensembles.where(
+        #         (ensembles.time_counter>np.datetime64('2013-01-01 00:00:00')) &
+        #         (ensembles.time_counter<np.datetime64('2013-01-15 00:00:00'))
+        #                     ).mean('distance')
+        #g1 = ensembles.where(
+        #         (ensembles.time_counter>np.datetime64('2013-03-01 00:00:00')) &
+        #         (ensembles.time_counter<np.datetime64('2013-03-15 00:00:00'))
+        #                     ).mean('distance')
+        model_delta_x_mean = m0.bx_ts_mean - m1.bx_ts_mean
+        model_delta_y_mean = m0.by_ts_mean - m1.by_ts_mean
+        model_delta_x_std = m0.bx_ts_std - m1.bx_ts_std
+        model_delta_y_std = m0.by_ts_std - m1.by_ts_std
+        glider_delta_mean = (g0_mean - g1_mean).quantile([0.05,0.95],'sets')
+        glider_delta_std  = (g0_std  - g1_std ).quantile([0.05,0.95],'sets')
+
         # define fig
-        self.figure, self.ax = plt.subplots(figsize=(6.5,4.0))
+        self.figure, self.axs = plt.subplots(2,1, figsize=(6.5,4.0))
 
         # plot
-        self.ax.plot(glider_delta_min.ensemble_size, 
-                     glider_delta_min, c='black')
-        self.ax.plot(glider_delta_max.ensemble_size, 
-                     glider_delta_max, c='black')
-        self.ax.axhline(model_delta_x, c='red')
-        self.ax.axhline(model_delta_y, c='green')
+        def render(ax, m_x, m_y, g):
+            ax.plot(g.ensemble_size, 
+                    g.sel(quantile=0.05), c='black')
+            ax.plot(g.ensemble_size, 
+                    g.sel(quantile=0.95), c='black')
+            ax.axhline(m_x, c='red')
+            ax.axhline(m_y, c='green')
 
-        # percentage error
-        self.ax.axhline(model_delta_x - (model_delta_x*0.20), c='pink', ls=':')
-        self.ax.axhline(model_delta_x + (model_delta_x*0.20), c='pink', ls=':')
-        self.ax.axhline(model_delta_x - (model_delta_x*0.40), c='navy', ls=':')
-        self.ax.axhline(model_delta_x + (model_delta_x*0.40), c='navy', ls=':')
-        self.ax.axhline(model_delta_x - (model_delta_x*0.60), c='grey', ls=':')
-        self.ax.axhline(model_delta_x + (model_delta_x*0.60), c='grey', ls=':')
-        
-        txt = ['20 %', '20 %', '40 %', '40 %', '60 %', '60 %']
-        print (self.ax.lines)
-        for i, line in enumerate(self.ax.lines[-6:]):
-            y = line.get_ydata()[-1]
-            print (line)
-            self.ax.annotate(txt[i], xy=(1,y), xytext=(6,0), 
-                        color=line.get_color(), 
-                        xycoords=self.ax.get_yaxis_transform(),
-                        textcoords='offset points',
-                        size=8, va='center')
+            # percentage error
+            ax.axhline(m_x - (m_x*0.20), c='pink', ls=':')
+            ax.axhline(m_x + (m_x*0.20), c='pink', ls=':')
+            ax.axhline(m_x - (m_x*0.40), c='navy', ls=':')
+            ax.axhline(m_x + (m_x*0.40), c='navy', ls=':')
+            ax.axhline(m_x - (m_x*0.60), c='grey', ls=':')
+            ax.axhline(m_x + (m_x*0.60), c='grey', ls=':')
+            
+            txt = ['20 %', '20 %', '40 %', '40 %', '60 %', '60 %']
+            print (ax.lines)
+            for i, line in enumerate(ax.lines[-6:]):
+                y = line.get_ydata()[-1]
+                print (line)
+                ax.annotate(txt[i], xy=(1,y), xytext=(6,0), 
+                            color=line.get_color(), 
+                            xycoords=ax.get_yaxis_transform(),
+                            textcoords='offset points',
+                            size=8, va='center')
+
+        render(self.axs[0], model_delta_x_mean, model_delta_y_mean,
+               glider_delta_mean)
+        render(self.axs[1], model_delta_x_std, model_delta_y_std,
+               glider_delta_std)
 
         # labels 
-        self.ax.set_xlabel('Ensemble size')
-        self.ax.set_ylabel('Change in buoyancy gradients Jan-Mar 2013')
+        for ax in self.axs:
+            ax.set_xlabel('Ensemble size')
+            ax.set_ylabel('Change in buoyancy gradients Jan-Mar 2013')
 
-        self.ax.set_ylim(-1e-8,4.5e-8)
+        self.axs[0].set_ylim(-1e-8,4.5e-8)
+        self.axs[1].set_ylim(-1e-8,5.0e-8)
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '.png', dpi=600)
@@ -889,17 +914,18 @@ def plot_quantify_delta_bg():
     for case in cases:
         print ('case: ', case)
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
-                                     subset='north')
+                                     subset='')
         m.plot_quantify_delta_bg()
+plot_quantify_delta_bg()
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
 
 #for exp in ['EXP10','EXP13','EXP08']:
-for exp in ['EXP10']:
-    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
-                                  subset='')
-    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
+#for exp in ['EXP13','EXP08']:
+#    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
+#                                  subset='')
+#    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
     #m.get_full_model_day_week_std(save=True)
 
 #prep_hist()
