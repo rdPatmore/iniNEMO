@@ -871,7 +871,7 @@ if __name__ == '__main__':
 
     def glider_sampling(case, remove=False, append='', interp_dist=1000,
                         transects=False, south_limit=None, north_limit=None,
-                        rotate=False):
+                        rotate=False, rotation=np.pi/2):
         m = model(case)
         m.interp_dist=interp_dist
         m.transects=transects
@@ -887,15 +887,15 @@ if __name__ == '__main__':
         #m.get_conservative_temperature(save=True)
         #sample_dist=5000
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
-        m.prep_interp_to_raw_obs(rotate=rotate)
+        m.prep_interp_to_raw_obs(rotate=rotate, rotation=rotation)
         if transects:
             m.get_transects(shrink=100)
         if remove:
             m.prep_remove_dives(remove=append.rstrip('_transects'))
-        for ind in range(100,200):
+        for ind in range(1,100):
             m.ind = ind
             print ('ind: ', ind)
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=False)
+            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
             print ('done part 2')
@@ -912,10 +912,12 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP13', remove=False, append='interp_1000', 
-                    interp_dist=1000, transects=False, rotate=False)
-    glider_sampling('EXP08', remove=False, append='interp_1000', 
-                    interp_dist=1000, transects=False, rotate=False)
+    glider_sampling('EXP10', remove=False, append='interp_1000_rotate_180', 
+                    interp_dist=1000, transects=False, rotate=True, 
+                    rotation=np.pi)
+    glider_sampling('EXP10', remove=False, append='interp_1000_rotate_270', 
+                    interp_dist=1000, transects=False, rotate=True,
+                    rotation=3*np.pi/2)
     ###
     #north_limit=-59.9858036
     ###

@@ -544,6 +544,68 @@ class glider_path_geometry_plotting(object):
         plt.savefig('multi_model_vertex_skill_' + str(samples) + 
                     '_samples.png', dpi=600)
 
+    def plot_model_and_glider_diff_rotate_bar(self, case, samples):
+        ''' 
+        bar chart of difference between model patches and gliders
+        mean and std across samples
+        '''
+
+        fig, axs = plt.subplots(2,1,figsize=(3.0,4.0))
+
+        vertex = ['left','right','diag_ur','diag_ul']
+        colours = ['g', 'b', 'r', 'y']
+
+
+        x_pos = np.linspace(0.5,1.5,2)
+        print (x_pos)
+        offset = [-0.3, 0, 0.3]
+        path = self.data_path + case
+        prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
+        ds = xr.open_dataset(path + prepend +  'glider_rotate_diff' +
+                             self.append + '_percent_' + str(samples) + 
+                             '_samples.nc')
+
+        ds_mean = ds.mean('sample')
+        ds_l_quant = ds.quantile(0.05, 'sample')
+        ds_u_quant = ds.quantile(0.95, 'sample')
+
+        def render(ax, mean, l_quant, u_quant, x_pos, stat, rota='', c='navy'):
+            # non-rotated
+            var = 'diff_bx_' + stat + rota
+
+            ax.bar(x_pos, u_quant[var] - l_quant[var],
+                   width=0.25, alpha=0.2, bottom=l_quant[var],
+                   color=c)
+            ax.hlines(mean[var], x_pos-0.125, x_pos+0.125, lw=2)
+
+            var = 'diff_by_' + stat + rota
+            ax.bar(x_pos+0.25, u_quant[var] - l_quant[var],
+                   width=0.25, alpha=0.2, bottom=l_quant[var],
+                   color=c)
+            ax.hlines(ds_mean[var], x_pos+0.125,x_pos+0.375,lw=2)
+
+        render(axs[0], ds_mean, ds_l_quant, ds_u_quant,
+               x_pos=x_pos[0], stat='mean')
+        render(axs[1], ds_mean, ds_l_quant, ds_u_quant,
+               x_pos=x_pos[0], stat='std')
+        render(axs[0], ds_mean, ds_l_quant, ds_u_quant,
+               x_pos=x_pos[1], stat='mean', rota='_rotate', c='green')
+        render(axs[1], ds_mean, ds_l_quant, ds_u_quant,
+               x_pos=x_pos[1], stat='std',  rota='_rotate', c='green')
+
+
+        for ax in axs:
+             ax.axhline(0, lw=0.8)
+             ax.set_ylim(-60,60)
+
+        
+        #self.ax.set_xlabel('Buoyancy Gradient')
+        #self.ax.set_ylabel('PDF')
+
+        plt.show()
+        #plt.savefig(case + '_rotation_test_' + str(samples) + 
+        #            '_samples.png', dpi=600)
+
     def plot_model_and_glider_diff_scatter(self,cases):
 
         fig, ax = plt.subplots(figsize=(4.5,4.0))
@@ -590,12 +652,13 @@ class glider_path_geometry_plotting(object):
 #        plt.legend()
 #        plt.savefig('EXP02_bg_glider_rotation.png', dpi=300)
 
-cases = ['EXP10']
+#cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
+#m.plot_model_and_glider_diff_bar(cases, samples=50)
+#m.plot_model_and_glider_diff_bar(cases, samples=100)
+#m.plot_model_and_glider_diff_bar(cases, samples=200)
 m = glider_path_geometry_plotting()
-m.plot_model_and_glider_diff_bar(cases, samples=50)
-m.plot_model_and_glider_diff_bar(cases, samples=100)
-m.plot_model_and_glider_diff_bar(cases, samples=200)
+m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
 
 
 # save file of vertex percentage error
