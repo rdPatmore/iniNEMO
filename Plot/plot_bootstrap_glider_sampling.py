@@ -684,7 +684,7 @@ class bootstrap_glider_samples(object):
         plt.savefig(self.case + '_bg_ensemble_timeseries' + self.append +
                     '.png', dpi=600)
 
-    def plot_quantify_delta_bg(self):
+    def plot_quantify_delta_bg(self, t0='2013-01-01', t1='2013-03-15'):
 
         def pre_proc(ds):
             ds = ds.expand_dims('ensemble_size')
@@ -711,8 +711,6 @@ class bootstrap_glider_samples(object):
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                     self.append + '.nc')
 
-        t0 = '2013-01-01'
-        t1 = '2013-03-15'
         # change in bg
         m_week = m.resample(time_counter='1W',skipna=True).mean()
         m0 = m_week.sel(time_counter=t0, method='nearest')
@@ -780,15 +778,22 @@ class bootstrap_glider_samples(object):
                glider_delta_std)
 
         # labels 
-        for ax in self.axs:
-            ax.set_xlabel('Ensemble size')
-            ax.set_ylabel('Change in buoyancy gradients Jan-Mar 2013')
+        self.axs[1].set_xlabel('Ensemble size')
+        self.axs[0].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
+                               t0.lstrip('2013')[1:] + ' :: ' +
+                               t1.lstrip('2013')[1:]+
+                               '\n [mean]')
+        self.axs[1].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
+                               t0.lstrip('2013')[1:] + ' :: ' +
+                               t1.lstrip('2013')[1:]+
+                               '\n [standard deviation]')
 
         self.axs[0].set_ylim(-1e-8,4.5e-8)
         self.axs[1].set_ylim(-1e-8,5.0e-8)
+        self.axs[0].set_xticks([])
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
-                   '.png', dpi=600)
+                   '_'+ t0 + '_' + t1 + '.png', dpi=600)
 
 class bootstrap_plotting(object):
     def __init__(self, append=''):
@@ -915,7 +920,7 @@ def plot_quantify_delta_bg():
         print ('case: ', case)
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
                                      subset='')
-        m.plot_quantify_delta_bg()
+        m.plot_quantify_delta_bg(t0 = '2013-01-15', t1 = '2013-02-15')
 plot_quantify_delta_bg()
 
 
