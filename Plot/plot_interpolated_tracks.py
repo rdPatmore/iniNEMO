@@ -7,54 +7,29 @@ import matplotlib
 from get_transects import get_transects
 matplotlib.rcParams.update({'font.size': 8})
 
+def rotate(data, theta):
+    ''' this is copied from model_data.py, for ds only
+        get transects has a da version'''
 
-#def get_transects(data, concat_dim='distance', method='cycle', shrink=None):
-#    if method == '2nd grad':
-#        a = np.abs(np.diff(data.lat, 
-#        append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-#        idx = np.where(a>0.006)[0]
-#    crit = [0,1,2,3]
-#    if method == 'cycle':
-#        idx=[]
-#        crit_iter = itertools.cycle(crit)
-#        start = True
-#        a = next(crit_iter)
-#        for i in range(data[concat_dim].size)[::shrink]:
-#            da = data.isel({concat_dim:i})
-#            if (a == 0) and (start == True):
-#                test = ((da.lat < -60.04) and (da.lon > 0.176))
-#            elif a == 0:
-#                test = (da.lon > 0.176)
-#            elif a == 1:
-#                test = (da.lat > -59.93)
-#            elif a == 2:
-#                test = (da.lon < -0.173)
-#            elif a == 3:
-#                test = (da.lat > -59.93)
-#            if test: 
-#                start = False
-#                idx.append(i)
-#                a = next(crit_iter)
-#    da = np.split(data, idx)
-#    transect = np.arange(len(da))
-#    pop_list=[]
-#    for i, arr in enumerate(da):
-#        if len(da[i]) < 1:
-#            pop_list.append(i) 
-#        else:
-#            da[i] = da[i].assign_coords({'transect':i})
-#    for i in pop_list:
-#        da.pop(i)
-#    da = xr.concat(da, dim=concat_dim)
-#
-#    # remove initial and mid path excursions
-#    da = da.where(da.transect>1, drop=True)
-#    da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-#    # restrict to 1st 19 transects
-#    da = da.where(da.transect < 10, drop=True)
-#    return da
+    # translation lengths
+    xt = data.lon.median()
+    yt = data.lat.median()
 
-def get_sampled_path(model, append, post_transect=True):
+    # translate to origin
+    lon_orig = data.lon - xt
+    lat_orig = data.lat - yt
+
+    # rotate
+    lon_rotated =  lon_orig * np.cos(theta) - lat_orig * np.sin(theta)
+    lat_rotated =  lon_orig * np.sin(theta) + lat_orig * np.cos(theta)
+
+    # translate to original position
+    data['lon'] = lon_rotated + xt
+    data['lat'] = lat_rotated + yt
+
+    return data
+
+def get_sampled_path(model, append, post_transect=True, rotation=None):
     path = config.data_path() + model + '/'
     file_path = path + 'GliderRandomSampling/glider_uniform_' + \
                 append +  '_00.nc'
@@ -62,12 +37,14 @@ def get_sampled_path(model, append, post_transect=True):
     glider['lon_offset'] = glider.attrs['lon_offset']
     glider['lat_offset'] = glider.attrs['lat_offset']
     glider = glider.set_coords(['lon_offset','lat_offset','time_counter'])
+    #glider = rotate(glider, np.radians(-90))
 
     #glider['lon'] = glider.lon - glider.attrs['lon_offset']
     #glider['lat'] = glider.lat - glider.attrs['lat_offset']
 
     if post_transect:
-        glider = get_transects(glider.votemper, offset=True)
+        print ('rotation', rotation)
+        glider = get_transects(glider.votemper, offset=True, rotation=rotation)
     return glider
 
 def get_raw_path():
@@ -171,7 +148,8 @@ def test_get_vertex():
     fig, ax = plt.subplots(1,1, figsize=(7.5,2.5))
     #plt.subplots_adjust(hspace=0.05,wspace=0.05, bottom=0.15,right=0.98,left=0.1)
     # plot post transect
-    full_path = get_sampled_path('EXP10', 'interp_1000') 
+    full_path = get_sampled_path('EXP10', 'interp_1000_rotate_90',
+                post_transect=True, rotation=np.radians(90))
     #full_path = full_path.where(da.vertex==2., drop=True)
     #v0 = v0.swap_dims({'ctd_data_point':'transects'})
     for (l, v) in full_path.groupby('vertex'):
@@ -181,6 +159,5 @@ def test_get_vertex():
     cmap = plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
     for (l,trans) in full_path.groupby('transect'):
         ax.plot(trans.lon, trans.lat)
-    #plt.show()
     
 test_get_vertex()

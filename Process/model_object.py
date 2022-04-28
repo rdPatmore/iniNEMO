@@ -892,7 +892,7 @@ if __name__ == '__main__':
             m.get_transects(shrink=100)
         if remove:
             m.prep_remove_dives(remove=append.rstrip('_transects'))
-        for ind in range(1,100):
+        for ind in range(0,1):
             m.ind = ind
             print ('ind: ', ind)
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)

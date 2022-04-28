@@ -1,6 +1,7 @@
 import xarray as xr
 import config
 import iniNEMO.Process.model_object as mo
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -82,6 +83,7 @@ class glider_path_geometry(object):
         bg = bg.swap_dims({'x':'lon','y':'lat'})
 
 
+        print (self.samples)
         clean_float_time = self.samples.time_counter
         start = clean_float_time.min().astype('datetime64[ns]')
         end   = clean_float_time.max().astype('datetime64[ns]')
@@ -122,11 +124,11 @@ class glider_path_geometry(object):
         get difference between mean/std bg for each sample-patch combo
         '''
 
-        def get_diff(n, sample_type=''):
+        def get_diff(n, rotation=None):
             ''' get diff between model and glider'''
 
             # glider stats
-            self.get_glider_samples(n=n, sample_type=sample_type)
+            self.get_glider_samples(n=n, rotation=rotation)
             g_mean = self.samples.mean('distance')
             g_std = self.samples.std('distance')
 
@@ -150,19 +152,26 @@ class glider_path_geometry(object):
             diff_x_std = (m_std.bx - g_std) / denom_s_bx
             diff_y_std = (m_std.by - g_std) / denom_s_by
 
-            if sample_type != '':
-                sample_type = '_' + sample_type
-            diff_x_mean.name = 'diff_bx_mean' + sample_type
-            diff_y_mean.name = 'diff_by_mean' + sample_type
-            diff_x_std.name = 'diff_bx_std' + sample_type
-            diff_y_std.name = 'diff_by_std' + sample_type
+            if rotation != '':
+                label = '_rotate'
+            diff_x_mean.name = 'diff_bx_mean' + label
+            diff_y_mean.name = 'diff_by_mean' + label
+            diff_x_std.name = 'diff_bx_std' + label
+            diff_y_std.name = 'diff_by_std' + label
 
-            return [diff_x_mean, diff_y_mean, diff_x_std, diff_y_std]
+            diff = xr.merge([diff_x_mean, diff_y_mean, diff_x_std, diff_y_std])
+            return diff
 
         non_rot = get_diff(samples)
-        rot     = get_diff(samples, 'rotate')
+        rot_90  = get_diff(samples, 90)
+        rot_180 = get_diff(samples, 180)
+        rot_270 = get_diff(samples, 270)
+        # join along new coord
+        rotation_coord = xr.DataArray([0,90,180,270], dims='rotation',
+                                                      name='rotation')
+        diff_ds = xr.concat([non_rot,rot_90,rot_180,rot_270],
+                             dim=rotation_coord)
 
-        diff_ds = xr.merge(non_rot + rot)
 
         if percentage:
             f_append = '_percent'
@@ -232,7 +241,7 @@ class glider_path_geometry(object):
                   '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_vertex_diff' +
                   f_append + '_' + str(samples) + '_samples.nc')
 
-    def get_glider_samples(self, n=100, sample_type=''):
+    def get_glider_samples(self, n=100, rotation=None):
         ''' get set of 100 glider samples '''
         def expand_sample_dim(ds):
             ds['lon_offset'] = ds.attrs['lon_offset']
@@ -243,14 +252,14 @@ class glider_path_geometry(object):
 
         # load samples
         prep = 'GliderRandomSampling/glider_uniform_interp_1000_'
-        print (self.data_path)
-        print (prep)
-        print (sample_type)
-        print (n)
-        if sample_type != '':
-            sample_type = sample_type + '_' 
+        if rotation:
+            rotation_label = 'rotate_' + str(rotation) + '_' 
+            rotation_rad = np.radians(rotation)
+        else:
+            rotation_label = ''
+            rotation_rad = rotation # None type 
         print ([str(i).zfill(2) for i in range(n)])
-        sample_list = [self.data_path + prep + sample_type +
+        sample_list = [self.data_path + prep + rotation_label +
                        str(i).zfill(2) + '.nc' for i in range(n)]
         self.samples = xr.open_mfdataset(sample_list, 
                                      combine='nested', concat_dim='sample',
@@ -258,13 +267,15 @@ class glider_path_geometry(object):
 
         # select depth
         self.samples = self.samples.sel(ctd_depth=10, method='nearest')
+        print (self.samples)
 
         # get transects
         sample_list = []
         for i in range(self.samples.sample.size):
             print ('sample: ', i)
             var10 = self.samples.isel(sample=i)
-            sample_transect = get_transects(var10, offset=True)
+            sample_transect = get_transects(var10, offset=True,
+                              rotation=rotation_rad)
             sample_list.append(sample_transect)
         self.samples=xr.concat(sample_list, dim='sample')
 
@@ -550,13 +561,25 @@ class glider_path_geometry_plotting(object):
         mean and std across samples
         '''
 
-        fig, axs = plt.subplots(2,1,figsize=(3.0,4.0))
+        fig = plt.figure(figsize=(3.0,4.0))
 
+        # initialise gridspec
+        gs0 = gridspec.GridSpec(ncols=1, nrows=2, right=0.97)#, figure=fig)
+        gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
+    
+        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
+        gs1.update(top=0.15, bottom=0.02, left=0.22)
+
+        axs0, axs1 = [], []
+        for i in range(2):
+            axs0.append(fig.add_subplot(gs0[i]))
+        for i in range(4):
+            axs1.append(fig.add_subplot(gs1[i]))
+    
         vertex = ['left','right','diag_ur','diag_ul']
         colours = ['g', 'b', 'r', 'y']
 
-
-        x_pos = np.linspace(0.5,1.5,2)
+        x_pos = np.linspace(0.5,3.5,4)
         print (x_pos)
         offset = [-0.3, 0, 0.3]
         path = self.data_path + case
@@ -565,46 +588,86 @@ class glider_path_geometry_plotting(object):
                              self.append + '_percent_' + str(samples) + 
                              '_samples.nc')
 
-        ds_mean = ds.mean('sample')
-        ds_l_quant = ds.quantile(0.05, 'sample')
-        ds_u_quant = ds.quantile(0.95, 'sample')
+        print (ds)
 
-        def render(ax, mean, l_quant, u_quant, x_pos, stat, rota='', c='navy'):
-            # non-rotated
-            var = 'diff_bx_' + stat + rota
+        def render(ax, x_pos, stat):
 
+            mean = ds.mean('sample')
+            l_quant = ds.quantile(0.05, 'sample')
+            u_quant = ds.quantile(0.95, 'sample')
+
+            var = 'diff_bx_' + stat + '_rotate'
             ax.bar(x_pos, u_quant[var] - l_quant[var],
                    width=0.25, alpha=0.2, bottom=l_quant[var],
-                   color=c)
-            ax.hlines(mean[var], x_pos-0.125, x_pos+0.125, lw=2)
+                   color='navy', tick_label=ds.rotation, align='edge')
+            ax.hlines(mean[var], x_pos, x_pos+0.25, lw=2)
 
-            var = 'diff_by_' + stat + rota
+            var = 'diff_by_' + stat + '_rotate'
             ax.bar(x_pos+0.25, u_quant[var] - l_quant[var],
                    width=0.25, alpha=0.2, bottom=l_quant[var],
-                   color=c)
-            ax.hlines(ds_mean[var], x_pos+0.125,x_pos+0.375,lw=2)
+                   color='navy', tick_label=ds.rotation, align='edge')
+            ax.hlines(mean[var], x_pos+0.25,x_pos+0.5,lw=2)
 
-        render(axs[0], ds_mean, ds_l_quant, ds_u_quant,
-               x_pos=x_pos[0], stat='mean')
-        render(axs[1], ds_mean, ds_l_quant, ds_u_quant,
-               x_pos=x_pos[0], stat='std')
-        render(axs[0], ds_mean, ds_l_quant, ds_u_quant,
-               x_pos=x_pos[1], stat='mean', rota='_rotate', c='green')
-        render(axs[1], ds_mean, ds_l_quant, ds_u_quant,
-               x_pos=x_pos[1], stat='std',  rota='_rotate', c='green')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
 
 
-        for ax in axs:
+        render(axs0[0], x_pos=x_pos, stat='mean')
+        render(axs0[1], x_pos=x_pos, stat='std')
+
+
+        for ax in axs0:
              ax.axhline(0, lw=0.8)
              ax.set_ylim(-60,60)
+
+        axs0[0].set_xticks([])
+        axs0[0].set_ylabel('% difference\n [mean]')
+        axs0[1].set_ylabel('% difference\n [standard deviation]')
+        axs0[1].set_xlabel('rotation [degrees]')
+
+        axs0[0].text(0.625, 50, r'$b_x$', transform=axs0[0].transData,
+                     ha='center', va='center')
+        axs0[0].text(0.875, 35, r'$b_y$', transform=axs0[0].transData,
+                     ha='center', va='center')
+
+
+        def get_sampled_path(model, append, post_transect=True, rotation=None):
+            path = config.data_path() + model + '/'
+            file_path = path + 'GliderRandomSampling/glider_uniform_' + \
+                        append +  '_00.nc'
+            glider = xr.open_dataset(file_path).sel(ctd_depth=10, 
+                                                    method='nearest')
+            glider['lon_offset'] = glider.attrs['lon_offset']
+            glider['lat_offset'] = glider.attrs['lat_offset']
+            coords = ['lon_offset','lat_offset','time_counter']
+            glider = glider.set_coords(coords)
+            if post_transect:
+                glider = get_transects(glider.votemper, offset=True,
+                                       rotation=rotation)
+            return glider
+
+        rotations = [0, 90, 180, 270]
+        # add glider paths
+        for i, ax in enumerate(axs1):
+            if rotations[i] == 0:
+                path = get_sampled_path('EXP10', 
+                                    'interp_1000',
+                                    post_transect=True)
+            else:
+                path = get_sampled_path('EXP10', 
+                                    'interp_1000_rotate_' + str(rotations[i]),
+                                    post_transect=True,
+                                    rotation=np.radians(rotations[i]))
+            for (l, v) in path.groupby('vertex'):
+                ax.plot(v.lon, v.lat, label=l)
+            ax.axis('off')
 
         
         #self.ax.set_xlabel('Buoyancy Gradient')
         #self.ax.set_ylabel('PDF')
 
-        plt.show()
-        #plt.savefig(case + '_rotation_test_' + str(samples) + 
-        #            '_samples.png', dpi=600)
+        plt.savefig(case + '_rotation_test' + str(samples) + 
+                    '_samples.png', dpi=600)
 
     def plot_model_and_glider_diff_scatter(self,cases):
 
@@ -662,12 +725,12 @@ m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
 
 
 # save file of vertex percentage error
-#cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
+#cases = ['EXP10']
 #for  case in cases:
 #    m = glider_path_geometry(case)
-#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=200)
 
 
