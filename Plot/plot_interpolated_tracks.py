@@ -5,6 +5,7 @@ import config
 import itertools
 import matplotlib
 from get_transects import get_transects
+import matplotlib.colors as mcolors
 matplotlib.rcParams.update({'font.size': 8})
 
 def rotate(data, theta):
@@ -29,7 +30,49 @@ def rotate(data, theta):
 
     return data
 
+def get_sampled_path_set(model, rotation=None):
+    ''' load all 100 glider paths '''
+
+    n=100
+    def expand_sample_dim(ds):
+        ds['lon_offset'] = ds.attrs['lon_offset']
+        ds['lat_offset'] = ds.attrs['lat_offset']
+        ds = ds.set_coords(['lon_offset','lat_offset','time_counter'])
+        da = ds['b_x_ml']
+        return da
+
+    # load samples
+    prep = '/GliderRandomSampling/glider_uniform_interp_1000_'
+    if rotation:
+        rotation_label = 'rotate_' + str(rotation) + '_' 
+        rotation_rad = np.radians(rotation)
+    else:
+        rotation_label = ''
+        rotation_rad = rotation # None type 
+
+    sample_list = [config.data_path() + model + prep + rotation_label +
+                   str(i).zfill(2) + '.nc' for i in range(n)]
+    samples = xr.open_mfdataset(sample_list, 
+                                 combine='nested', concat_dim='sample',
+                                 preprocess=expand_sample_dim).load()
+
+    # select depth
+    samples = samples.sel(ctd_depth=10, method='nearest')
+
+    # get transects
+    sample_list = []
+    for i in range(samples.sample.size):
+        print ('sample: ', i)
+        var10 = samples.isel(sample=i)
+        sample_transect = get_transects(var10, offset=True,
+                          rotation=rotation_rad)
+        sample_list.append(sample_transect)
+    samples=xr.concat(sample_list, dim='sample')
+ 
+    return samples
+
 def get_sampled_path(model, append, post_transect=True, rotation=None):
+    ''' load a single glider path '''
     path = config.data_path() + model + '/'
     file_path = path + 'GliderRandomSampling/glider_uniform_' + \
                 append +  '_00.nc'
@@ -37,10 +80,6 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
     glider['lon_offset'] = glider.attrs['lon_offset']
     glider['lat_offset'] = glider.attrs['lat_offset']
     glider = glider.set_coords(['lon_offset','lat_offset','time_counter'])
-    #glider = rotate(glider, np.radians(-90))
-
-    #glider['lon'] = glider.lon - glider.attrs['lon_offset']
-    #glider['lat'] = glider.lat - glider.attrs['lat_offset']
 
     if post_transect:
         print ('rotation', rotation)
@@ -160,4 +199,62 @@ def test_get_vertex():
     for (l,trans) in full_path.groupby('transect'):
         ax.plot(trans.lon, trans.lat)
     
-test_get_vertex()
+
+def plot_model_buoyancy_gradients_patch(ax, da, sample):
+    ''' restrict the model time to glider time and sample areas '''
+
+    # add lat-lon to dimensions
+    da = da.assign_coords({'lon':(['x'], da.nav_lon.isel(y=0)),
+                           'lat':(['y'], da.nav_lat.isel(x=0))})
+    da = da.swap_dims({'x':'lon','y':'lat'})
+
+    # get limts of sample
+    x0 = float(sample.lon.min())
+    x1 = float(sample.lon.max())
+    y0 = float(sample.lat.min())
+    y1 = float(sample.lat.max())
+
+    patch = da.sel(lon=slice(x0,x1),
+                   lat=slice(y0,y1))
+    ax.pcolor(patch.nav_lon, patch.nav_lat, patch, cmap=plt.cm.binary,
+              shading='nearest')
+
+
+def plot_patch_sampling():
+    ''' plot domain surface temperature with glider paths overlian '''
+
+    model='EXP10'
+
+    fig, ax = plt.subplots(1,1, figsize=(5.5,5.5))
+
+    path = config.data_path() + model + '/'
+    file_path = path + '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc'
+    m = xr.open_dataset(file_path, chunks='auto').sel(
+                                       time_counter='2013-01-15 00:00:00',
+                                       deptht=0,
+                                       method='nearest').votemper
+    m = m.isel(x=slice(10,-10),y=slice(10,-10))
+
+    p = ax.pcolor(m.nav_lon, m.nav_lat, m, cmap=plt.cm.inferno,
+                  shading='nearest')
+    ax.set_xlabel('longitude')
+    ax.set_ylabel('latitude')
+
+    samples = get_sampled_path_set('EXP10')
+    for (_, sample) in samples.groupby('sample'):
+        plot_model_buoyancy_gradients_patch(ax, m, sample)
+        for (l, v) in sample.groupby('vertex'):
+            print (l)
+            c = list(mcolors.TABLEAU_COLORS)[int(l)]
+            plt.plot(v.lon, v.lat, c=c)
+
+    ax.set_aspect('equal')
+    pos = ax.get_position()
+    cbar_ax = fig.add_axes([0.89, pos.y0, 0.02, pos.y1 - pos.y0])
+    cbar = fig.colorbar(p, cax=cbar_ax)
+
+    cbar.ax.text(5.0, 0.5, r'$\theta (^{\circ} C)$', fontsize=8, rotation=90,
+                 transform=cbar.ax.transAxes, va='center', ha='right')
+
+    plt.show()
+plot_patch_sampling()
