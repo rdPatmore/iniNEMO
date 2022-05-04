@@ -66,15 +66,16 @@ class glider_path_geometry(object):
  
         self.latlon_lims = xr.merge([x0_set, x1_set, y0_set, y1_set])
 
-    def get_model_buoyancy_gradients_patch_set(self, ml=False, stats=None):
+    def get_model_buoyancy_gradients_patch_set(self, ml=False, stats=None,
+                                               rolling=False):
         ''' restrict the model time to glider time and sample areas '''
     
         # model
         bg = xr.open_dataset(config.data_path() + self.case +
                              '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc',
-                             chunks='auto')
+                             chunks={'time_counter':113})
+                             #chunks='auto')
                              #chunks={'time_counter':1})
-        print (bg)
         bg = np.abs(bg.sel(deptht=10, method='nearest'))
 
         # add lat-lon to dimensions
@@ -83,17 +84,10 @@ class glider_path_geometry(object):
         bg = bg.swap_dims({'x':'lon','y':'lat'})
 
 
-        print (self.samples)
         clean_float_time = self.samples.time_counter
         start = clean_float_time.min().astype('datetime64[ns]')
         end   = clean_float_time.max().astype('datetime64[ns]')
 
-        #print (' ')
-        #print (' ')
-        #print ('start', start.values)
-        #print ('end', end.values)
-        #print (' ')
-        #print (' ')
         bg = bg.sel(time_counter=slice(start,end))
         
         patch_set = []
@@ -106,22 +100,36 @@ class glider_path_geometry(object):
  
             patch = bg.sel(lon=slice(x0,x1),
                            lat=slice(y0,y1)).expand_dims(sample=[l])
+
+            dims = ['lon','lat','time_counter']
+            if rolling:
+                # contstruct allows for mean/std over multiple dims
+                patch = patch.resample(time_counter='1H').interpolate()
+                patch = patch.rolling(time_counter=168, center=True).construct(
+                                                               'weekly_rolling')
+                dims = ['lat','lon','weekly_rolling']
+
+
             if stats == 'mean':
-                patch = patch.mean(['lon','lat','time_counter']).load()
+                patch = patch.mean(dims).load()
             if stats == 'std':
-                patch = patch.std(['lon','lat','time_counter']).load()
+                patch = patch.std(dims).load()
+
             patch_set.append(patch)
 
-        self.model_patches = xr.concat(patch_set, dim='sample')#.load()#.chunk('auto')
-                                                      #{'lat':10,'lon':10})
+        self.model_patches = xr.concat(patch_set, dim='sample')
 
         return self.model_patches
          
     def get_sample_and_glider_diff_rotation(self, percentage=False,
-                                            samples=100):
+                                            samples=100, rolling=False):
         '''
         For each rotation choice,
         get difference between mean/std bg for each sample-patch combo
+
+        keep_time: retain the time dimention when making model calcs to
+                   remove problem of seasonal change skewing the stats
+        03/05 RDP don't think keep_time makes sense...
         '''
 
         def get_diff(n, rotation=None):
@@ -129,12 +137,27 @@ class glider_path_geometry(object):
 
             # glider stats
             self.get_glider_samples(n=n, rotation=rotation)
-            g_mean = self.samples.mean('distance')
-            g_std = self.samples.std('distance')
+            if rolling:
+                mean_time = self.samples.time_counter.mean('sample')
+                mean_time = mean_time.astype('datetime64[ns]')
+                samples = self.samples.assign_coords({'time_counter':mean_time})
+                samples = samples.swap_dims({'distance':'time_counter'})
+                samples = samples.sortby('time_counter')
+                samples = samples.resample(time_counter='1H').interpolate()
+                samples = samples.rolling(time_counter=168,
+                                        center=True).construct('weekly_rolling')
+                g_mean = samples.mean('weekly_rolling').load()
+                g_std = samples.std('weekly_rolling').load()
+
+            else:
+                g_mean = self.samples.mean('distance').load()
+                g_std = self.samples.std('distance').load()
 
             # model stats
-            m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
-            m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std')
+            m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
+                                                            rolling=rolling)
+            m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
+                                                            rolling=rolling)
             #stat_dims = ['lat','lon','time_counter']
             #m_mean = self.model_patches.mean(stat_dims).load()
             #m_std  = self.model_patches.std(stat_dims).load()
@@ -178,12 +201,15 @@ class glider_path_geometry(object):
         else: 
             f_append = ''
 
+        if rolling:
+            f_append = f_append + '_rolling'
+
         diff_ds.to_netcdf(self.data_path +  '/BgGliderSamples' + 
                   '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_rotate_diff' +
                   f_append + '_' + str(samples) + '_samples.nc')
 
     def get_sample_and_glider_diff_vertex_set(self, percentage=False,
-                                              samples=100):
+                                              samples=100, rolling=False):
         '''
         For each vertex choice,
         get difference between mean/std bg for each sample-patch combo
@@ -193,8 +219,10 @@ class glider_path_geometry(object):
         self.get_glider_samples(n=samples)
 
         # model patches
-        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean')
-        m_std = self.get_model_buoyancy_gradients_patch_set(stats='std')
+        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
+                                                            rolling=rolling)
+        m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
+                                                            rolling=rolling)
 
         # glider stats
         vertex_list = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
@@ -205,8 +233,24 @@ class glider_path_geometry(object):
         for i,choice in enumerate(vertex_list):
             ver_sampled = self.samples.where(self.samples.vertex.isin(choice),
                                              drop=True)
-            g_mean_list.append(ver_sampled.mean('distance'))
-            g_std_list.append(ver_sampled.std('distance'))
+            if rolling:
+                mean_time = ver_sampled.time_counter.mean('sample')
+                mean_time = mean_time.astype('datetime64[ns]')
+                g = ver_sampled.assign_coords({'time_counter':mean_time})
+                g = g.swap_dims({'distance':'time_counter'})
+                g = g.sortby('time_counter')
+                g = g.resample(time_counter='1H').interpolate()
+                g = g.rolling(time_counter=168,
+                                        center=True).construct('weekly_rolling')
+                g_mean = g.mean('weekly_rolling').load()
+                g_std = g.std('weekly_rolling').load()
+
+            else:
+                g_mean = self.samples.mean('distance').load()
+                g_std = self.samples.std('distance').load()
+
+            g_mean_list.append(g_mean)
+            g_std_list.append(g_std)
 
         # join along new coord
         vertex_coord = xr.DataArray(ver_label, dims='vertex_choice',
@@ -223,6 +267,8 @@ class glider_path_geometry(object):
         else: 
             denom = 1.0
             f_append = ''
+        if rolling:
+            f_append = f_append + '_rolling'
 
         diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
         diff_y_mean = (m_mean.by - g_mean) / denom_m_by
@@ -490,9 +536,10 @@ class glider_path_geometry_plotting(object):
                label_var='vertex_choice'):
         ''' render stats onto axes'''
 
-        mean = ds.mean('sample')
-        l_quant = ds.quantile(0.05, 'sample')
-        u_quant = ds.quantile(0.95, 'sample')
+        dims = ['sample','time_counter']
+        mean = ds.mean(dims)
+        l_quant = ds.quantile(0.10, dims) 
+        u_quant = ds.quantile(0.90, dims)
 
         if rotate:
             var = 'diff_bx_' + stat + '_rotate' 
@@ -516,7 +563,7 @@ class glider_path_geometry_plotting(object):
         ax.spines['right'].set_visible(False)
 
 
-    def plot_model_and_glider_diff_bar(self, cases, samples):
+    def plot_model_and_glider_diff_vertex_bar(self, cases, samples):
         ''' 
         bar chart of difference between model patches and gliders
         mean and std across samples
@@ -545,7 +592,7 @@ class glider_path_geometry_plotting(object):
             path = self.data_path + case
             prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
             ds = xr.open_dataset(path + prepend +  'glider_vertex_diff' +
-                                 self.append + '_percent_' + str(samples) + 
+                               self.append + '_percent_rolling_' + str(samples) + 
                                  '_samples.nc')
 
             self.render(axs0[0], ds, x_pos=x_pos, stat='mean')
@@ -588,8 +635,193 @@ class glider_path_geometry_plotting(object):
 
         
         plt.savefig('multi_model_vertex_skill_' + str(samples) + 
+                    '_samples_rolling.png', dpi=600)
+
+
+    def plot_model_and_glider_diff_vertex_timeseries(self, case, samples):
+        ''' 
+        Time series of difference between model patches and gliders
+        mean and std across samples.
+        Same as bar chart but for weely chunks.
+        '''
+
+        import matplotlib.colors as mcolors
+
+        # initialise figure
+        fig = plt.figure(figsize=(3.0,4.0))
+
+        # initialise gridspec
+        gs0 = gridspec.GridSpec(ncols=1, nrows=4, right=0.97)#, figure=fig)
+        gs1 = gridspec.GridSpec(ncols=7, nrows=1, right=0.97)#, figure=fig)
+    
+        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
+        gs1.update(top=0.15, bottom=0.02, left=0.22)
+
+        axs0, axs1 = [], []
+        for i in range(4):
+            axs0.append(fig.add_subplot(gs0[i]))
+        for i in range(7):
+            axs1.append(fig.add_subplot(gs1[i]))
+    
+        # get data
+        path = self.data_path + case
+        prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
+        ds = xr.open_dataset(path + prepend +  'glider_vertex_diff' +
+                             self.append + '_percent_rolling_' + str(samples) + 
+                             '_samples.nc')
+
+        def render(da, ax, l=''):
+            da = da.squeeze()
+
+            # scale by number of samples at each time
+            #sample_scale = xr.where(np.isnan(da), 0, 1).sum('sample')/100
+            #da = da * sample_scale
+
+            # remove times with few samples
+            sample_scale = xr.where(np.isnan(da), 0, 1).sum('sample')
+            da = da.where(sample_scale>90)
+            mean = da.mean('sample')
+
+            #l_quant, u_quant = da.quantile([0.05, 0.95], 'sample')
+
+            # std err
+            #sample_scale = np.sqrt(xr.where(np.isnan(da),0,1).sum('sample'))
+            #std_err = da.std('sample') / sample_scale
+
+            std = da.std('sample')
+            l_quant, u_quant = mean - std, mean + std
+
+            ax.plot(mean.time_counter, mean, colours[i], label=l)
+            ax.fill_between(l_quant.time_counter, l_quant, u_quant,
+                                 color=colours[i], alpha=0.2)
+
+        ds = ds.sel(vertex_choice=['left','right','diag_ur','diag_ul'])
+        colours = ['navy', 'purple', 'green', 'orange']
+        colours = list(mcolors.TABLEAU_COLORS)
+        for i, (l, da), in enumerate(ds.groupby('vertex_choice')):
+            render(da.diff_bx_mean, axs0[0], l=l)
+            render(da.diff_bx_std,  axs0[1], l=l)
+            render(da.diff_by_mean, axs0[2], l=l)
+            render(da.diff_by_std,  axs0[3], l=l)
+
+        for ax in axs0:
+            ax.axhline(0, lw=0.8)
+            ax.axhline(20, lw=0.8, ls='--')
+            ax.axhline(-20, lw=0.8, ls='--')
+            ax.set_ylim(-150,150)
+
+        #axs0[0].set_xticks([])
+        axs0[0].set_ylabel('% difference\n [mean]')
+        axs0[1].set_ylabel('% difference\n [standard deviation]')
+        axs0[1].set_xlabel('time')
+
+        axs0[0].legend()
+
+        # add glider paths
+        vertex_list     = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
+        vertex_list_inv = [[0,1,2],[0,2,3],[0,1,3],[1,2,3],[0,2],[1,3]]
+        path = self.get_sampled_path('EXP10','interp_1000',post_transect=True)
+
+        # plot removed paths
+        for i, choice in enumerate(vertex_list_inv):
+            ver_sampled_inv = path.where(path.vertex.isin(choice), drop=True)
+            for (l, v) in ver_sampled_inv.groupby('vertex'):
+                axs1[i].plot(v.lon, v.lat, c='navy', alpha=0.2)
+
+        # plot kept paths
+        for i, choice in enumerate(vertex_list):
+            ver_sampled = path.where(path.vertex.isin(choice), drop=True)
+            for j, (l, v) in enumerate(ver_sampled.groupby('vertex')):
+                c = list(mcolors.TABLEAU_COLORS)[vertex_list[i][j]]
+                axs1[i].plot(v.lon, v.lat, c=c)
+
+            axs1[i].axis('off')
+            axs1[i].set_xlim(path.lon.min(),path.lon.max())
+            axs1[i].set_ylim(path.lat.min(),path.lat.max())
+
+        # save
+        plt.show()
+        plt.savefig(case + '_diff_vertex_time_series_' + str(samples) + 
                     '_samples.png', dpi=600)
 
+    def plot_model_and_glider_diff_rotate_timeseries(self, case, samples):
+        ''' 
+        Time series of difference between model patches and gliders
+        mean and std across samples.
+        Same as bar chart but for weely chunks.
+        '''
+
+        # initialise figure
+        fig = plt.figure(figsize=(3.0,4.0))
+
+        # initialise gridspec
+        gs0 = gridspec.GridSpec(ncols=1, nrows=2, right=0.97)#, figure=fig)
+        gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
+    
+        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
+        gs1.update(top=0.15, bottom=0.02, left=0.22)
+
+        axs0, axs1 = [], []
+        for i in range(2):
+            axs0.append(fig.add_subplot(gs0[i]))
+        for i in range(4):
+            axs1.append(fig.add_subplot(gs1[i]))
+    
+        # get data
+        path = self.data_path + case
+        prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
+        ds = xr.open_dataset(path + prepend +  'glider_rotate_diff' +
+                             self.append + '_percent_rolling_' + str(samples) + 
+                             '_samples.nc')
+
+        def render(da, ax):
+            mean = da.mean('sample')
+            #l_quant, u_quant = da.quantile([0.25, 0.75], 'sample')
+            l_quant, u_quant = da.quantile([0.05, 0.95], 'sample')
+            #std = da.std('sample')*2
+            #l_quant, u_quant = mean - std, mean + std
+
+            ax.plot(mean.time_counter, mean, colours[i])
+            ax.fill_between(l_quant.time_counter, l_quant, u_quant,
+                                 color=colours[i], alpha=0.2)
+
+        colours = ['navy', 'purple', 'green', 'orange']
+        for i, (l, da), in enumerate(ds.groupby('rotation')):
+            render(da.diff_by_mean_rotate, axs0[0])
+            render(da.diff_by_std_rotate,  axs0[1])
+
+        for ax in axs0:
+            ax.axhline(0, lw=0.8)
+            ax.axhline(20, lw=0.8, ls='--')
+            ax.axhline(-20, lw=0.8, ls='--')
+            ax.set_ylim(-150,150)
+
+        #axs0[0].set_xticks([])
+        axs0[0].set_ylabel('% difference\n [mean]')
+        axs0[1].set_ylabel('% difference\n [standard deviation]')
+        axs0[1].set_xlabel('time')
+
+        # add glider paths
+        rotations = [0, 90, 180, 270]
+
+        for i, ax in enumerate(axs1):
+            if rotations[i] == 0:
+                path = self.get_sampled_path('EXP10', 
+                                    'interp_1000',
+                                    post_transect=True)
+            else:
+                path = self.get_sampled_path('EXP10', 
+                                    'interp_1000_rotate_' + str(rotations[i]),
+                                    post_transect=True,
+                                    rotation=np.radians(rotations[i]))
+            for (l, v) in path.groupby('vertex'):
+                ax.plot(v.lon, v.lat, label=l)
+            ax.axis('off')
+
+        # save
+        plt.show()
+        plt.savefig(case + '_diff_rotation_time_series_' + str(samples) + 
+                    '_samples.png', dpi=600)
 
     def plot_model_and_glider_diff_rotate_bar(self, case, samples):
         ''' 
@@ -617,17 +849,19 @@ class glider_path_geometry_plotting(object):
         path = self.data_path + case
         prepend = '/BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_'
         ds = xr.open_dataset(path + prepend +  'glider_rotate_diff' +
-                             self.append + '_percent_' + str(samples) + 
+                             self.append + '_percent_rolling_' + str(samples) + 
                              '_samples.nc')
 
         x_pos = np.linspace(0.5,3.5,4)
-        self.render(axs0[0], ds, x_pos=x_pos, stat='mean')
-        self.render(axs0[1], ds, x_pos=x_pos, stat='std')
+        self.render(axs0[0], ds, x_pos=x_pos, stat='mean', rotate=True,
+                    label_var='rotation')
+        self.render(axs0[1], ds, x_pos=x_pos, stat='std', rotate=True,
+                    label_var='rotation')
 
 
         for ax in axs0:
-             ax.axhline(0, lw=0.8)
-             ax.set_ylim(-60,60)
+            ax.axhline(0, lw=0.8)
+            ax.set_ylim(-120,120)
 
         axs0[0].set_xticks([])
         axs0[0].set_ylabel('% difference\n [mean]')
@@ -656,10 +890,9 @@ class glider_path_geometry_plotting(object):
                 ax.plot(v.lon, v.lat, label=l)
             ax.axis('off')
 
+        plt.savefig(case + '_rotation_' + str(samples) + 
+                    '_samples_rolling.png', dpi=600)
         
-        # save
-        plt.savefig(case + '_rotation_test' + str(samples) + 
-                    '_samples.png', dpi=600)
 
     def plot_model_and_glider_diff_scatter(self,cases):
 
@@ -712,8 +945,9 @@ cases = ['EXP10']
 #m.plot_model_and_glider_diff_bar(cases, samples=50)
 #m.plot_model_and_glider_diff_bar(cases, samples=200)
 m = glider_path_geometry_plotting()
-m.plot_model_and_glider_diff_bar(cases, samples=100)
-#m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
+#m.plot_model_and_glider_diff_bar(cases, samples=100)
+m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
+#m.plot_model_and_glider_diff_vertex_bar(cases, samples=100)
 
 
 # save file of vertex percentage error
@@ -721,7 +955,10 @@ m.plot_model_and_glider_diff_bar(cases, samples=100)
 #cases = ['EXP10']
 #for  case in cases:
 #    m = glider_path_geometry(case)
-#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100)
+#    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100,
+#                                             rolling=True)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100,
+#                                          rolling=True)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=200)
 

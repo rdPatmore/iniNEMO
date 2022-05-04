@@ -125,7 +125,6 @@ class bootstrap_glider_samples(object):
             + weekly and daily sdt
         '''
         set_size = self.samples.sizes['sample']
-        print (self.samples)
 
         ensemble_set=[]
         for n in ensemble_range:
@@ -158,7 +157,6 @@ class bootstrap_glider_samples(object):
                 sample_set = sample_set.dropna('time_counter').sortby(
                                                                  'time_counter')
                 dims=['time_counter']
-                print (sample_set)
                 d_mean = sample_set.resample(
                                    time_counter='1D',skipna=True).mean(dim=dims)
                 w_mean = sample_set.resample(
@@ -264,10 +262,10 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
 
-        bg_mean = self.bg.mean(['x','y'])#.load()
-        bg_std = self.bg.std(['x','y'])#.load()
-        bg_mean = bg_mean.rename({'bx':'bx_ts_mean', 'by':'by_ts_mean'})
-        bg_std = bg_std.rename({'bx':'bx_ts_std', 'by':'by_ts_std'})
+        bg_mean  = self.bg.mean(['x','y'])
+        bg_std   = self.bg.std(['x','y'])
+        bg_mean  = bg_mean.rename({'bx':'bx_ts_mean', 'by':'by_ts_mean'})
+        bg_std   = bg_std.rename({'bx':'bx_ts_std', 'by':'by_ts_std'})
         bg_stats = xr.merge([bg_mean,bg_std])
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +

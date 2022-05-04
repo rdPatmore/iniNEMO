@@ -226,6 +226,7 @@ def plot_patch_sampling():
     model='EXP10'
 
     fig, ax = plt.subplots(1,1, figsize=(5.5,5.5))
+    plt.subplots_adjust(right=0.78)
 
     path = config.data_path() + model + '/'
     file_path = path + '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc'
@@ -242,19 +243,21 @@ def plot_patch_sampling():
 
     samples = get_sampled_path_set('EXP10')
     for (_, sample) in samples.groupby('sample'):
-        plot_model_buoyancy_gradients_patch(ax, m, sample)
+        #plot_model_buoyancy_gradients_patch(ax, m, sample)
         for (l, v) in sample.groupby('vertex'):
             print (l)
             c = list(mcolors.TABLEAU_COLORS)[int(l)]
             plt.plot(v.lon, v.lat, c=c)
 
     ax.set_aspect('equal')
+    ax.set_xlim(-3.8,3.5)
+    ax.set_ylim(-63,-58)
     pos = ax.get_position()
-    cbar_ax = fig.add_axes([0.89, pos.y0, 0.02, pos.y1 - pos.y0])
+    cbar_ax = fig.add_axes([0.82, pos.y0, 0.02, pos.y1 - pos.y0])
     cbar = fig.colorbar(p, cax=cbar_ax)
 
-    cbar.ax.text(5.0, 0.5, r'$\theta (^{\circ} C)$', fontsize=8, rotation=90,
+    cbar.ax.text(7.0, 0.5, r'$\theta (^{\circ} C)$', fontsize=8, rotation=90,
                  transform=cbar.ax.transAxes, va='center', ha='right')
 
-    plt.show()
+    plt.savefig('temp_with_glider_paths.png', dpi=600)
 plot_patch_sampling()
