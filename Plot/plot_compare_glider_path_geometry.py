@@ -515,6 +515,28 @@ class glider_path_geometry_plotting(object):
         else:
             self.append='_' + append
 
+    def lon_lat_to_km(self, case, lon, lat):
+        ''' convert lat-lon to euclidean grid using domain_cfg'''
+ 
+        path = config.data_path() + case + '/'
+        cfg = xr.open_dataset(path + 'domain_cfg.nc').isel(z=0).squeeze()
+        cfg['dist_x'] = cfg.e1t.cumsum('x')
+        cfg['dist_y'] = cfg.e2t.cumsum('y')
+        cfg = cfg.assign_coords(lon_1d=cfg.nav_lon.isel(y=0),
+                                lat_1d=cfg.nav_lat.isel(x=0))
+        cfg = cfg.swap_dims({'x':'lon_1d','y':'lat_1d'})
+        print (cfg)
+        print (lon)
+        print (lat)
+        cfg_glider_grid = cfg.interp(lon_1d=lon, lat_1d=lat)#.stack(distance=('lon_1d','lat_1d'))
+        plt.figure(1000)
+        plt.plot(cfg_glider_grid.dist_x, cfg_glider_grid.dist_y)
+        plt.show()
+        print (cfg_glider_grid)
+        print (cfg_glider_grid.dist_x.dropna('distance'))
+        print (cfg_glider_grid.dist_y.dropna('distance'))
+        print (fkljsd)
+
     def get_sampled_path(self, model, append, post_transect=True, 
                          rotation=None):
         ''' load single gilder path sampled from model '''
@@ -538,8 +560,11 @@ class glider_path_geometry_plotting(object):
 
         dims = ['sample','time_counter']
         mean = ds.mean(dims)
-        l_quant = ds.quantile(0.10, dims) 
-        u_quant = ds.quantile(0.90, dims)
+        std = ds.std(dims)
+        l_quant = mean - std
+        u_quant = mean + std
+        #l_quant = ds.quantile(0.10, dims) 
+        #u_quant = ds.quantile(0.90, dims)
 
         if rotate:
             var = 'diff_bx_' + stat + '_rotate' 
@@ -599,16 +624,16 @@ class glider_path_geometry_plotting(object):
             self.render(axs0[1], ds, x_pos=x_pos, stat='std')
         for ax in axs0:
              ax.axhline(0, lw=0.8)
-             ax.set_ylim(-100,100)
+             ax.set_ylim(-105,105)
 
         axs0[0].set_xticks([])
         axs0[0].set_ylabel('% difference\n [mean]')
         axs0[1].set_ylabel('% difference\n [standard deviation]')
         axs0[1].set_xlabel('vertex')
 
-        axs0[0].text(0.625, 70, r'$b_x$', transform=axs0[0].transData,
+        axs0[0].text(0.625, 100, r'$b_x$', transform=axs0[0].transData,
                      ha='center', va='center')
-        axs0[0].text(0.875, 50, r'$b_y$', transform=axs0[0].transData,
+        axs0[0].text(0.875, 100, r'$b_y$', transform=axs0[0].transData,
                      ha='center', va='center')
 
         # add glider paths
@@ -648,20 +673,29 @@ class glider_path_geometry_plotting(object):
         import matplotlib.colors as mcolors
 
         # initialise figure
-        fig = plt.figure(figsize=(3.0,4.0))
+        fig = plt.figure(figsize=(6.5,6.5))
 
         # initialise gridspec
         gs0 = gridspec.GridSpec(ncols=1, nrows=4, right=0.97)#, figure=fig)
-        gs1 = gridspec.GridSpec(ncols=7, nrows=1, right=0.97)#, figure=fig)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=4, right=0.97)#, figure=fig)
+        gs2 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
+        gs3 = gridspec.GridSpec(ncols=3, nrows=1, right=0.97)#, figure=fig)
     
-        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
-        gs1.update(top=0.15, bottom=0.02, left=0.22)
+        gs0.update(top=0.99, bottom=0.15, left=0.15, right=0.55, hspace=0.05)
+        gs1.update(top=0.99, bottom=0.15, left=0.58, right=0.98, hspace=0.05)
+        gs2.update(top=0.06, bottom=0.00, left=0.15, right=0.55)
+        gs3.update(top=0.06, bottom=0.00, left=0.58, right=0.98)
 
-        axs0, axs1 = [], []
+        axs0, axs1, axs2, axs3 = [], [], [], []
         for i in range(4):
             axs0.append(fig.add_subplot(gs0[i]))
-        for i in range(7):
             axs1.append(fig.add_subplot(gs1[i]))
+        for i in range(4):
+            axs2.append(fig.add_subplot(gs2[i]))
+        for i in range(3):
+            axs3.append(fig.add_subplot(gs3[i]))
+
+        colours = ['navy', 'gold', 'teal']
     
         # get data
         path = self.data_path + case
@@ -670,7 +704,7 @@ class glider_path_geometry_plotting(object):
                              self.append + '_percent_rolling_' + str(samples) + 
                              '_samples.nc')
 
-        def render(da, ax, l=''):
+        def render(da, ax, l='', c=list(mcolors.TABLEAU_COLORS)):
             da = da.squeeze()
 
             # scale by number of samples at each time
@@ -691,56 +725,85 @@ class glider_path_geometry_plotting(object):
             std = da.std('sample')
             l_quant, u_quant = mean - std, mean + std
 
-            ax.plot(mean.time_counter, mean, colours[i], label=l)
+            ax.plot(mean.time_counter, mean, c=c[i], label=l,lw=0.8)
             ax.fill_between(l_quant.time_counter, l_quant, u_quant,
-                                 color=colours[i], alpha=0.2)
+                                 color=c[i], alpha=0.4, edgecolor=None)
 
-        ds = ds.sel(vertex_choice=['left','right','diag_ur','diag_ul'])
-        colours = ['navy', 'purple', 'green', 'orange']
-        colours = list(mcolors.TABLEAU_COLORS)
-        for i, (l, da), in enumerate(ds.groupby('vertex_choice')):
-            render(da.diff_bx_mean, axs0[0], l=l)
-            render(da.diff_bx_std,  axs0[1], l=l)
-            render(da.diff_by_mean, axs0[2], l=l)
-            render(da.diff_by_std,  axs0[3], l=l)
+        ds0 = ds.sel(vertex_choice=['left','right','diag_ur','diag_ul'])
+        mc = list(mcolors.TABLEAU_COLORS)
+        mcolors_reorder= [mc[3], mc[1], mc[2], mc[0]]
+        for i, (l, da), in enumerate(ds0.groupby('vertex_choice')):
+            render(da.diff_bx_mean, axs0[0], l=l, c=mcolors_reorder)
+            render(da.diff_bx_std,  axs0[1], l=l, c=mcolors_reorder)
+            render(da.diff_by_mean, axs0[2], l=l, c=mcolors_reorder)
+            render(da.diff_by_std,  axs0[3], l=l, c=mcolors_reorder)
 
-        for ax in axs0:
-            ax.axhline(0, lw=0.8)
-            ax.axhline(20, lw=0.8, ls='--')
-            ax.axhline(-20, lw=0.8, ls='--')
+        ds1 = ds.sel(vertex_choice=['parallel','cross','all'])
+        for i, (l, da), in enumerate(ds1.groupby('vertex_choice')):
+            render(da.diff_bx_mean, axs1[0], l=l, c=colours)
+            render(da.diff_bx_std,  axs1[1], l=l, c=colours)
+            render(da.diff_by_mean, axs1[2], l=l, c=colours)
+            render(da.diff_by_std,  axs1[3], l=l, c=colours)
+
+        for ax in axs0 + axs1:
+            ax.axhline(0, lw=0.5, c='black')
+            ax.axhline(20, lw=0.5, ls='--', c='black')
+            ax.axhline(-20, lw=0.5, ls='--', c='black')
             ax.set_ylim(-150,150)
+            ax.set_xlim(ds.time_counter.min(), ds.time_counter.max())
 
         #axs0[0].set_xticks([])
         axs0[0].set_ylabel('% difference\n [mean]')
         axs0[1].set_ylabel('% difference\n [standard deviation]')
-        axs0[1].set_xlabel('time')
+        axs0[2].set_ylabel('% difference\n [mean]')
+        axs0[3].set_ylabel('% difference\n [standard deviation]')
+        axs0[3].set_xlabel('date')
+        axs1[3].set_xlabel('date')
 
-        axs0[0].legend()
+        for i in [0,1,2]:
+            axs0[i].set_xticks([])
+            axs1[i].set_xticks([])
+        for ax in axs1:
+            ax.set_yticks([])
+        for label in axs0[3].get_xticklabels():
+            label.set_rotation(20)
+            label.set_ha('right')
+        for label in axs1[3].get_xticklabels():
+            label.set_rotation(20)
+            label.set_ha('right')
 
         # add glider paths
         vertex_list     = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
         vertex_list_inv = [[0,1,2],[0,2,3],[0,1,3],[1,2,3],[0,2],[1,3]]
         path = self.get_sampled_path('EXP10','interp_1000',post_transect=True)
 
-        # plot removed paths
-        for i, choice in enumerate(vertex_list_inv):
-            ver_sampled_inv = path.where(path.vertex.isin(choice), drop=True)
-            for (l, v) in ver_sampled_inv.groupby('vertex'):
-                axs1[i].plot(v.lon, v.lat, c='navy', alpha=0.2)
+        def render_paths(ax, vertex_list, vertex_list_inv, path,
+                         repeat_c=None):
+            # plot removed paths
+            for i, choice in enumerate(vertex_list_inv):
+                ver_sampled_inv = path.where(path.vertex.isin(choice),drop=True)
+                for (l, v) in ver_sampled_inv.groupby('vertex'):
+                    ax[i].plot(v.lon, v.lat, c='navy', alpha=0.2)
 
-        # plot kept paths
-        for i, choice in enumerate(vertex_list):
-            ver_sampled = path.where(path.vertex.isin(choice), drop=True)
-            for j, (l, v) in enumerate(ver_sampled.groupby('vertex')):
-                c = list(mcolors.TABLEAU_COLORS)[vertex_list[i][j]]
-                axs1[i].plot(v.lon, v.lat, c=c)
+            # plot kept paths
+            for i, choice in enumerate(vertex_list):
+                ver_sampled = path.where(path.vertex.isin(choice), drop=True)
+                for j, (l, v) in enumerate(ver_sampled.groupby('vertex')):
+                    if repeat_c:
+                        c = repeat_c[i]
+                    else:
+                        c = list(mcolors.TABLEAU_COLORS)[vertex_list[i][j]]
+                    ax[i].plot(v.lon, v.lat, c=c)
 
-            axs1[i].axis('off')
-            axs1[i].set_xlim(path.lon.min(),path.lon.max())
-            axs1[i].set_ylim(path.lat.min(),path.lat.max())
+                ax[i].axis('off')
+                ax[i].set_xlim(path.lon.min(),path.lon.max())
+                ax[i].set_ylim(path.lat.min(),path.lat.max())
+                ax[i].set_aspect('equal')
+        render_paths(axs2, vertex_list[:4], vertex_list_inv[:4], path)
+        render_paths(axs3, vertex_list[4:], vertex_list_inv[4:], path,
+                     repeat_c=colours)
 
         # save
-        plt.show()
         plt.savefig(case + '_diff_vertex_time_series_' + str(samples) + 
                     '_samples.png', dpi=600)
 
@@ -750,19 +813,20 @@ class glider_path_geometry_plotting(object):
         mean and std across samples.
         Same as bar chart but for weely chunks.
         '''
+        import matplotlib.colors as mcolors
 
         # initialise figure
-        fig = plt.figure(figsize=(3.0,4.0))
+        fig = plt.figure(figsize=(4.0,5.0))
 
         # initialise gridspec
-        gs0 = gridspec.GridSpec(ncols=1, nrows=2, right=0.97)#, figure=fig)
-        gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
+        gs0 = gridspec.GridSpec(ncols=1, nrows=4, right=0.99)#, figure=fig)
+        gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.99)#, figure=fig)
     
-        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
-        gs1.update(top=0.15, bottom=0.02, left=0.22)
+        gs0.update(top=0.99, bottom=0.25, left=0.20, hspace=0.05)
+        gs1.update(top=0.12, bottom=0.02, left=0.22)
 
         axs0, axs1 = [], []
-        for i in range(2):
+        for i in range(4):
             axs0.append(fig.add_subplot(gs0[i]))
         for i in range(4):
             axs1.append(fig.add_subplot(gs1[i]))
@@ -774,32 +838,49 @@ class glider_path_geometry_plotting(object):
                              self.append + '_percent_rolling_' + str(samples) + 
                              '_samples.nc')
 
-        def render(da, ax):
+        def render(da, ax, c):
+            sample_scale = xr.where(np.isnan(da), 0, 1).sum('sample')
+            da = da.where(sample_scale>90)
+
             mean = da.mean('sample')
             #l_quant, u_quant = da.quantile([0.25, 0.75], 'sample')
-            l_quant, u_quant = da.quantile([0.05, 0.95], 'sample')
+            #l_quant, u_quant = da.quantile([0.05, 0.95], 'sample')
             #std = da.std('sample')*2
             #l_quant, u_quant = mean - std, mean + std
+            std = da.std('sample')
+            l_quant, u_quant = mean - std, mean + std
 
-            ax.plot(mean.time_counter, mean, colours[i])
+
+            ax.plot(mean.time_counter, mean, c=c[i], lw=0.8)
             ax.fill_between(l_quant.time_counter, l_quant, u_quant,
-                                 color=colours[i], alpha=0.2)
+                                 color=c[i], edgecolor=None, alpha=0.3)
 
-        colours = ['navy', 'purple', 'green', 'orange']
+        colours = ['navy', 'purple', 'green', 'gold']
         for i, (l, da), in enumerate(ds.groupby('rotation')):
-            render(da.diff_by_mean_rotate, axs0[0])
-            render(da.diff_by_std_rotate,  axs0[1])
+            render(da.diff_bx_mean_rotate, axs0[0], c=colours)
+            render(da.diff_bx_std_rotate,  axs0[1], c=colours)
+            render(da.diff_by_mean_rotate, axs0[2], c=colours)
+            render(da.diff_by_std_rotate,  axs0[3], c=colours)
 
         for ax in axs0:
-            ax.axhline(0, lw=0.8)
-            ax.axhline(20, lw=0.8, ls='--')
-            ax.axhline(-20, lw=0.8, ls='--')
+            ax.axhline(0, lw=0.5, c='black')
+            ax.axhline(20, lw=0.5, ls='--', c='black')
+            ax.axhline(-20, lw=0.5, ls='--', c='black')
             ax.set_ylim(-150,150)
+            ax.set_xlim(ds.time_counter.min(), ds.time_counter.max())
 
         #axs0[0].set_xticks([])
         axs0[0].set_ylabel('% difference\n [mean]')
         axs0[1].set_ylabel('% difference\n [standard deviation]')
-        axs0[1].set_xlabel('time')
+        axs0[2].set_ylabel('% difference\n [mean]')
+        axs0[3].set_ylabel('% difference\n [standard deviation]')
+        axs0[3].set_xlabel('time')
+
+        for i in [0,1,2]:
+            axs0[i].set_xticks([])
+        for label in axs0[3].get_xticklabels():
+            label.set_rotation(20)
+            label.set_ha('right')
 
         # add glider paths
         rotations = [0, 90, 180, 270]
@@ -816,10 +897,12 @@ class glider_path_geometry_plotting(object):
                                     rotation=np.radians(rotations[i]))
             for (l, v) in path.groupby('vertex'):
                 ax.plot(v.lon, v.lat, label=l)
+            circle = plt.Circle((0.5, 1.1), 0.1, color=colours[i],
+                                transform=ax.transAxes, clip_on=False)
+            ax.add_patch(circle)
             ax.axis('off')
 
         # save
-        plt.show()
         plt.savefig(case + '_diff_rotation_time_series_' + str(samples) + 
                     '_samples.png', dpi=600)
 
@@ -836,8 +919,8 @@ class glider_path_geometry_plotting(object):
         gs0 = gridspec.GridSpec(ncols=1, nrows=2, right=0.97)#, figure=fig)
         gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
     
-        gs0.update(top=0.98, bottom=0.25, left=0.22, hspace=0.1)
-        gs1.update(top=0.15, bottom=0.02, left=0.22)
+        gs0.update(top=0.98, bottom=0.25, left=0.24, hspace=0.1)
+        gs1.update(top=0.15, bottom=0.02, left=0.24)
 
         axs0, axs1 = [], []
         for i in range(2):
@@ -861,16 +944,16 @@ class glider_path_geometry_plotting(object):
 
         for ax in axs0:
             ax.axhline(0, lw=0.8)
-            ax.set_ylim(-120,120)
+            ax.set_ylim(-85,85)
 
         axs0[0].set_xticks([])
         axs0[0].set_ylabel('% difference\n [mean]')
         axs0[1].set_ylabel('% difference\n [standard deviation]')
         axs0[1].set_xlabel('rotation [degrees]')
 
-        axs0[0].text(0.625, 50, r'$b_x$', transform=axs0[0].transData,
+        axs0[0].text(0.625, 70, r'$b_x$', transform=axs0[0].transData,
                      ha='center', va='center')
-        axs0[0].text(0.875, 35, r'$b_y$', transform=axs0[0].transData,
+        axs0[0].text(0.875, 70, r'$b_y$', transform=axs0[0].transData,
                      ha='center', va='center')
 
         # add glider paths
@@ -886,6 +969,7 @@ class glider_path_geometry_plotting(object):
                                     'interp_1000_rotate_' + str(rotations[i]),
                                     post_transect=True,
                                     rotation=np.radians(rotations[i]))
+
             for (l, v) in path.groupby('vertex'):
                 ax.plot(v.lon, v.lat, label=l)
             ax.axis('off')
@@ -945,8 +1029,9 @@ cases = ['EXP10']
 #m.plot_model_and_glider_diff_bar(cases, samples=50)
 #m.plot_model_and_glider_diff_bar(cases, samples=200)
 m = glider_path_geometry_plotting()
-#m.plot_model_and_glider_diff_bar(cases, samples=100)
 m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
+#m.plot_model_and_glider_diff_rotate_timeseries('EXP10', samples=100)
+#m.plot_model_and_glider_diff_vertex_timeseries('EXP10', samples=100)
 #m.plot_model_and_glider_diff_vertex_bar(cases, samples=100)
 
 
