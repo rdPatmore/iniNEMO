@@ -8,6 +8,7 @@ import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 import itertools
+from iniNEMO.Plot.get_transects import get_transects
 
 
 class model(object):
@@ -92,6 +93,46 @@ class model(object):
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
+    def save_interpolated_transects_to_one_file(self, n=100, rotation=None,
+                                                add_transects=False):
+        ''' get set of 100 glider samples '''
+
+        # load samples
+        prep = 'GliderRandomSampling/glider_uniform_' + self.append + '_'
+        if rotation:
+            rotation_label = 'rotate_' + str(rotation) + '_' 
+            rotation_rad = np.radians(rotation)
+        else:
+            rotation_label = ''
+            rotation_rad = rotation # None type 
+        sample_list = [self.data_path + prep + rotation_label +
+                       str(i).zfill(2) + '.nc' for i in range(n)]
+
+        sample_set = []
+        for i in range(n):
+            print ('sample: ', i)
+            sample = xr.open_dataset(sample_list[i],
+                                     decode_times=False)
+            sample['lon_offset'] = sample.attrs['lon_offset']
+            sample['lat_offset'] = sample.attrs['lat_offset']
+            sample = sample.set_coords(['lon_offset','lat_offset',
+                                        'time_counter'])
+
+            if add_transects:
+            # this removes n-s transect!
+            # hack because transect doesn't currently take 2d-ds (1d-da only)
+                b_x_ml_transect = get_transects(
+                                   sample.b_x_ml.isel(ctd_depth=10),
+                                   offset=True, rotation=rotation_rad)
+                sample = sample.assign_coords(
+                  {'transect': b_x_ml_transect.transect.reset_coords(drop=True),
+                   'vertex'  : b_x_ml_transect.vertex.reset_coords(drop=True)})
+
+            sample_set.append(sample.expand_dims('sample'))
+        samples=xr.concat(sample_set, dim='sample')
+        samples.to_netcdf(self.data_path + prep + 
+                          rotation_label.rstrip('_') + '.nc')
+
     def load_gridT_and_giddy(self):
         ''' minimal loading for glider sampling of model '''
 
@@ -122,6 +163,14 @@ class model(object):
                                                 'latitude': 'lat'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
+
+    def load_gsw(self):
+        ''' load absolute salinity and conservative temperature '''
+
+        #self.ds = {}
+        #self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        path = self.data_path + self.file_id + 'gsw.nc'
+        self.ds['gsw'] = xr.open_dataset(path, chunks={'time_counter':10})
 
     def merge_state(self):
         ''' merge all state variables into one file '''
@@ -207,14 +256,22 @@ class model(object):
     def get_alpha_and_beta(self, save=False):
         ''' calculate the themo-haline contaction coefficients '''
         #self.open_ct_as_p()
-        self.ds['alpha'] = gsw.density.alpha(self.ds.abs_sal, self.ds.cons_temp,
-                                             self.ds.p)
-        self.ds['beta'] = gsw.density.beta(self.ds.abs_sal, self.ds.cons_temp,
-                                           self.ds.p)
+        alpha = xr.apply_ufunc(gsw.density.alpha,
+                                          self.ds['gsw'].abs_sal,
+                                          self.ds['gsw'].cons_temp,
+                                          self.ds['gsw'].p,
+                                          dask='parallelized',
+                                   output_dtypes=[self.ds['gsw'].abs_sal.dtype])
+        beta = xr.apply_ufunc(gsw.density.beta,
+                                         self.ds['gsw'].abs_sal,
+                                         self.ds['gsw'].cons_temp,
+                                         self.ds['gsw'].p,
+                                          dask='parallelized',
+                                  output_dtypes=[self.ds['gsw'].abs_sal.dtype])
 
         if save:
-            self.ds.alpha.to_netcdf(config.data_path() + 'alpha.nc')
-            self.ds.beta.to_netcdf(config.data_path() + 'beta.nc')
+            alpha.to_netcdf(config.data_path() + self.file_id + 'alpha.nc')
+            beta.to_netcdf(config.data_path() + self.file_id + 'beta.nc')
 
     def get_rho(self):
         '''
@@ -508,7 +565,10 @@ class model(object):
 
     def get_transects(self, concat_dim='ctd_data_point', method='cycle',
                       shrink=None):
-        ''' split path into transects '''
+        '''
+            split path into transects
+            NB: the get_transects script in /Plots is more robust
+        '''
 
         data = self.giddy_raw
         if method == '2nd grad':
@@ -738,6 +798,7 @@ class model(object):
         '''
         add buoyancy gradients to randomly sampled and
         uniformly interpolated model data
+        this is done on one sample at a time
         '''
        
         # constants
@@ -747,12 +808,36 @@ class model(object):
 
         # buoyancy gradient
         b = g * (1 - glider_sample.rho / rho_0)
+        print (b)
+        print (b.distance.diff('distance'))
+        print (fhsdf)
         b_x = b.diff('distance') / dx
 
         # buoyancy within mixed layer
         glider_sample['b_x_ml'] = b_x.where( 
                             glider_sample.deptht < glider_sample.mld, drop=True)
         return glider_sample
+
+    def theta_and_salt_gradients_in_mld_from_interped_data(glider_sample):
+        '''
+        add theta gradients to uniformly interpolated sample set
+        unlike above this works on the entire data set at once
+        designed for new single dataset will all samples
+        '''
+
+        dT = self.samples.votemper.diff('distance')
+        dS = self.samples.vosaline.diff('distance')
+        dx = self.samples.distance.diff('distance')
+
+        # gradients along path
+        T_x = dT / dx
+        S_x = dS / dx
+
+        # gradients within mixed layer
+        self.samples['T_x_ml'] = T_x.where( 
+                            self.samples.deptht < self.samples.mld, drop=True)
+        self.samples['S_x_ml'] = S_x.where( 
+                            self.samples.deptht < self.samples.mld, drop=True)
 
 
     def interp_to_obs_path(self, random_offset=False):
@@ -869,6 +954,14 @@ if __name__ == '__main__':
         m.save_all_gsw()
         m.get_rho()
 
+    def save_alpha_and_beta(case):
+        m = model(case)
+        m.load_gridT_and_giddy()
+        m.load_gsw()
+        print (m.ds)
+        m.get_alpha_and_beta(save=True)
+    save_alpha_and_beta('EXP10')
+
     def glider_sampling(case, remove=False, append='', interp_dist=1000,
                         transects=False, south_limit=None, north_limit=None,
                         rotate=False, rotation=np.pi/2):
@@ -912,15 +1005,36 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', remove=False, append='interp_1000_rotate_180', 
-                    interp_dist=1000, transects=False, rotate=True, 
-                    rotation=np.pi)
-    glider_sampling('EXP10', remove=False, append='interp_1000_rotate_270', 
-                    interp_dist=1000, transects=False, rotate=True,
-                    rotation=3*np.pi/2)
+    #glider_sampling('EXP10', remove=False, append='interp_1000_rotate_180', 
+    #                interp_dist=1000, transects=False, rotate=True, 
+    #                rotation=np.pi)
+#    glider_sampling('EXP10', remove=False, append='interp_2000', 
+#                    interp_dist=2000, transects=False, rotate=False)
     ###
     #north_limit=-59.9858036
     ###
+
+    def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
+                        transects=False, south_limit=None, north_limit=None,
+                        rotate=False, rotation=np.pi/2):
+        m = model(case)
+        m.interp_dist=interp_dist
+        m.transects=transects
+        #m.load_gridT_and_giddy()
+        m.append = append
+
+        # reductions of nemo domain
+        m.south_limit = south_limit
+        m.north_limit = north_limit
+
+        m.save_interpolated_transects_to_one_file(n=100, rotation=None)
+
+    #combine_glider_samples('EXP10', remove=False,
+    #                       append='interp_1000_south_patch', 
+    #                       interp_dist=1000, transects=False, rotate=False)
+    #combine_glider_samples('EXP10', remove=False,
+    #                       append='interp_1000_north_patch', 
+    #                       interp_dist=1000, transects=False, rotate=False)
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()

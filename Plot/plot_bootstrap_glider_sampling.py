@@ -250,7 +250,10 @@ class bootstrap_glider_samples(object):
 
 
     def get_full_model_timeseries(self, save=False):
-        ''' get model mean time_series '''
+        ''' 
+           get model mean and std time_series
+               - buoyancy
+        '''
 
         self.get_model_buoyancy_gradients()
         self.bg = self.bg.sel(deptht=10, method='nearest')
@@ -635,7 +638,7 @@ class bootstrap_glider_samples(object):
                                      preprocess=pre_proc).load()
         ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
         m = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
-                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
+                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                           self.append + '.nc')
         
         # define fig
@@ -890,12 +893,12 @@ def prep_hist():
             print (n)
             m.get_glider_sampled_hist(n=n, save=True)
 
-def prep_timeseries():
+def prep_timeseries(subest=''):
     cases = ['EXP10']
     #cases = ['EXP10', 'EXP08', 'EXP13']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset='south')
+                                     subset=subset)
         m.get_full_model_timeseries(save=True)
         for n in range(1,31):
             print ('n :', n)
@@ -910,26 +913,32 @@ def plot_timeseries():
                                     subset='south')
         m.plot_timeseries()
 
-def plot_quantify_delta_bg():
+def plot_quantify_delta_bg(subset=''):
     ''' quantify the skill of estimated change in bg with time from glider '''
-    cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     for case in cases:
         print ('case: ', case)
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
-                                     subset='')
-        m.plot_quantify_delta_bg(t0 = '2013-01-15', t1 = '2013-02-15')
+                                     subset=subset)
+        m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 plot_quantify_delta_bg()
+plot_quantify_delta_bg(subset='north')
+plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
 
 #for exp in ['EXP10','EXP13','EXP08']:
 #for exp in ['EXP13','EXP08']:
+#for exp in ['EXP10']:
 #    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
-#                                  subset='')
+#                                  subset='north')
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
-    #m.get_full_model_day_week_std(save=True)
+#    m.get_full_model_day_week_std(save=True)
+#    m = bootstrap_glider_samples(exp, var='b_x_ml', load_samples=True,
+#                                  subset='south')
+#    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
+#    m.get_full_model_day_week_std(save=True)
 
 #prep_hist()
 #plot_hist()
