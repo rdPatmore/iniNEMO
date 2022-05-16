@@ -11,27 +11,29 @@ class plot_buoyancy_ratio(object):
         self.subset = subset
 
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
-        self.bg = xr.open_dataset(config.data_path() + case +
-                             '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc',
+
+    def load_basics(self):
+        self.bg = xr.open_dataset(config.data_path() + self.case +
+                             self.file_id + 'bg.nc',
                              chunks='auto')
-        self.gridT = xr.open_dataset(config.data_path() + case +
-                              '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
+        self.gridT = xr.open_dataset(config.data_path() + self.case +
+                              self.file_id + 'grid_T.nc',
                               chunks='auto')
-        self.alpha = xr.open_dataset(config.data_path() + case +
-                              '/SOCHIC_PATCH_3h_20121209_20130331_alpha.nc',
+        self.alpha = xr.open_dataset(config.data_path() + self.case +
+                              self.file_id + 'alpha.nc',
                               chunks='auto').to_array().squeeze()
-        self.beta = xr.open_dataset(config.data_path() + case +
-                              '/SOCHIC_PATCH_3h_20121209_20130331_beta.nc',
+        self.beta = xr.open_dataset(config.data_path() + self.case +
+                              self.file_id + 'beta.nc',
                               chunks='auto').to_array().squeeze()
+
         # name the arrays (this should really be done in model_object
         #                  where the data is made)
         self.alpha.name = 'alpha'
         self.beta.name = 'beta'
 
-        self.cfg = xr.open_dataset(config.data_path() + case +
+        self.cfg = xr.open_dataset(config.data_path() + self.case +
                                    '/domain_cfg.nc').squeeze()
 
-        print ('a')
 
         # assign index for x and y for merging
         self.bg = self.bg.assign_coords({'x':np.arange(1,self.bg.sizes['x']+1),
@@ -48,7 +50,6 @@ class plot_buoyancy_ratio(object):
         self.cfg = self.cfg.assign_coords(
                                         {'x':np.arange(self.cfg.sizes['x']),
                                          'y':np.arange(self.cfg.sizes['y'])})
-        print ('c')
 
         # make bg nameing consistent
         self.bg = self.bg.rename({'bx':'dbdx', 'by':'dbdy'})
@@ -75,10 +76,11 @@ class plot_buoyancy_ratio(object):
 
 
         # restrict to 10 m
-        self.bg = self.bg.sel(deptht=10, time_counter='2013-01-01 00:00:00', method='nearest')
-        self.gridT = self.gridT.sel(deptht=10, time_counter='2013-01-01 00:00:00', method='nearest')
-        self.alpha = self.alpha.sel(deptht=10, time_counter='2013-01-01 00:00:00', method='nearest')
-        self.beta = self.beta.sel(deptht=10, time_counter='2013-01-01 00:00:00', method='nearest')
+        sel_kwargs = dict(deptht=10, method='nearest')
+        self.bg = self.bg.sel(**sel_kwargs)#.load()
+        self.gridT = self.gridT.sel(**sel_kwargs)#.load()
+        self.alpha = self.alpha.sel(**sel_kwargs)#.load()
+        self.beta = self.beta.sel(**sel_kwargs)#.load()
 
         self.giddy_raw = xr.open_dataset(config.root() +
                                          'Giddy_2020/merged_raw.nc')
@@ -107,20 +109,20 @@ class plot_buoyancy_ratio(object):
             dx = self.cfg.e1t
             dy = self.cfg.e2t
             dgridTx = self.gridT.diff('x').pad(x=(1,0),
-                                      constant_value=1) # u-pts
+                                      constant_value=0) # u-pts
             dgridTy = self.gridT.diff('y').pad(y=(1,0),
-                                      constant_value=1) # v-pts
+                                      constant_value=0) # v-pts
             
-            dTdx = dgridTx.votemper / dx
-            dTdy = dgridTy.votemper / dy
-            dSdx = dgridTx.vosaline / dx
-            dSdy = dgridTy.vosaline / dy
+            dTdx = self.alpha * dgridTx.votemper / dx
+            dTdy = self.alpha * dgridTy.votemper / dy
+            dSdx = self.beta * dgridTx.vosaline / dx
+            dSdy = self.beta * dgridTy.vosaline / dy
 
             # name
-            dTdx.name = 'dTdx'
-            dTdy.name = 'dTdy'
-            dSdx.name = 'dSdx'
-            dSdy.name = 'dSdy'
+            dTdx.name = 'alpha_dTdx'
+            dTdy.name = 'alpha_dTdy'
+            dSdx.name = 'beta_dSdx'
+            dSdy.name = 'beta_dSdy'
             
             self.TS_grad = xr.merge([dTdx,dTdy,dSdx,dSdy])
             
@@ -135,11 +137,13 @@ class plot_buoyancy_ratio(object):
         (alpha * dTdy)/ (beta * dSdy)
         '''
 
-        dr_x = np.abs(self.alpha * self.TS_grad.dTdx) /      \
-               np.abs(self.beta * self.TS_grad.dSdx)
-        dr_y = np.abs(self.alpha * self.TS_grad.dTdy) /      \
-               np.abs(self.beta * self.TS_grad.dSdy)
-        dr_y = dr_y.drop(['time_counter','time_centered','time_instant'])
+        # nan/inf issues are with TS_grad
+        dr_x = np.abs(self.TS_grad.alpha_dTdx / self.TS_grad.beta_dSdx)
+        dr_y = np.abs(self.TS_grad.alpha_dTdy / self.TS_grad.beta_dSdy)
+
+        # drop inf
+        dr_x = xr.where(np.isinf(dr_x), np.nan, dr_x)
+        dr_y = xr.where(np.isinf(dr_y), np.nan, dr_y)
 
         dr_x.name = 'density_ratio_x'
         dr_y.name = 'density_ratio_y'
@@ -163,23 +167,25 @@ class plot_buoyancy_ratio(object):
         ds_stats = xr.merge([ds_mean, ds_std]).load()
         return ds_stats
 
-    def get_T_S_bg_stats(self):
-        print ('0')
-        self.get_grad_T_and_S(load=True)
-        print ('1')
-        self.get_density_ratio()
-        print ('2')
+    def get_T_S_bg_stats(self, save=False, load=False):
+   
+        if load:
+            self.stats = xr.open_dataset(config.data_path() + self.case + 
+                                      self.file_id + 'density_ratio_stats.nc')
+        else:
+            self.get_grad_T_and_S()
+            self.get_density_ratio()
 
-        self.TS_grad = self.get_stats(self.TS_grad)
-        print ('3')
-        self.bg = self.get_stats(self.bg)
-        print ('4')
-        self.density_ratio = self.get_stats(self.density_ratio)
-        print ('5')
+            self.TS_grad = self.get_stats(self.TS_grad)
+            self.bg = self.get_stats(self.bg)
+            self.density_ratio = self.get_stats(self.density_ratio)
 
-        self.stats = xr.merge([self.TS_grad, self.bg, self.density_ratio])
-        print ('6')
-        print (self.stats)
+            self.stats = xr.merge([self.TS_grad, self.bg, self.density_ratio])
+
+            # save
+            if save:
+                self.stats.to_netcdf(config.data_path() + self.case + 
+                                       self.file_id + 'density_ratio_stats.nc')
 
     def plot_density_ratio(self):
         '''
@@ -192,24 +198,47 @@ class plot_buoyancy_ratio(object):
         4 x 2 plot with columns of x and y components
         '''
 
-        fig, axs = plt.subplots(2,4, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(4,2, figsize=(5.5,5.5))
 
         def render(ax, var):
             var_mean = var + '_ts_mean'
             var_std = var + '_ts_std'
-            ax.fill_between(self.stats.time_counter,
-                                self.stats[var_mean] - self.stats[var_std],
-                                self.stats[var_mean] + self.stats[var_std],
-                                edgecolor=None)
-            ax.plot(self.stats.time_counter, self.stats[var_mean])
+            #ax.fill_between(self.stats.time_counter,
+            #                    self.stats[var_mean] - self.stats[var_std],
+            #                    self.stats[var_mean] + self.stats[var_std],
+            #                    edgecolor=None)
+            ax.plot(self.stats.time_counter, self.stats[var_mean], c='k')
 
-        var_list = ['dbdx','dbdy','dTdx','dTdy','dSdx','dSdy']
-        for i, row in enumerate(axs):
-            for j, ax in enumerate(row):
-                print (var_list[i,j], i, j)
-                render(ax,var_list[i+j])
+        var_list = ['dbdx','dbdy','dTdx','dTdy','dSdx','dSdy',
+                    'density_ratio_x','density_ratio_y']
+        for j, col in enumerate(axs):
+            for i, ax in enumerate(col):
+                print (var_list[i+(2*j)], i, j)
+                render(ax,var_list[i+(2*j)])
+        print (self.stats.density_ratio_x_ts_mean.min())
+        print (self.stats.density_ratio_x_ts_mean.max())
+        print (self.stats.density_ratio_x_ts_std.min())
+        print (self.stats.density_ratio_x_ts_std.max())
+
+        db_lims = (1e-9,5e-8)
+        dT_lims = (1e-9,2e-5)
+        dS_lims = (1e-9,1e-4)
+        ratio_lims = (0,1.55)
+        
+        for i in [0,1]:
+            axs[0,i].set_ylim(db_lims)
+            axs[1,i].set_ylim(dT_lims)
+            axs[2,i].set_ylim(dS_lims)
+            axs[3,i].set_ylim(ratio_lims)
+        plt.show()
 
 
 m = plot_buoyancy_ratio('EXP10')
-m.get_grad_T_and_S(save=True)
-#m.get_T_S_bg_stats()
+m.load_basics()
+m.get_grad_T_and_S()
+m.get_density_ratio()
+m.get_T_S_bg_stats(save=True)
+
+#m = plot_buoyancy_ratio('EXP10')
+#m.get_T_S_bg_stats(load=True)
+#m.plot_density_ratio()
