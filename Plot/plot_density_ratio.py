@@ -2,6 +2,8 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import config
 import numpy as np
+from matplotlib.ticker import FormatStrFormatter
+import matplotlib
 
 class plot_buoyancy_ratio(object):
 
@@ -99,7 +101,7 @@ class plot_buoyancy_ratio(object):
         ds = ds.sel(time_counter=slice(start,end))
         return ds
 
-    def get_grad_T_and_S(self, load=False, save=False):
+    def get_grad_T_and_S(self, load=False, save=False, giddy_method=False):
         ''' get dCdx and dCdy where C=[T,S] '''
 
         if load:
@@ -108,15 +110,26 @@ class plot_buoyancy_ratio(object):
         else:
             dx = self.cfg.e1t
             dy = self.cfg.e2t
-            dgridTx = self.gridT.diff('x').pad(x=(1,0),
-                                      constant_value=0) # u-pts
-            dgridTy = self.gridT.diff('y').pad(y=(1,0),
-                                      constant_value=0) # v-pts
-            
-            dTdx = self.alpha * dgridTx.votemper / dx
-            dTdy = self.alpha * dgridTy.votemper / dy
-            dSdx = self.beta * dgridTx.vosaline / dx
-            dSdy = self.beta * dgridTy.vosaline / dy
+            if giddy_method: 
+                # take scalar gradients only
+                dgridTx = self.gridT.diff('x').pad(x=(1,0),
+                                          constant_value=0) # u-pts
+                dgridTy = self.gridT.diff('y').pad(y=(1,0),
+                                          constant_value=0) # v-pts
+                
+                dTdx = self.alpha * dgridTx.votemper / dx
+                dTdy = self.alpha * dgridTy.votemper / dy
+                dSdx = self.beta * dgridTx.vosaline / dx
+                dSdy = self.beta * dgridTy.vosaline / dy
+            else:
+                # gradient of alpha and beta included
+                rhoT = self.alpha * self.gridT.votemper
+                rhoS = self.beta  * self.gridT.vosaline
+
+                dTdx = rhoT.diff('x').pad(x=(1,0), constant_value=0) # u-pts
+                dTdy = rhoT.diff('y').pad(x=(1,0), constant_value=0) # v-pts
+                dSdx = rhoS.diff('x').pad(x=(1,0), constant_value=0) # u-pts
+                dSdy = rhoS.diff('y').pad(x=(1,0), constant_value=0) # v-pts
 
             # name
             dTdx.name = 'alpha_dTdx'
@@ -200,44 +213,67 @@ class plot_buoyancy_ratio(object):
 
         fig, axs = plt.subplots(4,2, figsize=(5.5,5.5))
 
+        # tan of density ratio
+        self.stats['density_ratio_x_ts_mean'] = np.arctan(
+                                       self.stats.density_ratio_x_ts_mean)/np.pi
+        self.stats['density_ratio_y_ts_mean'] = np.arctan(
+                                       self.stats.density_ratio_y_ts_mean)/np.pi
+        self.stats['density_ratio_x_ts_std'] = np.arctan(
+                                       self.stats.density_ratio_x_ts_std)/np.pi
+        self.stats['density_ratio_y_ts_std'] = np.arctan(
+                                       self.stats.density_ratio_y_ts_std)/np.pi
+
         def render(ax, var):
             var_mean = var + '_ts_mean'
             var_std = var + '_ts_std'
+            gfac = 1
+            c='k'
+            if var in ['alpha_dTdx','alpha_dTdy','beta_dSdx','beta_dSdy']:
+                gfac = 9.81
+                c='green'
             #ax.fill_between(self.stats.time_counter,
             #                    self.stats[var_mean] - self.stats[var_std],
             #                    self.stats[var_mean] + self.stats[var_std],
             #                    edgecolor=None)
-            ax.plot(self.stats.time_counter, self.stats[var_mean], c='k')
+            ax.plot(self.stats.time_counter, gfac * self.stats[var_mean], c=c)
 
-        var_list = ['dbdx','dbdy','dTdx','dTdy','dSdx','dSdy',
+        var_list = ['dbdx','dbdy','alpha_dTdx','alpha_dTdy'
+                   ,'beta_dSdx','beta_dSdy',
                     'density_ratio_x','density_ratio_y']
+
+
         for j, col in enumerate(axs):
             for i, ax in enumerate(col):
                 print (var_list[i+(2*j)], i, j)
                 render(ax,var_list[i+(2*j)])
+        render(axs[0,0], 'alpha_dTdx')
+        render(axs[0,0], 'beta_dSdx')
         print (self.stats.density_ratio_x_ts_mean.min())
         print (self.stats.density_ratio_x_ts_mean.max())
         print (self.stats.density_ratio_x_ts_std.min())
         print (self.stats.density_ratio_x_ts_std.max())
 
         db_lims = (1e-9,5e-8)
-        dT_lims = (1e-9,2e-5)
-        dS_lims = (1e-9,1e-4)
+        dT_lims = (1e-10,5e-10)
+        dS_lims = (3.4e-8,6.5e-8)
         ratio_lims = (0,1.55)
         
         for i in [0,1]:
-            axs[0,i].set_ylim(db_lims)
-            axs[1,i].set_ylim(dT_lims)
-            axs[2,i].set_ylim(dS_lims)
+            #axs[0,i].set_ylim(db_lims)
+            #axs[1,i].set_ylim(dT_lims)
+            #axs[2,i].set_ylim(dS_lims)
             axs[3,i].set_ylim(ratio_lims)
-        plt.show()
+            axs[3,i].yaxis.set_major_formatter(FormatStrFormatter('%g $\pi$'))
+            axs[3,i].yaxis.set_major_locator(
+                                   matplotlib.ticker.MultipleLocator(base=0.25))
+        plt.savefig('density_ratio.png')
 
 
 m = plot_buoyancy_ratio('EXP10')
 m.load_basics()
-m.get_grad_T_and_S()
-m.get_density_ratio()
-m.get_T_S_bg_stats(save=True)
+m.get_grad_T_and_S(save=True)
+#m.get_density_ratio()
+#m.get_T_S_bg_stats(save=True)
 
 #m = plot_buoyancy_ratio('EXP10')
 #m.get_T_S_bg_stats(load=True)
