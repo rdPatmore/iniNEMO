@@ -106,7 +106,7 @@ class plot_buoyancy_ratio(object):
 
         if load:
             self.TS_grad = xr.open_dataset(config.data_path() + self.case +
-                                    self.file_id +'TS_grad_10m.nc')
+                                    self.file_id +'TS_grad_10m_giddy_method.nc')
         else:
             dx = self.cfg.e1t
             dy = self.cfg.e2t
@@ -174,17 +174,21 @@ class plot_buoyancy_ratio(object):
 
         ds_mean  = np.abs(ds).mean(['x','y'], skipna=True)
         ds_std   = np.abs(ds).std(['x','y'], skipna=True)
+        chunks = dict(x=-1, y=-1)
+        ds_quant   = np.abs(ds.chunk(chunks)).quantile([0.05, 0.95],
+                     ['x','y'], skipna=True)
         for key in ds.keys():
             ds_mean  = ds_mean.rename({key: key + '_ts_mean'})
             ds_std  = ds_std.rename({key: key + '_ts_std'})
-        ds_stats = xr.merge([ds_mean, ds_std]).load()
+            ds_quant  = ds_quant.rename({key: key + '_ts_quant'})
+        ds_stats = xr.merge([ds_mean, ds_std, ds_quant]).load()
         return ds_stats
 
     def get_T_S_bg_stats(self, save=False, load=False):
    
         if load:
             self.stats = xr.open_dataset(config.data_path() + self.case + 
-                                      self.file_id + 'density_ratio_stats.nc')
+                           self.file_id + 'density_ratio_stats_giddy_method.nc')
         else:
             self.get_grad_T_and_S()
             self.get_density_ratio()
@@ -268,13 +272,73 @@ class plot_buoyancy_ratio(object):
                                    matplotlib.ticker.MultipleLocator(base=0.25))
         plt.savefig('density_ratio.png')
 
+    def plot_density_ratio_two_panel(self):
+        '''
+        plot - buoyancy gradient
+             - density ratio
+        over time
+
+        2 x 2 plot with columns of x and y components
+        '''
+
+        fig, axs = plt.subplots(2,2, figsize=(5.5,5.5))
+
+        # tan of density ratio
+        self.stats['density_ratio_x_ts_mean'] = np.arctan(
+                                       self.stats.density_ratio_x_ts_mean)/np.pi
+        self.stats['density_ratio_y_ts_mean'] = np.arctan(
+                                       self.stats.density_ratio_y_ts_mean)/np.pi
+        self.stats['density_ratio_x_ts_std'] = np.arctan(
+                                       self.stats.density_ratio_x_ts_std)/np.pi
+        self.stats['density_ratio_y_ts_std'] = np.arctan(
+                                       self.stats.density_ratio_y_ts_std)/np.pi
+
+        def render(ax, var):
+            var_mean = var + '_ts_mean'
+            var_std = var + '_ts_std'
+            gfac = 1
+            c='k'
+            #ax.fill_between(self.stats.time_counter,
+            #                    self.stats[var_mean] - self.stats[var_std],
+            #                    self.stats[var_mean] + self.stats[var_std],
+            #                    edgecolor=None)
+            ax.plot(self.stats.time_counter, gfac * self.stats[var_mean], c=c)
+
+        var_list = ['dbdx','dbdy',
+                    'density_ratio_x','density_ratio_y']
+
+
+        for j, col in enumerate(axs):
+            for i, ax in enumerate(col):
+                print (var_list[i+(2*j)], i, j)
+                render(ax,var_list[i+(2*j)])
+        print (self.stats.density_ratio_x_ts_mean.min())
+        print (self.stats.density_ratio_x_ts_mean.max())
+        print (self.stats.density_ratio_x_ts_std.min())
+        print (self.stats.density_ratio_x_ts_std.max())
+
+        db_lims = (1e-9,5e-8)
+        dT_lims = (1e-10,5e-10)
+        dS_lims = (3.4e-8,6.5e-8)
+        ratio_lims = (0,1.55)
+        
+        for i in [0,1]:
+            #axs[0,i].set_ylim(db_lims)
+            #axs[1,i].set_ylim(dT_lims)
+            #axs[2,i].set_ylim(dS_lims)
+            axs[1,i].set_ylim(ratio_lims)
+            axs[1,i].yaxis.set_major_formatter(FormatStrFormatter('%g $\pi$'))
+            axs[1,i].yaxis.set_major_locator(
+                                   matplotlib.ticker.MultipleLocator(base=0.25))
+        plt.savefig('density_ratio_two_panel.png')
+
 
 m = plot_buoyancy_ratio('EXP10')
 m.load_basics()
-m.get_grad_T_and_S(save=True)
+#m.get_grad_T_and_S(save=True)
 #m.get_density_ratio()
-#m.get_T_S_bg_stats(save=True)
+m.get_T_S_bg_stats(save=True)
 
-#m = plot_buoyancy_ratio('EXP10')
+# = plot_buoyancy_ratio('EXP10')
 #m.get_T_S_bg_stats(load=True)
-#m.plot_density_ratio()
+#.plot_density_ratio_two_panel()

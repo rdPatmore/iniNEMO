@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import iniNEMO.Process.calc_vorticity as vort
 import dask
+import gfuncs
 
 # Let's start simple with a LocalCluster that makes use of all the cores and RAM we have on a single machine
 from dask.distributed import Client, LocalCluster
@@ -44,8 +45,9 @@ class richardson(object):
 
         # calculate buoyancy gradients
         b = g*(1-rho/rho_0) 
+
         dx = self.cfg.e1u.isel(x=slice(None,-1), y=slice(None,-1))
-        dy = self.cfg.e1v.isel(y=slice(None,-1), x=slice(None,-1))
+        dy = self.cfg.e1v.isel(x=slice(None,-1), y=slice(None,-1))
         bx = b.diff('x', label='lower').isel(y=slice(None,-1)) / dx
         by = b.diff('y', label='lower').isel(x=slice(None,-1)) / dy
         bx.name = 'bx'
