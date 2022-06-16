@@ -284,10 +284,12 @@ class bootstrap_glider_samples(object):
         hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
         return hist_mean, hist_l_quant, hist_u_quant
 
-    def get_glider_sampled_hist(self, n=1, save=False):
+    def get_glider_sampled_hist(self, n=1, save=False, by_time=None):
         '''
         add sample set of means and std to histogram
-        n = sample size
+        n      : sample size
+        by_time: get stats over time - i.e. get weekly stats
+                 - week is only option for now
         '''
  
         set_size = self.samples.sizes['sample']
@@ -296,6 +298,14 @@ class bootstrap_glider_samples(object):
         random = np.random.randint(set_size, size=(set_size,n))
 
         hists = []
+
+        # split into groups of weeks
+        print (self.samples)
+        self.samples = self.samples.groupby('time_counter.dt.week')
+        print (self.samples)
+        print (fkj)
+
+        # calculate set of histograms
         for i, sample in enumerate(random):
             sample_set = self.samples.isel(sample=sample)#.b_x_ml
             set_stacked = sample_set.stack(z=('distance','sample'))
@@ -303,6 +313,8 @@ class bootstrap_glider_samples(object):
                                 range=self.hist_range, density=True, bins=20)
             #                    range=(1e-9,5e-8), density=True)
             hists.append(hist)
+        
+        # calculate spread across histogram set
         hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(hists, bins)
         if save:
             bin_centers = (bins[:-1] + bins[1:]) / 2
@@ -887,8 +899,8 @@ def prep_hist():
     cases = ['EXP10']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset='south')
-        m.get_full_model_hist(save=True)
+                                     subset='')
+        #m.get_full_model_hist(save=True)
         for n in range(1,31):
             print (n)
             m.get_glider_sampled_hist(n=n, save=True)
@@ -921,9 +933,9 @@ def plot_quantify_delta_bg(subset=''):
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
                                      subset=subset)
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
-plot_quantify_delta_bg()
-plot_quantify_delta_bg(subset='north')
-plot_quantify_delta_bg(subset='south')
+##plot_quantify_delta_bg()
+##plot_quantify_delta_bg(subset='north')
+##plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
@@ -940,7 +952,7 @@ plot_quantify_delta_bg(subset='south')
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-#prep_hist()
+prep_hist()
 #plot_hist()
 #prep_timeseries()
 #plot_timeseries()
