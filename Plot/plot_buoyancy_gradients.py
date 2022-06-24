@@ -8,6 +8,7 @@ import numpy as np
 import dask
 import matplotlib
 from get_transects import get_transects
+import matplotlib.dates as mdates
 
 dask.config.set({"array.slicing.split_large_chunks": True})
 
@@ -61,20 +62,28 @@ class plot_buoyancy_gradients(object):
             bg = bg.by
 
         vmax = bg.max()
-        ax.pcolor(bg.nav_lon, bg.nav_lat, bg, vmin=0, vmax=4.0e-8)
+        p = ax.pcolor(bg.nav_lon, bg.nav_lat, bg, vmin=0, vmax=5.0e-8)
         ax.set_aspect('equal')
+ 
+        return p 
 
-    def render_snapshot_bg(self, ax, bg):
+    def render_snapshot_bg(self, ax, bg, bg_type='norm'):
         '''
         adds time-mean horizontal slice of buoyancy gradients to a subplot
         '''
 
         bg = bg.sel(time_counter='2013-01-01 00:00:00', method='nearest')
-        bg = (bg.bx ** 2 + bg.by ** 2) ** 0.5
+        if bg_type == 'norm':
+            bg = (bg.bx ** 2 + bg.by ** 2) ** 0.5
+        if bg_type == 'bx':
+            bg = bg.bx
+        if bg_type == 'by':
+            bg = bg.by
 
         vmax = bg.max()
-        ax.pcolor(bg.nav_lon, bg.nav_lat, bg, vmin=0, vmax=4.0e-8)
+        p = ax.pcolor(bg.nav_lon, bg.nav_lat, bg, vmin=0, vmax=2.0e-7)
         ax.set_aspect('equal')
+        return p
 
     def render_cumulative_mean(self, ax, bg_type='bx', dcdt=False):
         ''' 
@@ -118,7 +127,7 @@ class plot_buoyancy_gradients(object):
         # render y
         ax.plot(bg_mean.bx.time_counter, bg_mean.bx)
         ax.fill_between(bg_l.by.time_counter, bg_l.by, bg_u.by,
-                        color='red', alpha=0.2)
+                        color='blue', alpha=0.2)
 
     def plot_bg_timeseries_with_north_south(self, depth=10):
         '''
@@ -135,7 +144,8 @@ class plot_buoyancy_gradients(object):
 
         # initialise plots
         fig, axs = plt.subplots(3,1, figsize=(5.5,4.0))
-        plt.subplots_adjust()
+        plt.subplots_adjust(left=0.10, right=0.98, top=0.97, bottom=0.15,
+                            hspace=0.13)
 
         print (self.bg.y.max().values)
         bg_s = self.bg.sel(y=slice(int(self.bg.y.max()/2),-1))
@@ -144,6 +154,29 @@ class plot_buoyancy_gradients(object):
         self.render_buoyancy_gradient_mean_and_std(axs[0], self.bg)
         self.render_buoyancy_gradient_mean_and_std(axs[1], bg_s)
         self.render_buoyancy_gradient_mean_and_std(axs[2], bg_n)
+
+        # axs labels
+        for ax in axs[:2]:
+            ax.set_xticklabels([])
+        for ax in axs:
+            ax.set_ylabel('buoyancy\ngradient')
+            ax.set_ylim(0, 1.7e-7)
+            ax.set_xlim(self.bg.time_counter.min(), self.bg.time_counter.max())
+
+        # region labels
+        axs[0].text(0.98, 0.88, 'full domain', transform=axs[0].transAxes,
+                    ha='right')
+        axs[1].text(0.98, 0.88, 'north', transform=axs[1].transAxes,
+                    ha='right')
+        axs[2].text(0.98, 0.88, 'south', transform=axs[2].transAxes,
+                    ha='right')
+
+        # date labels
+        axs[2].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        # Rotates and right-aligns 
+        for label in axs[2].get_xticklabels(which='major'):
+            label.set(rotation=35, horizontalalignment='right')
+        axs[2].set_xlabel('date')
 
         plt.savefig('bg_time_series.png')
         
@@ -162,19 +195,50 @@ class plot_buoyancy_gradients(object):
         self.bg = np.abs(self.bg)
 
         # initialise plots
-        fig, axs = plt.subplots(3,2, figsize=(5.5,4.0))
-        plt.subplots_adjust()
+        fig, axs = plt.subplots(2,3, figsize=(5.5,3.8))
+        plt.subplots_adjust(left=0.1, right=0.88, top=0.97, bottom=0.10,
+                            hspace=0.05, wspace=0.06)
         
         #self.render_cumulative_mean(axs[2,0], self.bg, bg_type='bx')
         #self.render_cumulative_mean(axs[2,1], self.bg, bg_type='by')
         self.render_time_mean_bg(axs[0,0], self.bg, bg_type='bx')
         self.render_time_mean_bg(axs[0,1], self.bg, bg_type='by')
-        self.render_time_mean_bg(axs[1,0], self.bg, bg_type='norm')
-        self.render_snapshot_bg(axs[1,1], self.bg)
-        self.render_buoyancy_gradient_mean_and_std(axs[2,0])
+        p0 = self.render_time_mean_bg(axs[0,2], self.bg, bg_type='norm')
+        self.render_snapshot_bg(axs[1,0], self.bg, bg_type='bx')
+        self.render_snapshot_bg(axs[1,1], self.bg, bg_type='by')
+        p1 = self.render_snapshot_bg(axs[1,2], self.bg, bg_type='norm')
+        #self.render_buoyancy_gradient_mean_and_std(axs[2,0])
 
-        #plt.show()
-        plt.savefig('bg_means.png')
+        # colour bar
+        pos = axs[0,2].get_position()
+        cbar_ax = fig.add_axes([0.89, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(4.3, 0.5, 'buoyancy gradient', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left')
+
+        pos = axs[1,2].get_position()
+        cbar_ax = fig.add_axes([0.89, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(4.3, 0.5, 'buoyacy gradient', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left')
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        for ax in axs[0,:]:
+            ax.set_xticklabels([])
+        for ax in axs[1,:]:
+            ax.set_xlabel('longitude')
+        for ax in axs[:,0]:
+            ax.set_ylabel('latitude')
+
+        # titles
+        axs[0,0].set_title(r'$b_x$')
+        axs[0,1].set_title(r'$b_y$')
+        axs[0,2].set_title(r'$|b_y|$')
+
+        plt.savefig('bg_means.png', dpi=600)
 
 p = plot_buoyancy_gradients('EXP10')
-p.plot_bg_timeseries_with_north_south()
+#p.plot_bg_timeseries_with_north_south()
+p.plot_time_mean_bg()

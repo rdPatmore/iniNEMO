@@ -4,6 +4,7 @@ import config
 import numpy as np
 from matplotlib.ticker import FormatStrFormatter
 import matplotlib
+import matplotlib.dates as mdates
 
 class plot_buoyancy_ratio(object):
 
@@ -281,7 +282,9 @@ class plot_buoyancy_ratio(object):
         2 x 2 plot with columns of x and y components
         '''
 
-        fig, axs = plt.subplots(2,2, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(2,2, figsize=(5.5,4.0))
+        plt.subplots_adjust(top=0.95, right=0.98, left=0.15, bottom=0.2,
+                            hspace=0.05, wspace=0.05)
 
         # tan of density ratio
         self.stats['density_ratio_x_ts_mean'] = np.arctan(
@@ -307,38 +310,64 @@ class plot_buoyancy_ratio(object):
         var_list = ['dbdx','dbdy',
                     'density_ratio_x','density_ratio_y']
 
+        def render_density_ratio(ax, var):
+            var_mean = var + '_ts_mean'
+            lower = self.stats[var_mean].where(self.stats[var_mean] < 0.25)
+            upper = self.stats[var_mean].where(self.stats[var_mean] > 0.25)
+            ax.fill_between(lower.time_counter, lower, 0.25,
+                            edgecolor=None, color='teal')
+            ax.fill_between(upper.time_counter, 0.25, upper,
+                            edgecolor=None, color='tab:red')
+
 
         for j, col in enumerate(axs):
             for i, ax in enumerate(col):
                 print (var_list[i+(2*j)], i, j)
                 render(ax,var_list[i+(2*j)])
+        render_density_ratio(axs[1,0], var_list[2])
+        render_density_ratio(axs[1,1], var_list[3])
         print (self.stats.density_ratio_x_ts_mean.min())
         print (self.stats.density_ratio_x_ts_mean.max())
         print (self.stats.density_ratio_x_ts_std.min())
         print (self.stats.density_ratio_x_ts_std.max())
 
-        db_lims = (1e-9,5e-8)
-        dT_lims = (1e-10,5e-10)
-        dS_lims = (3.4e-8,6.5e-8)
-        ratio_lims = (0,1.55)
+        db_lims = (0,3.6e-8)
+        ratio_lims = (0,0.35)
+        print (self.stats)
+        date_lims = (self.stats.time_counter.min(), 
+                     self.stats.time_counter.max())
         
         for i in [0,1]:
-            #axs[0,i].set_ylim(db_lims)
-            #axs[1,i].set_ylim(dT_lims)
-            #axs[2,i].set_ylim(dS_lims)
+            axs[0,i].set_xlim(date_lims)
+            axs[1,i].set_xlim(date_lims)
+            axs[0,i].set_ylim(db_lims)
             axs[1,i].set_ylim(ratio_lims)
             axs[1,i].yaxis.set_major_formatter(FormatStrFormatter('%g $\pi$'))
             axs[1,i].yaxis.set_major_locator(
                                    matplotlib.ticker.MultipleLocator(base=0.25))
+            axs[1,i].axhline(0.25, 0, 1)
+            axs[0,i].set_xticklabels([])
+            axs[i,1].set_yticklabels([])
+
+            # date labels
+            axs[1,i].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+            # Rotates and right-aligns 
+            for label in axs[1,i].get_xticklabels(which='major'):
+                label.set(rotation=35, horizontalalignment='right')
+            axs[1,i].set_xlabel('date')
+
+        axs[0,0].set_ylabel('buoyancy gradient')
+        axs[1,0].set_ylabel('denstiy ratio')
+
         plt.savefig('density_ratio_two_panel.png')
 
 
-m = plot_buoyancy_ratio('EXP10')
-m.load_basics()
+#m = plot_buoyancy_ratio('EXP10')
+#m.load_basics()
 #m.get_grad_T_and_S(save=True)
 #m.get_density_ratio()
-m.get_T_S_bg_stats(save=True)
+#m.get_T_S_bg_stats(save=True)
 
-# = plot_buoyancy_ratio('EXP10')
-#m.get_T_S_bg_stats(load=True)
-#.plot_density_ratio_two_panel()
+m = plot_buoyancy_ratio('EXP10')
+m.get_T_S_bg_stats(load=True)
+m.plot_density_ratio_two_panel()

@@ -77,7 +77,7 @@ def get_transects(da, concat_dim='distance', method='cycle',
         for i in range(da[concat_dim].size)[::shrink]:
             dp = da.isel({concat_dim:i})
             if (a == 0) and (start == True):
-                test = ((dp.orig_lat < -60.04) and (dp.orig_lon > 0.176))
+                test = ((dp.orig_lat < -60.04) & (dp.orig_lon > 0.176))
             elif a == 0:
                 test = (dp.orig_lon > 0.176)
             elif a == 1:
@@ -105,8 +105,13 @@ def get_transects(da, concat_dim='distance', method='cycle',
     da = xr.concat(da, dim=concat_dim)
 
     # remove initial and mid path excursions
+    print (da)
     da = da.where(da.transect>1, drop=True)
-    da = da.where(da.transect != da.lat.idxmin(skipna=True).transect, drop=True)
+    # this should work but there is a bug in xarray perhaps
+    # idxmin drops all coordinates...
+    #da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,drop=True)
+    transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
+    da = da.where(da.transect != transect_south, drop=True)
 
     # re-rotate
     if rotation:

@@ -44,34 +44,46 @@ class bootstrap_glider_samples(object):
         patch=''
         if self.subset=='north':
             self.append='_n'
-            patch = 'north_patch_'
+            patch = '_north_patch'
         if self.subset=='south':
             self.append='_s'
-            patch = 'south_patch_'
+            patch = '_south_patch'
 
         # load samples
-        prep = 'GliderRandomSampling/glider_uniform_interp_1000_' + patch
-        sample_list = [self.data_path + prep + 
-                       str(i).zfill(2) + '.nc' for i in range(sample_size)]
-        self.samples = xr.open_mfdataset(sample_list, 
-                                     combine='nested', concat_dim='sample',
-                                     preprocess=expand_sample_dim).load()
+        prep = 'GliderRandomSampling/glider_uniform_interp_1000' + patch + '.nc'
+        #sample_list = [self.data_path + prep + 
+        #               str(i).zfill(2) + '.nc' for i in range(sample_size)]
+        #self.samples = xr.open_mfdataset(sample_list, 
+        #                             combine='nested', concat_dim='sample',
+        #                             preprocess=expand_sample_dim).load()
+        self.samples = xr.open_dataset(self.data_path + prep,
+                                       chunks={'sample':1})[var]
 
         # depth average
         #self.samples = self.samples.mean('ctd_depth', skipna=True)
         self.samples = self.samples.sel(ctd_depth=10, method='nearest')
         #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
 
+
+        # unify times
+        self.samples['time_counter'] = self.samples.time_counter.isel(sample=0)
+
         # get transects and remove 2 n-s excursions
         # this cannot currently deal with depth-distance data (1-d only)
+        old=False
+        print (self.samples)
         if transect:
-            sample_list = []
-            for i in range(self.samples.sample.size):
-                print ('sample: ', i)
-                var10 = self.samples.isel(sample=i)
-                sample_transect = get_transects(var10, offset=True)
-                sample_list.append(sample_transect)
-            self.samples=xr.concat(sample_list, dim='sample')
+            if old:
+                sample_list = []
+                for i in range(self.samples.sample.size):
+                    print ('sample: ', i)
+                    var10 = self.samples.isel(sample=i)
+                    sample_transect = get_transects(var10, offset=True)
+                    sample_list.append(sample_transect)
+                self.samples=xr.concat(sample_list, dim='sample')
+            else:
+                self.samples = self.samples.groupby('sample').map(
+                                                     get_transects, offset=True)
 
         # set time to float for averaging
         float_time = self.samples.time_counter.astype('float64')
@@ -284,6 +296,7 @@ class bootstrap_glider_samples(object):
         hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
         return hist_mean, hist_l_quant, hist_u_quant
 
+
     def get_glider_sampled_hist(self, n=1, save=False, by_time=None):
         '''
         add sample set of means and std to histogram
@@ -299,24 +312,20 @@ class bootstrap_glider_samples(object):
 
         hists = []
 
-        # split into groups of weeks
-        print (self.samples)
-        self.samples = self.samples.groupby('time_counter.dt.week')
-        print (self.samples)
-        print (fkj)
 
-        # calculate set of histograms
-        for i, sample in enumerate(random):
-            sample_set = self.samples.isel(sample=sample)#.b_x_ml
-            set_stacked = sample_set.stack(z=('distance','sample'))
-            hist, bins = np.histogram(set_stacked.dropna('z', how='all'),
-                                range=self.hist_range, density=True, bins=20)
-            #                    range=(1e-9,5e-8), density=True)
-            hists.append(hist)
-        
-        # calculate spread across histogram set
-        hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(hists, bins)
-        if save:
+        def get_stats_across_hists(samples):
+            # calculate set of histograms
+            for i, sample in enumerate(random):
+                sample_set = samples.isel(sample=sample)#.b_x_ml
+                set_stacked = sample_set.stack(z=('time_counter','sample'))
+                hist, bins = np.histogram(set_stacked.dropna('z', how='all'),
+                                   range=self.hist_range, density=True, bins=20)
+                #                    range=(1e-9,5e-8), density=True)
+                hists.append(hist)
+            
+            # calculate spread across histogram set
+            hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(
+                                                                    hists, bins)
             bin_centers = (bins[:-1] + bins[1:]) / 2
             hist_ds = xr.Dataset({'hist_mean':(['bin_centers'], hist_mean),
                                   'hist_l_dec':(['bin_centers'], hist_l_quant),
@@ -325,10 +334,24 @@ class bootstrap_glider_samples(object):
                                   'bin_centers': (['bin_centers'], bin_centers),
                                   'bin_left'   : (['bin_centers'], bins[:-1]),
                                   'bin_right'  : (['bin_centers'], bins[1:])})
+            #hist_ds = hist_ds.assign_coords({'week_start':samples.time_counter})
+            return hist_ds
+
+        if by_time:
+            # split into groups of weeks
+            samples = self.samples
+            samples['time_counter'] = samples.time_counter.astype(
+                                       'datetime64[ns]')
+            samples = samples.swap_dims({'distance':'time_counter'})
+            samples = samples.dropna('time_counter')
+            hist_ds = samples.resample(time_counter='1W', skipna=True).map(
+                                                         get_stats_across_hists)
+            
+        if save:
             hist_ds.to_netcdf(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                           str(n).zfill(2) + '_hist' + self.append + '.nc')
-        return hist_mean, hist_l_quant, hist_u_quant 
+        return hist_ds
 
     def get_glider_sample_lims(self):
         ''' find the x and y extend of each glider sample '''
@@ -562,6 +585,7 @@ class bootstrap_glider_samples(object):
         self.ax.set_ylim(0, 3e8)
         plt.savefig(self.case + '_bg_sampling_skill' + self.append + '.png',
                     dpi=600)
+
 
     def plot_rmse_over_ensemble_sizes(self):
         ''' plot the root mean squared error of the 1 s.d. from the 
@@ -884,15 +908,71 @@ class bootstrap_plotting(object):
 
         plt.show()
 
-def plot_hist():
+    def render_glider_sample_set_v(self, n=1, c='green', style='plot'):
+        ds = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                           str(n).zfill(2) + '_hist' + self.append + '.nc')
+        for i, (_, week) in enumerate(week.groupby('time_counter')):
+            print (i)
+            if style=='bar':
+                self.axs[i].barh(ds.bin_left, 
+                                 ds.hist_u_dec - ds.hist_l_dec, 
+                                 height=ds.bin_right - ds.bin_left,
+                                 color=c,
+                                 alpha=0.2,
+                                 left=ds.hist_l_dec, 
+                                 align='edge',
+                                 label='gliders: ' + str(n))
+            #    self.ax.scatter(ds.bin_centers, ds.hist_mean, c=c, s=4, zorder=10)
+            if style=='plot':
+                self.ax.fill_between(ds.bin_centers, ds.hist_l_dec,
+                                                     ds.hist_u_dec,
+                                     color=c, edgecolor=None, alpha=0.2)
+                self.ax.plot(ds.bin_centers, ds.hist_mean, c=c, lw=0.8,
+                             label='gliders: ' + str(n))
+
+    def plot_histogram_buoyancy_gradients_and_samples_weekly(self, case):
+        ''' 
+        plot histogram of buoyancy gradients in week portions
+        '''
+
+        self.path = self.data_path + case
+        self.figure, self.axs = plt.subplots(15, figsize=(6.5,4.0))
+      
+
+        sample_sizes = [1, 4, 20]
+        colours = ['g', 'b', 'r', 'y', 'c']
+
+        for i, n in enumerate(sample_sizes):
+            print ('sample', i)
+            self.render_glider_sample_set_v(n=n, c=colours[i], style='bar')
+        #self.add_model_means(style='bar')
+
+        #self.ax.set_xlabel('Buoyancy Gradient')
+        #self.ax.set_ylabel('PDF')
+
+        #plt.legend()
+        #self.ax.set_xlim(self.hist_range[0], self.hist_range[1])
+        #self.ax.set_ylim(0, 3e8)
+        plt.savefig(case + '_bg_sampling_skill' + self.append + '.png',
+                    dpi=600)
+
+
+def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
-    for case in cases:
-        print ('case: ', case)
-        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
-                                     subset='south')
-        m.plot_histogram_buoyancy_gradients_and_samples()
-        m.plot_rmse_over_ensemble_sizes()
+    if by_time == 'weekly':
+        boot = bootstrap_plotting(append='weekly')
+        boot.plot_histogram_buoyancy_gradients_and_samples_weekly('EXP10')
+    
+    else:
+        for case in cases:
+            print ('case: ', case)
+            m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
+                                         subset='')
+            m.plot_histogram_buoyancy_gradients_and_samples()
+            #m.plot_rmse_over_ensemble_sizes()
+plot_hist(by_time='weekly')
 
 def prep_hist():
     cases = ['EXP10', 'EXP08', 'EXP13']
@@ -900,10 +980,11 @@ def prep_hist():
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
                                      subset='')
+        m.append = m.append + '_weekly'
         #m.get_full_model_hist(save=True)
         for n in range(1,31):
             print (n)
-            m.get_glider_sampled_hist(n=n, save=True)
+            m.get_glider_sampled_hist(n=n, save=True, by_time='week')
 
 def prep_timeseries(subest=''):
     cases = ['EXP10']
@@ -952,7 +1033,7 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-prep_hist()
+#prep_hist()
 #plot_hist()
 #prep_timeseries()
 #plot_timeseries()
