@@ -109,7 +109,8 @@ class bootstrap_glider_samples(object):
     
         bg = xr.open_dataset(config.data_path() + self.case +
                              '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc',
-                             chunks={'time_counter':10})
+                             chunks='auto')
+                             #chunks={'x':10,'y':10})
         mld = xr.open_dataset(config.data_path() + self.case +
                               '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
                               chunks={'time_counter':10}).mldr10_3.load()
@@ -235,7 +236,7 @@ class bootstrap_glider_samples(object):
         ''' get std x,y,day/week of full model data '''
 
         self.get_model_buoyancy_gradients(ml=False)
-        self.bg = self.bg.sel(deptht=10, method='nearest')
+        self.bg = self.bg.sel(deptht=10, method='nearest').load()
         self.bg = np.abs(self.bg)
 
         # subset model
@@ -334,18 +335,21 @@ class bootstrap_glider_samples(object):
                                   'bin_centers': (['bin_centers'], bin_centers),
                                   'bin_left'   : (['bin_centers'], bins[:-1]),
                                   'bin_right'  : (['bin_centers'], bins[1:])})
-            #hist_ds = hist_ds.assign_coords({'week_start':samples.time_counter})
+           #hist_ds = hist_ds.assign_coords({'week_start':samples.time_counter})
             return hist_ds
+
+        samples = self.samples
+        samples['time_counter'] = samples.time_counter.astype(
+                                   'datetime64[ns]')
+        samples = samples.swap_dims({'distance':'time_counter'})
+        samples = samples.dropna('time_counter')
 
         if by_time:
             # split into groups of weeks
-            samples = self.samples
-            samples['time_counter'] = samples.time_counter.astype(
-                                       'datetime64[ns]')
-            samples = samples.swap_dims({'distance':'time_counter'})
-            samples = samples.dropna('time_counter')
             hist_ds = samples.resample(time_counter='1W', skipna=True).map(
                                                          get_stats_across_hists)
+        else:
+            hist_ds = get_stats_across_hists(samples)
             
         if save:
             hist_ds.to_netcdf(self.data_path + 
@@ -411,12 +415,19 @@ class bootstrap_glider_samples(object):
 
         return mean, quant, std
 
-    def get_full_model_hist(self, save=False, subset=''):
+    def get_full_model_hist(self, save=False, subset='', by_time=None):
+        '''
+        make histgram of buoyancy gradients for full model domain
+        by_time: splits caluculation over time
+                 currently implemeted for weekly splitting only
+        '''
         # load buoyancy gradients       
         self.get_model_buoyancy_gradients()
 
-        self.bg = self.bg.sel(deptht=10, method='nearest')
-        self.bg = np.abs(self.bg)
+        # reduce data
+        self.bg = np.abs(self.bg.sel(deptht=10, method='nearest'))
+        #mean_bg = (self.bg.bx + self.bg.by) / 2
+        #mean_bg = self.bg.by
 
         # subset model
         if self.subset=='north':
@@ -424,25 +435,41 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
 
-        stacked_bgx = self.bg.bx.stack(z=('time_counter','x','y'))
-        stacked_bgy = self.bg.by.stack(z=('time_counter','x','y'))
+        def get_hist(bg):
+            ''' calculate histogram and assign to xarray dataset '''
 
-        hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
+            # stack dimensions
+            stacked_bgx = bg.bx.stack(z=('time_counter','x','y'))
+            stacked_bgy = bg.by.stack(z=('time_counter','x','y'))
+
+            # histogram
+            hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
                                    range=self.hist_range, density=True, bins=20)
-        hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
+            hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
                                    range=self.hist_range, density=True, bins=20)
-        if save:
             bin_centers = (bins[:-1] + bins[1:]) / 2
+
+            # assign to dataset
             hist_ds = xr.Dataset({'hist_x':(['bin_centers'], hist_x),
-                                     'hist_y':(['bin_centers'], hist_y)},
-                                      coords={
-                               'bin_centers': (['bin_centers'], bin_centers),
+                                  'hist_y':(['bin_centers'], hist_y)},
+                       coords={'bin_centers': (['bin_centers'], bin_centers),
                                'bin_left'   : (['bin_centers'], bins[:-1]),
                                'bin_right'  : (['bin_centers'], bins[1:])})
+            return hist_ds
+
+        # time splitting
+        if by_time:
+            hist_ds = self.bg.resample(time_counter='1W', skipna=True).map(
+                                                         get_hist)
+        # entire timeseries
+        else:
+            hist_ds = get_hist(self.bg)
+
+        if save:
             hist_ds.to_netcdf(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                           self.append + '.nc')
-        return hist_x, hist_y, bins
+        return hist_ds
 
     def get_sampled_model_hist(self):
         ''' return mean and std of sampled model hists within a sample set '''
@@ -840,6 +867,8 @@ class bootstrap_plotting(object):
         else:
             self.append='_' + append
 
+        self.hist_range = (0,2e-8)
+
     def plot_variance(self, cases):
 
         fig, axs = plt.subplots(3,2, figsize=(6.5,5.5))
@@ -911,18 +940,39 @@ class bootstrap_plotting(object):
     def render_glider_sample_set_v(self, n=1, c='green', style='plot'):
         ds = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                           str(n).zfill(2) + '_hist' + self.append 
+                          + '_weekly.nc')
+        ds_all = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                            str(n).zfill(2) + '_hist' + self.append + '.nc')
-        for i, (_, week) in enumerate(week.groupby('time_counter')):
-            print (i)
-            if style=='bar':
-                self.axs[i].barh(ds.bin_left, 
-                                 ds.hist_u_dec - ds.hist_l_dec, 
-                                 height=ds.bin_right - ds.bin_left,
+        if style=='bar':
+            for i, (_, week) in enumerate(ds.groupby('time_counter')):
+                print (week.time_counter)
+                print (i)
+                self.axs.flatten()[i].barh(week.bin_left, 
+                                 week.hist_u_dec - week.hist_l_dec, 
+                                 height=week.bin_right - week.bin_left,
                                  color=c,
                                  alpha=0.2,
-                                 left=ds.hist_l_dec, 
+                                 left=week.hist_l_dec, 
                                  align='edge',
                                  label='gliders: ' + str(n))
+                self.axs.flatten()[i].text(0.3, 0.9, 
+                                  week.time_counter.dt.strftime('%m-%d').values,
+                                  transform=self.axs.flatten()[i].transAxes,
+                                  fontsize=6)
+            print (ds_all)
+            self.axs[1,-1].barh(ds_all.bin_left, 
+                             ds_all.hist_u_dec - ds_all.hist_l_dec, 
+                             height=ds_all.bin_right - ds_all.bin_left,
+                             color=c,
+                             alpha=0.2,
+                             left=ds_all.hist_l_dec, 
+                             align='edge',
+                             label='gliders: ' + str(n))
+            self.axs[1,-1].text(0.3, 0.9, 'all',
+                              transform=self.axs[1,-1].transAxes,
+                              fontsize=6)
             #    self.ax.scatter(ds.bin_centers, ds.hist_mean, c=c, s=4, zorder=10)
             if style=='plot':
                 self.ax.fill_between(ds.bin_centers, ds.hist_l_dec,
@@ -931,14 +981,42 @@ class bootstrap_plotting(object):
                 self.ax.plot(ds.bin_centers, ds.hist_mean, c=c, lw=0.8,
                              label='gliders: ' + str(n))
 
+    def add_model_means_v(self, style='plot'):
+        ''' add model means of the normed buoyancy gradients of the model '''
+        ds = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                   self.append + '_weekly.nc').isel(time_counter=slice(None,-1))
+        ds_all = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                        self.append + '.nc')
+       
+        ds['hist'] = (ds.hist_x + ds.hist_y) / 2
+        ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
+
+        if style=='bar':
+            for i, (_, week) in enumerate(ds.groupby('time_counter')):
+                print (week.time_counter)
+                self.axs.flatten()[i].vlines(week.hist,
+                        week.bin_left, week.bin_right,
+                       transform=self.axs.flatten()[i].transData,
+                       colors='black', lw=0.8, label='model bgx')
+            self.axs[1,-1].vlines(ds_all.hist,
+                       ds_all.bin_left, ds_all.bin_right,
+                       transform=self.axs[1,-1].transData,
+                       colors='black', lw=0.8, label='model bgx')
+        if style=='plot':
+            self.ax.plot(ds.bin_centers, ds.hist, c='black', lw=0.8,
+                         label='model bg')
+
     def plot_histogram_buoyancy_gradients_and_samples_weekly(self, case):
         ''' 
         plot histogram of buoyancy gradients in week portions
         '''
 
         self.path = self.data_path + case
-        self.figure, self.axs = plt.subplots(15, figsize=(6.5,4.0))
-      
+        self.figure, self.axs = plt.subplots(2,8, figsize=(6.5,3.5))
+        plt.subplots_adjust(wspace=0.3, bottom=0.15, left=0.08, right=0.98,
+                            top=0.95)
 
         sample_sizes = [1, 4, 20]
         colours = ['g', 'b', 'r', 'y', 'c']
@@ -946,23 +1024,33 @@ class bootstrap_plotting(object):
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
             self.render_glider_sample_set_v(n=n, c=colours[i], style='bar')
-        #self.add_model_means(style='bar')
+        self.add_model_means_v(style='bar')
 
-        #self.ax.set_xlabel('Buoyancy Gradient')
-        #self.ax.set_ylabel('PDF')
+        for ax in self.axs[:,0]:
+            ax.set_ylabel('Buoyancy Gradient')
+        for ax in self.axs[1]:
+            ax.set_xlabel('PDF', labelpad=12)
 
         #plt.legend()
-        #self.ax.set_xlim(self.hist_range[0], self.hist_range[1])
-        #self.ax.set_ylim(0, 3e8)
-        plt.savefig(case + '_bg_sampling_skill' + self.append + '.png',
+        for ax in self.axs.flatten():
+            ax.set_ylim(self.hist_range[0], self.hist_range[1])
+            ax.set_xlim(0, 3e8)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+        for ax in self.axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        for ax in self.axs[0]:
+            ax.set_xticklabels([])
+        
+        plt.savefig(case + '_bg_sampling_skill' + self.append + '_weekly.png',
                     dpi=600)
-
 
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     if by_time == 'weekly':
-        boot = bootstrap_plotting(append='weekly')
+        boot = bootstrap_plotting()
         boot.plot_histogram_buoyancy_gradients_and_samples_weekly('EXP10')
     
     else:
@@ -972,21 +1060,22 @@ def plot_hist(by_time=None):
                                          subset='')
             m.plot_histogram_buoyancy_gradients_and_samples()
             #m.plot_rmse_over_ensemble_sizes()
-plot_hist(by_time='weekly')
 
-def prep_hist():
+
+def prep_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
                                      subset='')
-        m.append = m.append + '_weekly'
-        #m.get_full_model_hist(save=True)
-        for n in range(1,31):
-            print (n)
-            m.get_glider_sampled_hist(n=n, save=True, by_time='week')
+        if by_time:
+            m.append = m.append + '_weekly'
+        m.get_full_model_hist(save=True, by_time=by_time)
+        #for n in range(1,31):
+        #    print (n)
+        #    m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
 
-def prep_timeseries(subest=''):
+def prep_timeseries(subset=''):
     cases = ['EXP10']
     #cases = ['EXP10', 'EXP08', 'EXP13']
     for case in cases:
@@ -1033,8 +1122,9 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-#prep_hist()
-#plot_hist()
+#prep_hist(by_time=None)
+#prep_hist(by_time='weekly')
+plot_hist(by_time='weekly')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
