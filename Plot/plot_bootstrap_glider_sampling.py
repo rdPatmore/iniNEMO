@@ -1008,6 +1008,57 @@ class bootstrap_plotting(object):
             self.ax.plot(ds.bin_centers, ds.hist, c='black', lw=0.8,
                          label='model bg')
 
+    def add_giddy(self, by_time=None):
+        ''' add giddy buoyancy gradient distribution '''
+
+        # get glider data
+        root = config.root()
+        giddy = xr.open_dataset(root + 'Giddy_2020/sg643_linterp.nc')
+        giddy_10 = giddy.sel(depth=10, method='nearest')
+        giddy_10 = giddy_10.set_coords('time')
+
+        # calculate buoyancy gradients
+        g = 9.81     # gravity 
+        rho_0 = 1026 # reference density
+        b = g*(1-giddy_10.dens/rho_0)
+        dx = 1000
+        dbdx = b.diff('distance') / dx
+
+        def get_hist(bx):
+            hist, bins = np.histogram(bx.dropna('time', how='all'),
+                                  range=self.hist_range, density=True, bins=20)
+            bin_centers = (bins[:-1] + bins[1:]) / 2
+
+            # assign to dataset
+            hist_ds = xr.Dataset({'hist':(['bin_centers'], hist)},
+                       coords={'bin_centers': (['bin_centers'], bin_centers),
+                               'bin_left'   : (['bin_centers'], bins[:-1]),
+                               'bin_right'  : (['bin_centers'], bins[1:])})
+            return hist_ds
+       
+        # time splitting
+        dbdx = dbdx.swap_dims({'distance':'time'})
+        print (dbdx)
+        hist_ds = dbdx.resample(time='1W', skipna=True).map(
+                                get_hist)
+        for i, (_,week) in enumerate(hist_ds.groupby('time')):
+            if i == 15: continue
+            ax = self.axs.flatten()[i]
+            ax.vlines(week.hist, week.bin_left, week.bin_right,
+                      transform=ax.transData, colors='orange', lw=0.8,
+                      label='Giddy et al. (2020)')
+
+        # entire timeseries
+        hist_ds = get_hist(dbdx)
+        ax = self.axs[-1,-1]
+        ax.vlines(hist_ds.hist, hist_ds.bin_left, hist_ds.bin_right,
+                  transform=ax.transData, colors='orange', lw=0.8,
+                  label='Giddy et al. (2020)')
+
+
+   
+
+
     def plot_histogram_buoyancy_gradients_and_samples_weekly(self, case):
         ''' 
         plot histogram of buoyancy gradients in week portions
@@ -1017,6 +1068,7 @@ class bootstrap_plotting(object):
         self.figure, self.axs = plt.subplots(2,8, figsize=(6.5,3.5))
         plt.subplots_adjust(wspace=0.3, bottom=0.15, left=0.08, right=0.98,
                             top=0.95)
+        self.add_giddy(self.axs[0,0])
 
         sample_sizes = [1, 4, 20]
         colours = ['g', 'b', 'r', 'y', 'c']
@@ -1025,6 +1077,7 @@ class bootstrap_plotting(object):
             print ('sample', i)
             self.render_glider_sample_set_v(n=n, c=colours[i], style='bar')
         self.add_model_means_v(style='bar')
+        self.add_giddy(by_time='weekly')
 
         for ax in self.axs[:,0]:
             ax.set_ylabel('Buoyancy Gradient')
