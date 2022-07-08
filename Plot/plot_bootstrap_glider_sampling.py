@@ -1099,12 +1099,106 @@ class bootstrap_plotting(object):
         plt.savefig(case + '_bg_sampling_skill' + self.append + '_weekly.png',
                     dpi=600)
 
+    def plot_rmse_over_ensemble_sizes_and_week(self, case):
+        ''' plot the root mean squared error of the 1 s.d. (? not decile)
+            from the **real** mean over week and ensemble size
+            contourf
+        '''
+        # load weekly model hists
+        m = xr.open_dataset(self.data_path + case + 
+                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                     self.append + '_weekly.nc').isel(
+                     time_counter=slice(None,-1))
+        
+        # pre merge function
+        def pre_proc(ds):
+            ds = ds.expand_dims('ensemble_size')
+            return ds
+         
+        # load weekly glider hists
+        prep = case + '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
+        ensemble_list = [self.data_path + prep + str(i).zfill(2) + '_hist' + 
+                         self.append + '_weekly.nc'
+                         for i in range(1,31)]
+        ensembles = xr.open_mfdataset(ensemble_list, 
+                                   combine='nested', concat_dim='ensemble_size',
+                                     preprocess=pre_proc).load()
+        ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
+
+        # mean of the vectors
+        m_bg_abs = (m.hist_x + m.hist_y) / 2
+
+        # rmse
+        def rmsep(pred, true):
+            norm = (pred - true)/true 
+            return np.sqrt(((norm)**2).mean(dim='bin_centers')) * 100
+
+        # calculate rmse
+        rmse_l = rmsep(ensembles.hist_l_dec, m_bg_abs)
+        rmse_u = rmsep(ensembles.hist_u_dec, m_bg_abs)
+        rmse_mean = rmsep(ensembles.hist_mean, m_bg_abs)
+
+        # initialise plot
+        fig, axs = plt.subplots(2, figsize=(6.5,4))
+        plt.subplots_adjust(left=0.08, right=0.87, hspace=0.1, bottom=0.15,
+                            top=0.98)
+
+        # render
+        cmap = plt.cm.inferno
+        lev = np.linspace(0,300,11)
+        p0 = axs[0].contourf(rmse_u.time_counter, rmse_u.ensemble_size, rmse_u,
+                             levels=lev, cmap=cmap)
+        lev = np.linspace(0,100,11)
+        p1 = axs[1].contourf(rmse_l.time_counter, rmse_l.ensemble_size, rmse_l,
+                             levels=lev, cmap=cmap)
+
+        # colour bar upper
+        pos = axs[0].get_position()
+        cbar_ax = fig.add_axes([0.88, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(4.1, 0.5, 'RMSE of\nbuoyancy gradients (%)', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left', multialignment='center')
+
+        # colour bar lower
+        pos = axs[1].get_position()
+        cbar_ax = fig.add_axes([0.88, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(4.1, 0.5, 'RMSE of\nbuoyancy gradients (%)', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left', multialignment='center')
+
+        # text labels
+        axs[0].text(0.99, 0.98, 'upper decile', c='w', va='top', ha='right',
+                    transform=axs[0].transAxes)
+        axs[1].text(0.99, 0.98, 'lower decile', c='w', va='top', ha='right',
+                    transform=axs[1].transAxes)
+
+        # axes labels
+        for ax in axs:
+            ax.set_ylabel('ensemble size')
+            ax.set_xticks(rmse_mean.time_counter)
+        axs[1].set_xlabel('date (month-day)')
+
+        # set xlabels
+        week_labels = rmse_mean.time_counter.dt.strftime('%m-%d').values
+        axs[0].set_xticklabels([])
+        axs[1].set_xticklabels(week_labels)
+
+        # rotate labels
+        for label in axs[1].get_xticklabels(which='major'):
+            label.set(rotation=35, horizontalalignment='right')
+
+        plt.savefig(case + '_bg_RMSE_weekly' 
+                    + self.append + '.png', dpi=600)
+
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     if by_time == 'weekly':
         boot = bootstrap_plotting()
-        boot.plot_histogram_buoyancy_gradients_and_samples_weekly('EXP10')
+        #boot.plot_histogram_buoyancy_gradients_and_samples_weekly('EXP10')
+        boot.plot_rmse_over_ensemble_sizes_and_week('EXP10')
     
     else:
         for case in cases:
