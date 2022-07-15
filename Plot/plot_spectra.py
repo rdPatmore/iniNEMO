@@ -9,6 +9,9 @@ from scipy import ndimage
 import matplotlib
 from skimage.filters import window
 import scipy.signal as sig
+import matplotlib.gridspec as gridspec
+from plot_interpolated_tracks import get_sampled_path
+import cartopy.crs as ccrs
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -319,6 +322,81 @@ class plot_power_spectrum(object):
         self.ax.set_xlim(2e-2,4)
         self.fig.legend(loc='upper right', bbox_to_anchor=(0.99, 0.99),
                         fontsize=6)
+
+    def plot_pre_post_transect(self):
+        '''
+        plot paths and associated spectra when retriving transects
+        pre/post interpolation
+        '''
+
+        # initialised figure
+        fig = plt.figure(figsize=(6.5, 4.5), dpi=300)
+        gs0 = gridspec.GridSpec(ncols=3, nrows=2)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs2 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs0.update(top=0.93, bottom=0.58, left=0.13, right=0.78)
+        gs1.update(top=0.93, bottom=0.58, left=0.80, right=0.98)
+        gs2.update(top=0.55, bottom=0.25, left=0.13, right=0.98)
+
+        axs0, axs2 = [], []
+        #for i in range(3):
+        #    for j in range(2):
+                #axs0.append(fig.add_subplot(gs0[j,i], 
+        for i in range(6):
+                axs0.append(fig.add_subplot(gs0[i], 
+                     projection=ccrs.AlbersEqualArea(central_latitude=60,
+                      standard_parallels=(-62,-58))))
+        for i in range(2):
+            axs2.append(fig.add_subplot(gs2[i]))
+        axs1 = fig.add_subplot(gs2[0])
+
+        proj = ccrs.PlateCarree()
+
+        # plot post transect
+        full_path = get_sampled_path('EXP10', 'interp_1000') 
+        cmap = plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
+        for (l,trans) in full_path.groupby('transect'):
+            axs0[0].plot(trans.lon, trans.lat, transform=proj)
+
+        every_2 = get_sampled_path('EXP10', 'every_2') 
+        cmap = plt.cm.inferno(np.linspace(0,1,every_2.transect.max().values+1))
+        for (l,trans) in every_2.groupby('transect'):
+            axs0[1].plot(trans.lon, trans.lat, transform=proj)
+
+        every_8 = get_sampled_path('EXP10', 'every_8') 
+        cmap = plt.cm.inferno(np.linspace(0,1,every_8.transect.max().values+1))
+        for (l,trans) in every_8.groupby('transect'):
+            axs0[2].plot(trans.lon, trans.lat, transform=proj)
+
+        # plot pre transect
+        full_path = get_sampled_path('EXP10', 'interp_1000_transects',
+                                     post_transect=False) 
+        cmap = plt.cm.inferno(np.linspace(0,1,
+                                        int(full_path.transect.max().values)+1))
+        for (l,trans) in full_path.groupby('transect'):
+            axs0[3].plot(trans.lon, trans.lat, transform=proj)
+
+        every_2 = get_sampled_path('EXP10', 'every_2_transects',
+                                     post_transect=False) 
+        cmap = plt.cm.inferno(np.linspace(0,1,int(every_2.transect.max().values)+1))
+        for (l,trans) in every_2.groupby('transect'):
+            axs0[4].plot(trans.lon, trans.lat, transform=proj)
+
+        every_8 = get_sampled_path('EXP10', 'every_8_transects',
+                                     post_transect=False) 
+        cmap = plt.cm.inferno(np.linspace(0,1,int(every_8.transect.max().values)+1))
+        for (l,trans) in every_8.groupby('transect'):
+            axs0[5].plot(trans.lon, trans.lat, transform=proj)
+        plt.show()
+
+        #m = plot_power_spectrum()
+       # 
+       # self.add_glider_spectra(self, model, var='votemper',
+       #                         append='', c='orange',
+       #                       label='', old=False, ls='-', old_spec_calc=False,
+       #                    simple_calc=False):
+       #     c = ['red','blue']
+          
 def glider_sampling_alteration():
     m = plot_power_spectrum()
     m.ini_figure()
@@ -354,8 +432,9 @@ def glider_sampling_alteration():
     #                     old=True)
     m.finishing_touches()
     #plt.show()
-    plt.savefig('EXP10_glider_burst_3_21_9_21_3_9_transect_clean_polyfit1.png', dpi=1200)
-glider_sampling_alteration()
+    plt.savefig('EXP10_glider_burst_3_21_9_21_3_9_transect_clean_polyfit1.png',
+                dpi=1200)
+#glider_sampling_alteration()
 ##m.toy_signal()
 ##m.plot_multi_time_power_spectrum(np.arange(0,100,10))
 def model_res_compare():
@@ -368,5 +447,6 @@ def model_res_compare():
     m.add_power_law('-3', ls=':')
     plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
-#m = plot_power_spectrum()
+m = plot_power_spectrum()
+m.plot_pre_post_transect()
 #m.plot_regridded_detrended_example()

@@ -109,9 +109,9 @@ def get_transects(da, concat_dim='distance', method='cycle',
     da = da.where(da.transect>1, drop=True)
     # this should work but there is a bug in xarray perhaps
     # idxmin drops all coordinates...
-    #da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,drop=True)
-    transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
-    da = da.where(da.transect != transect_south, drop=True)
+    da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,drop=True)
+    #transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
+    #da = da.where(da.transect != transect_south, drop=True)
 
     # re-rotate
     if rotation:

@@ -260,4 +260,4 @@ def plot_patch_sampling():
                  transform=cbar.ax.transAxes, va='center', ha='right')
 
     plt.savefig('temp_with_glider_paths.png', dpi=600)
-plot_patch_sampling()
+#plot_patch_sampling()

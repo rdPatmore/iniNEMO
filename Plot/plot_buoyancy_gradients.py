@@ -235,7 +235,7 @@ class plot_buoyancy_gradients(object):
         # titles
         axs[0,0].set_title(r'$b_x$')
         axs[0,1].set_title(r'$b_y$')
-        axs[0,2].set_title(r'$|b_y|$')
+        axs[0,2].set_title(r'$|b_{(x,y)}}|$')
 
         plt.savefig('bg_means.png', dpi=600)
 

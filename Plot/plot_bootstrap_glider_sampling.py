@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 import numpy as np
 import dask
 import matplotlib
+import datetime
 #import itertools
 from get_transects import get_transects
 
@@ -315,6 +316,8 @@ class bootstrap_glider_samples(object):
 
 
         def get_stats_across_hists(samples):
+            sample_size = len(samples.time_counter)
+            print (sample_size)
             # calculate set of histograms
             for i, sample in enumerate(random):
                 sample_set = samples.isel(sample=sample)#.b_x_ml
@@ -330,7 +333,8 @@ class bootstrap_glider_samples(object):
             bin_centers = (bins[:-1] + bins[1:]) / 2
             hist_ds = xr.Dataset({'hist_mean':(['bin_centers'], hist_mean),
                                   'hist_l_dec':(['bin_centers'], hist_l_quant),
-                                  'hist_u_dec':(['bin_centers'], hist_u_quant)},
+                                  'hist_u_dec':(['bin_centers'], hist_u_quant),
+                                  'sample_size':(sample_size)},
                                       coords={
                                   'bin_centers': (['bin_centers'], bin_centers),
                                   'bin_left'   : (['bin_centers'], bins[:-1]),
@@ -343,11 +347,74 @@ class bootstrap_glider_samples(object):
                                    'datetime64[ns]')
         samples = samples.swap_dims({'distance':'time_counter'})
         samples = samples.dropna('time_counter')
+        #plt.scatter(np.arange(len(samples.time_counter)),samples.time_counter)
+        #plt.show()
+        #samples = samples.resample(time_counter='1H').interpolate()
 
-        if by_time:
+        def get_rolling_hists(ts):
+            '''
+            calculate distribution of buoyancy gradients over a 
+            rolling mean
+            in prep: functionality currently only works with regular time steps
+            '''
+
+            # get week centred dates
+            week_dates = list(samples.time_counter.resample(
+                              time_counter='1W').groups.keys())
+
+            # create rolling object as dataset with extra rolled dimension
+            rolled = samples.rolling(time_counter=ts, center=True).construct(
+                         by_time).sel(time_counter=week_dates, method='nearest')
+
+            # swap time labels
+            rolled = rolled.rename({'time_counter':'time'})
+            rolled = rolled.rename({by_time:'time_counter'})
+
+            # caculate histograms
+            hist_ds = rolled.groupby('time').map(get_stats_across_hists)
+
+            # return labels
+            hist_ds = hist_ds.rename({'time':'time_counter'})
+
+            return hist_ds
+
+        date_list = [np.datetime64('2012-12-15 12:00:00') +
+                     np.timedelta64(i, 'W')
+                     for i in range(16)]
+        a = date_list[:-1:2]
+        b = date_list[1::2]
+        mid_date = [date_list[i] + (date_list[i+1] - date_list[i])/2
+                   for i in range(15)]
+        print (date_list)
+        if by_time == 'weekly':
             # split into groups of weeks
             hist_ds = samples.resample(time_counter='1W', skipna=True).map(
                                                          get_stats_across_hists)
+        elif by_time=='1W_rolling':
+            # split into 3 week samples, sampled by week
+            hist_ds = samples.groupby_bins('time_counter', date_list,
+                                    labels=mid_date).map(get_stats_across_hists)
+        elif by_time=='2W_rolling':
+            # split into 3 week samples, sampled by week
+            l_dl = (mid_date[1::2] - np.timedelta64(1, 'W'))
+            hist_ds_l = samples.groupby_bins('time_counter', l_dl,
+                         labels=mid_date[1::2][:-1]).map(get_stats_across_hists)
+            u_dl = mid_date[2::2] - np.timedelta64(1, 'W')
+            hist_ds_u = samples.groupby_bins('time_counter', u_dl,
+                         labels=mid_date[2::2][:-1]).map(get_stats_across_hists)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_l])
+        elif by_time=='3W_rolling':
+            # split into 3 week samples, sampled by week
+            l_dl = (mid_date[1::3] - np.timedelta64(1.5, 'W')) 
+            hist_ds_l = samples.groupby_bins('time_counter', l_dl,
+                         labels=mid_date[1::3][:-1]).map(get_stats_across_hists)
+            m_dl = mid_date[2::3] - np.timedelta64(1.5, 'W')
+            hist_ds_m = samples.groupby_bins('time_counter', m_dl,
+                         labels=mid_date[2::3][:-1]).map(get_stats_across_hists)
+            u_dl = mid_date[3::3] - np.timedelta64(1.5, 'W')
+            hist_ds_u = samples.groupby_bins('time_counter', u_dl,
+                         labels=mid_date[3::3][:-1]).map(get_stats_across_hists)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_m, hist_ds_l])
         else:
             hist_ds = get_stats_across_hists(samples)
             
@@ -434,6 +501,7 @@ class bootstrap_glider_samples(object):
             self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
+        self.bg = self.bg.resample(time_counter='1H').interpolate()
 
         def get_hist(bg):
             ''' calculate histogram and assign to xarray dataset '''
@@ -457,10 +525,69 @@ class bootstrap_glider_samples(object):
                                'bin_right'  : (['bin_centers'], bins[1:])})
             return hist_ds
 
+        def get_rolling_hists(ts):
+            '''
+            calculate distribution of buoyancy gradients over a 
+            rolling mean
+            '''
+
+            # get week centred dates
+            week_dates = list(self.bg.time_counter.resample(
+            time_counter='1W').groups.keys())
+
+            # create rolling object as dataset with extra rolled dimension
+            self.bg = self.bg.chunk(dict(time_counter=162,x=64,y=64))
+            rolled = self.bg.rolling(time_counter=ts, center=True).construct(
+                         by_time).sel(time_counter=week_dates, method='nearest')
+
+            # swap time labels
+            rolled = rolled.rename({'time_counter':'time'})
+            rolled = rolled.rename_dims({by_time:'time_counter'})
+
+            # caculate histograms
+            hist_ds = rolled.groupby('time').map(get_hist)
+
+            # return labels
+            hist_ds = hist_ds.rename({'time':'time_counter'})
+
+            return hist_ds
+
+        date_list = [np.datetime64('2012-12-15 12:00:00') +
+                     np.timedelta64(i, 'W')
+                     for i in range(16)]
+        a = date_list[:-1:2]
+        b = date_list[1::2]
+        mid_date = [date_list[i] + (date_list[i+1] - date_list[i])/2
+                   for i in range(15)]
+        print (date_list)
         # time splitting
-        if by_time:
+        if by_time=='weekly':
             hist_ds = self.bg.resample(time_counter='1W', skipna=True).map(
                                                          get_hist)
+        elif by_time=='1W_rolling':
+            hist_ds = self.bg.groupby_bins('time_counter', date_list,
+                                    labels=mid_date).map(get_hists)
+        elif by_time=='2W_rolling':
+            l_dl = (mid_date[1::2] - np.timedelta64(1, 'W'))
+            hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
+                         labels=mid_date[1::2][:-1]).map(get_hist)
+            u_dl = mid_date[2::2] - np.timedelta64(1, 'W')
+            hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
+                         labels=mid_date[2::2][:-1]).map(get_hist)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_l])
+        elif by_time=='3W_rolling':
+            # split into 3 week samples, sampled by week
+            l_dl = (mid_date[1::3] - np.timedelta64(1, 'W'))
+            hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
+                         labels=mid_date[1::3][:-1]).map(get_hist)
+            m_dl = mid_date[2::3] - np.timedelta64(1, 'W')
+            hist_ds_m = self.bg.groupby_bins('time_counter', m_dl,
+                         labels=mid_date[2::3][:-1]).map(get_hist)
+            u_dl = mid_date[3::3] - np.timedelta64(1, 'W')
+            hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
+                         labels=mid_date[3::3][:-1]).map(get_hist)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_m, hist_ds_l])
+
         # entire timeseries
         else:
             hist_ds = get_hist(self.bg)
@@ -937,18 +1064,22 @@ class bootstrap_plotting(object):
 
         plt.show()
 
-    def render_glider_sample_set_v(self, n=1, c='green', style='plot'):
+    def render_glider_sample_set_v(self, n=1, c='green', style='plot',
+                                   by_time=None):
         ds = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                            str(n).zfill(2) + '_hist' + self.append 
-                          + '_weekly.nc')
+                          + '_' + by_time + '.nc')
+        try:
+            ds = ds.rename({'time_counter_bins':'time_counter'})
+        except:
+            print ('')
+
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
-                           str(n).zfill(2) + '_hist' + self.append + '.nc')
+                          str(n).zfill(2) + '_hist' + self.append + '.nc')
         if style=='bar':
             for i, (_, week) in enumerate(ds.groupby('time_counter')):
-                print (week.time_counter)
-                print (i)
                 self.axs.flatten()[i].barh(week.bin_left, 
                                  week.hist_u_dec - week.hist_l_dec, 
                                  height=week.bin_right - week.bin_left,
@@ -961,7 +1092,11 @@ class bootstrap_plotting(object):
                                   week.time_counter.dt.strftime('%m-%d').values,
                                   transform=self.axs.flatten()[i].transAxes,
                                   fontsize=6)
-            print (ds_all)
+                self.axs.flatten()[i].text(0.3, 0.8, 
+                                  str(week.sample_size.values),
+                                  transform=self.axs.flatten()[i].transAxes,
+                                  fontsize=6)
+
             self.axs[1,-1].barh(ds_all.bin_left, 
                              ds_all.hist_u_dec - ds_all.hist_l_dec, 
                              height=ds_all.bin_right - ds_all.bin_left,
@@ -981,11 +1116,12 @@ class bootstrap_plotting(object):
                 self.ax.plot(ds.bin_centers, ds.hist_mean, c=c, lw=0.8,
                              label='gliders: ' + str(n))
 
-    def add_model_means_v(self, style='plot'):
+    def add_model_means_v(self, style='plot', by_time=None):
         ''' add model means of the normed buoyancy gradients of the model '''
         ds = xr.open_dataset(self.path + 
-                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
-                   self.append + '_weekly.nc').isel(time_counter=slice(None,-1))
+                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                           self.append + '_' + by_time + '.nc').isel(
+                           time_counter=slice(None,-1))
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                         self.append + '.nc')
@@ -1055,11 +1191,8 @@ class bootstrap_plotting(object):
                   transform=ax.transData, colors='orange', lw=0.8,
                   label='Giddy et al. (2020)')
 
-
-   
-
-
-    def plot_histogram_buoyancy_gradients_and_samples_weekly(self, case):
+    def plot_histogram_buoyancy_gradients_and_samples_over_time(self, case,
+                                       by_time):
         ''' 
         plot histogram of buoyancy gradients in week portions
         '''
@@ -1075,9 +1208,10 @@ class bootstrap_plotting(object):
 
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
-            self.render_glider_sample_set_v(n=n, c=colours[i], style='bar')
-        self.add_model_means_v(style='bar')
-        self.add_giddy(by_time='weekly')
+            self.render_glider_sample_set_v(n=n, c=colours[i], style='bar',
+                                            by_time=by_time)
+        self.add_model_means_v(style='bar', by_time=by_time)
+        self.add_giddy(by_time=by_time)
 
         for ax in self.axs[:,0]:
             ax.set_ylabel('Buoyancy Gradient')
@@ -1096,8 +1230,8 @@ class bootstrap_plotting(object):
         for ax in self.axs[0]:
             ax.set_xticklabels([])
         
-        plt.savefig(case + '_bg_sampling_skill' + self.append + '_weekly.png',
-                    dpi=600)
+        plt.savefig(case + '_bg_sampling_skill' + self.append + '_'
+                    + by_time + '.png',dpi=600)
 
     def plot_rmse_over_ensemble_sizes_and_week(self, case):
         ''' plot the root mean squared error of the 1 s.d. (? not decile)
@@ -1195,10 +1329,11 @@ class bootstrap_plotting(object):
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
-    if by_time == 'weekly':
+    if by_time:
         boot = bootstrap_plotting()
-        #boot.plot_histogram_buoyancy_gradients_and_samples_weekly('EXP10')
-        boot.plot_rmse_over_ensemble_sizes_and_week('EXP10')
+        boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
+                                                              'EXP10', by_time)
+        #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10')
     
     else:
         for case in cases:
@@ -1216,11 +1351,11 @@ def prep_hist(by_time=None):
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
                                      subset='')
         if by_time:
-            m.append = m.append + '_weekly'
+             m.append =  m.append + '_' + by_time
         m.get_full_model_hist(save=True, by_time=by_time)
-        #for n in range(1,31):
-        #    print (n)
-        #    m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
+        for n in range(1,31):
+            print (n)
+            m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
 
 def prep_timeseries(subset=''):
     cases = ['EXP10']
@@ -1269,9 +1404,12 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-#prep_hist(by_time=None)
-#prep_hist(by_time='weekly')
-plot_hist(by_time='weekly')
+#plot_hist(by_time='weekly')
+#plot_hist(by_time='1W_rolling')
+prep_hist(by_time='1W_rolling')
+prep_hist(by_time='2W_rolling')
+prep_hist(by_time='3W_rolling')
+#prep_hist(by_time='2W_rolling')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
