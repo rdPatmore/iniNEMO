@@ -262,7 +262,8 @@ class plot_power_spectrum(object):
         self.fig, self.ax = plt.subplots(figsize=(3.5,3.5))
         plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
-    def add_glider_spectra(self, model, var='votemper', append='', c='orange',
+    def add_glider_spectra(self, model, ax, var='votemper', 
+                           append='', c='orange',
                            label='', old=False, ls='-', old_spec_calc=False,
                            simple_calc=False):
         ''' plot glider spectrum with alterations'''
@@ -310,9 +311,9 @@ class plot_power_spectrum(object):
             spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
             spec_l = spec_mean + u_mag_mean
             spec_u = spec_mean - l_mag_mean
-        self.ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.2,
+        ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.2,
                              color=c, edgecolor=None)
-        self.ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
+        ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
                        lw=0.8, label=label, ls=ls)
     
     def finishing_touches(self):
@@ -378,24 +379,58 @@ class plot_power_spectrum(object):
 
         every_2 = get_sampled_path('EXP10', 'every_2_transects',
                                      post_transect=False) 
-        cmap = plt.cm.inferno(np.linspace(0,1,int(every_2.transect.max().values)+1))
+        cmap = plt.cm.inferno(
+                          np.linspace(0,1,int(every_2.transect.max().values)+1))
         for (l,trans) in every_2.groupby('transect'):
             axs0[4].plot(trans.lon, trans.lat, transform=proj)
 
         every_8 = get_sampled_path('EXP10', 'every_8_transects',
                                      post_transect=False) 
-        cmap = plt.cm.inferno(np.linspace(0,1,int(every_8.transect.max().values)+1))
+        cmap = plt.cm.inferno(
+                         np.linspace(0,1,int(every_8.transect.max().values)+1))
         for (l,trans) in every_8.groupby('transect'):
             axs0[5].plot(trans.lon, trans.lat, transform=proj)
-        plt.show()
 
-        #m = plot_power_spectrum()
-       # 
-       # self.add_glider_spectra(self, model, var='votemper',
-       #                         append='', c='orange',
-       #                       label='', old=False, ls='-', old_spec_calc=False,
-       #                    simple_calc=False):
-       #     c = ['red','blue']
+        spec = plot_power_spectrum()
+        
+        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+     append='_interp_1000_transects_multi_taper_pre_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+     append='_every_2_transects_multi_taper_pre_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+     append='_every_8_transects_multi_taper_pre_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+
+        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+     append='_interp_1000_multi_taper_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+     append='_every_2_multi_taper_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+     append='_every_8_multi_taper_transect_clean_pfit1',
+                                c='orange',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        plt.savefig('EXP10_transect_pre_post.png', dpi=600)
           
 def glider_sampling_alteration():
     m = plot_power_spectrum()

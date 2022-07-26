@@ -7,6 +7,7 @@ import numpy as np
 import dask
 import matplotlib
 import datetime
+import matplotlib.gridspec as gridspec
 #import itertools
 from get_transects import get_transects
 
@@ -136,7 +137,7 @@ class bootstrap_glider_samples(object):
     def get_glider_timeseries(self, ensemble_range=range(1,2), save=False):
         ''' get upper and lower deciles and mean time series of
             of glider sample sets
-            + weekly and daily sdt
+            + weekly and daily std
         '''
         set_size = self.samples.sizes['sample']
 
@@ -312,15 +313,10 @@ class bootstrap_glider_samples(object):
         # get random group, shape (bootstrap iters, number of gliders)
         random = np.random.randint(set_size, size=(set_size,n))
 
-        hists = []
-
-
         def get_stats_across_hists(samp):
             sample_size = len(samp.time_counter)
-            print (samp.time_counter.min().values)
-            print (samp.time_counter.max().values)
-            print (sample_size)
             # calculate set of histograms
+            hists = []
             for i, sample in enumerate(random):
                 sample_set = samp.isel(sample=sample)#.b_x_ml
                 set_stacked = sample_set.stack(z=('time_counter','sample'))
@@ -341,7 +337,6 @@ class bootstrap_glider_samples(object):
                                   'bin_centers': (['bin_centers'], bin_centers),
                                   'bin_left'   : (['bin_centers'], bins[:-1]),
                                   'bin_right'  : (['bin_centers'], bins[1:])})
-           #hist_ds = hist_ds.assign_coords({'week_start':samples.time_counter})
             return hist_ds
 
         samples = self.samples
@@ -1012,6 +1007,7 @@ class bootstrap_plotting(object):
             self.append='_' + append
 
         self.hist_range = (0,2e-8)
+        self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
 
     def plot_variance(self, cases):
 
@@ -1087,17 +1083,16 @@ class bootstrap_plotting(object):
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                            str(n).zfill(2) + '_hist' + self.append 
                           + '_' + by_time + '.nc')
-        try:
-            ds = ds.rename({'time_counter_bins':'time_counter'})
-        except:
-            print ('')
-        print (ds)
 
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                           str(n).zfill(2) + '_hist' + self.append + '.nc')
+        date_list = np.array([(np.datetime64('2012-12-13')
+                              + np.timedelta64(i, 'W')).astype('datetime64[D]')
+                               for i in range(16)])
         if style=='bar':
-            for i, (_, week) in enumerate(ds.groupby('time_counter')):
+            for (l, week) in ds.groupby('time_counter'):
+                i = int(np.argwhere(date_list==l.astype('datetime64[D]')))
                 self.axs.flatten()[i].barh(week.bin_left, 
                                  week.hist_u_dec - week.hist_l_dec, 
                                  height=week.bin_right - week.bin_left,
@@ -1110,10 +1105,10 @@ class bootstrap_plotting(object):
                                   week.time_counter.dt.strftime('%m-%d').values,
                                   transform=self.axs.flatten()[i].transAxes,
                                   fontsize=6)
-                #self.axs.flatten()[i].text(0.3, 0.8, 
-                #                  str(week.sample_size.values),
-                #                  transform=self.axs.flatten()[i].transAxes,
-                #                  fontsize=6)
+                self.axs.flatten()[i].text(0.3, 0.8, 
+                                  str(week.sample_size.values),
+                                  transform=self.axs.flatten()[i].transAxes,
+                                  fontsize=6)
 
             self.axs[1,-1].barh(ds_all.bin_left, 
                              ds_all.hist_u_dec - ds_all.hist_l_dec, 
@@ -1139,11 +1134,6 @@ class bootstrap_plotting(object):
         ds = xr.open_dataset(self.path + 
                            '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                            self.append + '_' + by_time + '.nc')
-        try:
-            ds = ds.rename({'time_counter_bins':'time_counter'})
-        except:
-            print ('')
-        ds = ds.isel(time_counter=slice(None,-1))
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                         self.append + '.nc')
@@ -1151,8 +1141,12 @@ class bootstrap_plotting(object):
         ds['hist'] = (ds.hist_x + ds.hist_y) / 2
         ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
 
+        date_list = np.array([(np.datetime64('2012-12-13')
+                              + np.timedelta64(i, 'W')).astype('datetime64[D]')
+                               for i in range(16)])
         if style=='bar':
-            for i, (_, week) in enumerate(ds.groupby('time_counter')):
+            for (l, week) in ds.groupby('time_counter'):
+                i = int(np.argwhere(date_list==l.astype('datetime64[D]')))
                 print (week.time_counter)
                 self.axs.flatten()[i].vlines(week.hist,
                         week.bin_left, week.bin_right,
@@ -1255,16 +1249,16 @@ class bootstrap_plotting(object):
         plt.savefig(case + '_bg_sampling_skill' + self.append + '_'
                     + by_time + '.png',dpi=600)
 
-    def plot_rmse_over_ensemble_sizes_and_week(self, case):
-        ''' plot the root mean squared error of the 1 s.d. (? not decile)
-            from the **real** mean over week and ensemble size
-            contourf
+    def get_ensembles(self, case, by_time):
         '''
+        load weekly model hists and calculate mean buoyancy gradients in x and y
+        '''
+
         # load weekly model hists
         m = xr.open_dataset(self.data_path + case + 
                      '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
-                     self.append + '_weekly.nc').isel(
-                     time_counter=slice(None,-1))
+                     self.append + '_' + by_time + '.nc')#.isel(
+                    # time_counter=slice(None,-1))
         
         # pre merge function
         def pre_proc(ds):
@@ -1274,42 +1268,87 @@ class bootstrap_plotting(object):
         # load weekly glider hists
         prep = case + '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
         ensemble_list = [self.data_path + prep + str(i).zfill(2) + '_hist' + 
-                         self.append + '_weekly.nc'
+                         self.append + '_' + by_time + '.nc'
                          for i in range(1,31)]
         ensembles = xr.open_mfdataset(ensemble_list, 
                                    combine='nested', concat_dim='ensemble_size',
                                      preprocess=pre_proc).load()
         ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
+        ensembles = ensembles.set_coords('sample_size')
 
         # mean of the vectors
-        m_bg_abs = (m.hist_x + m.hist_y) / 2
+        ensembles['m_bg_abs'] = (m.hist_x + m.hist_y) / 2
 
-        # rmse
-        def rmsep(pred, true):
-            norm = (pred - true)/true 
-            return np.sqrt(((norm)**2).mean(dim='bin_centers')) * 100
+        return ensembles
+
+    def rmsep(self, pred, truth):
+        ''' calulate root mean squared percentage error '''
+
+        norm = (pred - truth)/truth 
+
+        return np.sqrt(((norm)**2).mean(dim='bin_centers')) * 100
+
+    def get_spatial_mean_and_std_bg(self, case):
+        '''
+        calcualte spatial mean and standard deviation of buoyancy gradients
+        at 10 m depth
+        '''
+
+        # load bg
+        bg = xr.open_dataset(self.data_path + case +
+                             self.file_id + 'bg_z10m.nc', chunks='auto')
+        # cut edges of domain
+        bg = bg.isel(x=slice(20,-20), y=slice(20,-20))
+  
+        # absolute value of vector mean
+        bg = np.abs((bg.bx + bg.by)/2).load()
+
+        bg_mean = bg.mean(['x','y'])
+        bg_std = bg.std(['x','y'])
+ 
+        return bg_mean, bg_std
+
+    def plot_rmse_over_ensemble_sizes_and_week(self, case, by_time):
+        ''' plot the root mean squared error of the 1 s.d. (? not decile)
+            from the **real** mean over week and ensemble size
+            contourf
+        '''
+
+        ensembles = self.get_ensembles(case, by_time)
 
         # calculate rmse
-        rmse_l = rmsep(ensembles.hist_l_dec, m_bg_abs)
-        rmse_u = rmsep(ensembles.hist_u_dec, m_bg_abs)
-        rmse_mean = rmsep(ensembles.hist_mean, m_bg_abs)
+        rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
+        rmse_u = self.rmsep(ensembles.hist_u_dec, ensembles.m_bg_abs)
+        rmse_mean = self.rmsep(ensembles.hist_mean, ensembles.m_bg_abs)
+
+        # initialised figure
+        fig = plt.figure(figsize=(6.5, 4), dpi=300)
+        gs0 = gridspec.GridSpec(ncols=1, nrows=2)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs0.update(top=0.98, bottom=0.35, left=0.13, right=0.87, hspace=0.1)
+        gs1.update(top=0.30, bottom=0.15, left=0.13, right=0.87)
+
+        axs0 = []
+        for i in range(2):
+            axs0.append(fig.add_subplot(gs0[i]))
+        axs1 = fig.add_subplot(gs1[0])
 
         # initialise plot
-        fig, axs = plt.subplots(2, figsize=(6.5,4))
-        plt.subplots_adjust(left=0.08, right=0.87, hspace=0.1, bottom=0.15,
-                            top=0.98)
+        #fig, axs = plt.subplots(2, figsize=(6.5,4))
+        #plt.subplots_adjust(left=0.08, right=0.87, hspace=0.1, bottom=0.15,
+        #                    top=0.98)
 
         # render
         cmap = plt.cm.inferno
         lev = np.linspace(0,300,11)
-        p0 = axs[0].contourf(rmse_u.time_counter, rmse_u.ensemble_size, rmse_u,
+        p0 = axs0[0].contourf(rmse_u.time_counter, rmse_u.ensemble_size, rmse_u,
                              levels=lev, cmap=cmap)
         lev = np.linspace(0,100,11)
-        p1 = axs[1].contourf(rmse_l.time_counter, rmse_l.ensemble_size, rmse_l,
+        p1 = axs0[1].contourf(rmse_l.time_counter, rmse_l.ensemble_size, rmse_l,
                              levels=lev, cmap=cmap)
 
         # colour bar upper
-        pos = axs[0].get_position()
+        pos = axs0[0].get_position()
         cbar_ax = fig.add_axes([0.88, pos.y0, 0.02, pos.y1 - pos.y0])
         cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
         cbar.ax.text(4.1, 0.5, 'RMSE of\nbuoyancy gradients (%)', fontsize=8,
@@ -1317,7 +1356,7 @@ class bootstrap_plotting(object):
                      va='center', ha='left', multialignment='center')
 
         # colour bar lower
-        pos = axs[1].get_position()
+        pos = axs0[1].get_position()
         cbar_ax = fig.add_axes([0.88, pos.y0, 0.02, pos.y1 - pos.y0])
         cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
         cbar.ax.text(4.1, 0.5, 'RMSE of\nbuoyancy gradients (%)', fontsize=8,
@@ -1325,37 +1364,128 @@ class bootstrap_plotting(object):
                      va='center', ha='left', multialignment='center')
 
         # text labels
-        axs[0].text(0.99, 0.98, 'upper decile', c='w', va='top', ha='right',
-                    transform=axs[0].transAxes)
-        axs[1].text(0.99, 0.98, 'lower decile', c='w', va='top', ha='right',
-                    transform=axs[1].transAxes)
+        axs0[0].text(0.99, 0.98, 'upper decile', c='w', va='top', ha='right',
+                    transform=axs0[0].transAxes)
+        axs0[1].text(0.99, 0.98, 'lower decile', c='w', va='top', ha='right',
+                    transform=axs0[1].transAxes)
 
         # axes labels
-        for ax in axs:
+        for ax in axs0:
             ax.set_ylabel('ensemble size')
             ax.set_xticks(rmse_mean.time_counter)
-        axs[1].set_xlabel('date (month-day)')
 
         # set xlabels
-        week_labels = rmse_mean.time_counter.dt.strftime('%m-%d').values
-        axs[0].set_xticklabels([])
-        axs[1].set_xticklabels(week_labels)
+        axs0[0].set_xticklabels([])
+        axs0[1].set_xticklabels([])
+
+
+        # add time series of sample size
+        sample_size = ensembles.sample_size.isel(ensemble_size=0)
+        axs1.plot(sample_size.time_counter, sample_size)
+
+        # add time series of bg
+        _, std = self.get_spatial_mean_and_std_bg(case)
+        axs1_2 = axs1.twinx()
+        axs1_2.plot(std.time_counter, std)
+
+        # set xticks
+        week_labels = sample_size.time_counter.dt.strftime('%m-%d').values
+        axs1.set_xlim(sample_size.time_counter.min(),
+                      sample_size.time_counter.max())
+        axs1.set_ylim(0,500)
+        axs1.set_xticklabels(week_labels)
+        axs1.set_xticks(sample_size.time_counter)
+        axs1.set_xlabel('date (MM-DD)')
+        axs1.set_ylabel('sample\nsize')
 
         # rotate labels
-        for label in axs[1].get_xticklabels(which='major'):
+        for label in axs1.get_xticklabels(which='major'):
             label.set(rotation=35, horizontalalignment='right')
 
-        plt.savefig(case + '_bg_RMSE_weekly' 
+        plt.savefig(case + '_bg_RMSE_' + by_time 
                     + self.append + '.png', dpi=600)
+
+    def plot_correlation_rmse(self, case, by_time):
+        '''
+        scatter plots of RMSE against
+            - ensemble size
+            - sample size
+            - spatial? standard deviation in bg
+        '''
+ 
+        ####### fix colourbars to be the same accross samples!!!!
+        # initialise figure
+        fig, axs = plt.subplots(4,3,figsize=(6.5,4))
+        plt.subplots_adjust(top=0.9, hspace=0.05, wspace=0.05)
+
+        _, std = self.get_spatial_mean_and_std_bg(case)
+
+        def all_by_times(col, by_time, std, c='r'):
+
+            ensembles = self.get_ensembles(case, by_time)
+            std = std.interp(time_counter=ensembles.time_counter)
+            #ensembles['bg_std'] = std.broadcast_like(ensembles.hist_mean)
+            #ensembles = ensembles.set_coords('bg_std')
+
+            print (ensembles)
+            # calculate rmse
+            rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
+            rmse_u = self.rmsep(ensembles.hist_u_dec, ensembles.m_bg_abs)
+
+            # drop 100 % errors
+            rmse_l = rmse_l.where(rmse_l != 100)
+            rmse_u = rmse_u.where(rmse_u != 100)
+            rmse_l['bg_std'] = std.interp(time_counter=rmse_l.time_counter)
+            rmse_u['bg_std'] = std.interp(time_counter=rmse_u.time_counter)
+            c = np.tile(plt.cm.inferno(np.linspace(0,1,len(rmse_l.ensemble_size))), (len(ensembles.time_counter),1))
+            print (c.shape)
+
+            rmse_l = rmse_l.stack(z=['ensemble_size','time_counter'])
+            print (rmse_l)
+            rmse_u = rmse_u.stack(z=['ensemble_size','time_counter'])
+            col[0].scatter(rmse_l.ensemble_size, rmse_l,
+                            c=rmse_l.sample_size, cmap=plt.cm.inferno,
+                            s=2, alpha=0.5)
+            col[1].scatter(rmse_l.ensemble_size, rmse_l,
+                            c=rmse_l.bg_std, cmap=plt.cm.inferno_r,
+                            s=2, alpha=0.5)
+            col[2].scatter(rmse_u.ensemble_size, rmse_u,
+                            c=rmse_u.sample_size, cmap=plt.cm.inferno,
+                            s=2, alpha=0.5)
+            col[3].scatter(rmse_u.ensemble_size, rmse_u,
+                            c=rmse_u.bg_std, cmap=plt.cm.inferno_r,
+                            s=2, alpha=0.5)
+
+            #ax.scatter(rmse_l.sample_size, rmse_l, c=c, s=3, alpha=0.4)
+            #ax.scatter(rmse_u.sample_size, rmse_u, c=c, s=3, alpha=0.4)
+#
+#            ax.scatter(rmse_l.bg_std, rmse_l, c=c, s=3, alpha=0.4)
+#            ax.scatter(rmse_u.bg_std, rmse_u, c=c, s=3, alpha=0.4)
+
+        all_by_times(axs[:,0], '1W_rolling', std, c='r')
+        all_by_times(axs[:,1], '2W_rolling', std, c='g')
+        all_by_times(axs[:,2], '3W_rolling', std, c='b')
+ 
+        for ax in axs[:-1].flatten():
+            ax.set_xticklabels([])
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        plt.savefig('EXP10_bg_rmse_corr.png', dpi=600)
+  
+def plot_correlations(by_time):
+    boot = bootstrap_plotting()
+    boot.plot_correlation_rmse('EXP10', by_time)
+
+plot_correlations(by_time='1W_rolling')
 
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     if by_time:
         boot = bootstrap_plotting()
-        boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
-                                                              'EXP10', by_time)
-        #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10')
+        #boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
+        #                                                      'EXP10', by_time)
+        boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
     
     else:
         for case in cases:
@@ -1371,10 +1501,11 @@ def prep_hist(by_time=None):
     cases = ['EXP10']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset='')
+                                     subset='', transect=False)
         if by_time:
              m.append =  m.append + '_' + by_time
-        m.get_full_model_hist(save=True, by_time=by_time)
+        #m.get_full_model_hist(save=True, by_time=by_time)
+        #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
         for n in range(1,31):
             print (n)
             m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
@@ -1426,8 +1557,10 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-prep_hist(by_time='2W_rolling')
-prep_hist(by_time='3W_rolling')
+#prep_hist(by_time='3W_rolling')
+#plot_hist(by_time='2W_rolling')
+#prep_hist(by_time='1W_rolling')
+#plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='2W_rolling')
 #prep_hist(by_time='1W_rolling')
 #prep_hist(by_time='1W_rolling')

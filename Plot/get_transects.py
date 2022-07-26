@@ -48,17 +48,19 @@ def get_transects(da, concat_dim='distance', method='cycle',
                W
     '''
 
+    # some paths are saved rotated
+    if rotation: # shift back to unrotated
+        da = rotate_path(da, -rotation)
+
     if method == '2nd grad':
         a = np.abs(np.diff(da.lat, 
         append=da.lon.max(), prepend=da.lon.min(), n=2))# < 0.001))[0]
         idx = np.where(a>0.006)[0]
-    crit = [0,1,2,3]
+
     if method == 'cycle':
+        crit = [0,1,2,3]
         #da = da.isel(distance=slice(0,400))
 
-        # some paths are saved rotated
-        if rotation: # shift back to unrotated
-            da = rotate_path(da, -rotation)
 
 
         # shift back to origin
@@ -90,6 +92,10 @@ def get_transects(da, concat_dim='distance', method='cycle',
                 start = False
                 idx.append(i)
                 a = next(crit_iter)
+
+    #if method == 'find e-w':
+    #    # find local maximums in east west travel
+        
 
 
     da = np.split(da, idx)
