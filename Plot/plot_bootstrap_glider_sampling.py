@@ -1405,6 +1405,145 @@ class bootstrap_plotting(object):
         plt.savefig(case + '_bg_RMSE_' + by_time 
                     + self.append + '.png', dpi=600)
 
+    def plot_rmse_over_ensemble_sizes_and_week_3_panel(self, case):
+        ''' plot the root mean squared error of the 1 s.d. (? not decile)
+            from the **real** mean over week and ensemble size
+            contourf
+        '''
+
+        # initialised figure
+        fig = plt.figure(figsize=(6.5, 4), dpi=300)
+        gs0 = gridspec.GridSpec(ncols=3, nrows=2)
+        gs1 = gridspec.GridSpec(ncols=3, nrows=1)
+        gs0.update(top=0.95, bottom=0.35, left=0.08, right=0.86, hspace=0.1,
+                   wspace=0.07)
+        gs1.update(top=0.32, bottom=0.15, left=0.08, right=0.86,
+                   wspace=0.07)
+
+        axs0, axs1 = [], []
+        for j in range(3):
+            for i in range(2):
+                axs0.append(fig.add_subplot(gs0[i,j]))
+        for i in range(3):
+            axs1.append(fig.add_subplot(gs1[i]))
+
+        # render
+        def calc_and_render(by_time, a0, a1):
+
+            # load data
+            ensembles = self.get_ensembles(case, by_time)
+
+            # calculate rmse
+            rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
+            rmse_u = self.rmsep(ensembles.hist_u_dec, ensembles.m_bg_abs)
+            rmse_mean = self.rmsep(ensembles.hist_mean, ensembles.m_bg_abs)
+
+            cmap = plt.cm.inferno
+
+            # upper decile
+            lev = np.linspace(0,300,11)
+            p0 = a0[0].contourf(rmse_u.time_counter, rmse_u.ensemble_size,
+                                  rmse_u, levels=lev, cmap=cmap)
+
+            # lower decile
+            lev = np.linspace(0,100,11)
+            p1 = a0[1].contourf(rmse_l.time_counter, rmse_l.ensemble_size,
+                                    rmse_l, levels=lev, cmap=cmap)
+
+            # add time series of sample size
+            sample_size = ensembles.sample_size.isel(ensemble_size=0)
+            p2, = a1.plot(sample_size.time_counter, sample_size, lw=0.8)
+            a1.yaxis.label.set_color(p2.get_color())
+            a1.tick_params(axis='y', colors=p2.get_color())
+
+            return p0, p1, ensembles.time_counter
+
+        # render each column
+        calc_and_render('1W_rolling', axs0[:2], axs1[0])
+        calc_and_render('2W_rolling', axs0[2:4], axs1[1])
+        p0, p1, time_counter = calc_and_render('3W_rolling', axs0[4:], axs1[2])
+
+        # add time series of bg
+        _, std = self.get_spatial_mean_and_std_bg(case)
+        twin_axes, p  = [], []
+        for ax in axs1[:2]:
+            a1_2 = ax.twinx()
+            twin_axes.append(a1_2)
+            p.append(a1_2.plot(std.time_counter, std, c='g', lw=0.8)[0])
+            a1_2.set_yticklabels([])
+        a1_2 = axs1[-1].twinx()
+        twin_axes.append(a1_2)
+        p.append(a1_2.plot(std.time_counter, std, c='g', lw=0.8)[0])
+        a1_2.set_ylabel(r'$\sigma_{bg}$' + '\n' + r'$[\times 10^{-8}]$')
+        a1_2.yaxis.get_offset_text().set_visible(False)
+        for i, ax in enumerate(twin_axes):
+            ax.yaxis.label.set_color(p[i].get_color())
+            ax.tick_params(axis='y', colors=p[i].get_color())
+
+        # top two rows
+        for ax in axs0:
+            ax.set_xticklabels([])
+            ax.set_xticks(time_counter)
+        for ax in axs0[:2]:
+            ax.set_ylabel('ensemble size')
+        for ax in axs0[2:]:
+            ax.set_yticklabels([])
+
+        # bottom row axes details
+        for ax in axs1:
+            week_labels = time_counter.dt.strftime('%m-%d').values
+            week_labels[::2] = ''
+            ax.set_xlim(time_counter.min(), time_counter.max())
+            ax.set_ylim(0,500)
+            ax.set_xticklabels(week_labels)
+            ax.set_xticks(time_counter)
+            ax.set_xlabel('date (MM-DD)')
+
+            # rotate labels
+            for label in ax.get_xticklabels(which='major'):
+                label.set(rotation=35, horizontalalignment='right')
+
+        axs1[0].set_ylabel('sample size')
+        for ax in axs1[1:]:
+            ax.set_yticklabels([])
+
+        # colour bar upper
+        pos = axs0[4].get_position()
+        cbar_ax = fig.add_axes([0.87, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(3.7, 0.5, 'RMSE of\nbuoyancy gradients\n[%]', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left', multialignment='center')
+
+        # colour bar lower
+        pos = axs0[5].get_position()
+        cbar_ax = fig.add_axes([0.87, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(3.7, 0.5, 'RMSE of\nbuoyancy gradients\n[%]', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left', multialignment='center')
+
+        # text labels
+        by_time_labels = ['1-Week Rolling', '2-Week Rolling', '3-Week Rolling']
+        for i, ax in enumerate(axs0[::2]):
+            ax.text(0.99, 0.98, 'upper decile', c='w', va='top', ha='right',
+                    transform=ax.transAxes, fontsize=6)
+            ax.text(0.5, 1.01, by_time_labels[i], va='bottom', ha='center',
+                    transform=ax.transAxes)
+        for ax in axs0[1::2]:
+            ax.text(0.99, 0.98, 'lower decile', c='w', va='top', ha='right',
+                    transform=ax.transAxes, fontsize=6)
+
+        # align labels
+        xpos = -0.21  # axes coords
+        for ax in axs0[:2]:
+            ax.yaxis.set_label_coords(xpos, 0.5)
+        axs1[0].yaxis.set_label_coords(xpos, 0.5)
+
+        plt.savefig(case + '_bg_RMSE_3_panel_' 
+                    + self.append + '.png', dpi=600)
+
+
     def plot_correlation_rmse(self, case, by_time):
         '''
         scatter plots of RMSE against
@@ -1485,14 +1624,15 @@ def plot_hist(by_time=None):
         boot = bootstrap_plotting()
         #boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
         #                                                      'EXP10', by_time)
-        boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
+        #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
+        boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
     
     else:
         for case in cases:
             print ('case: ', case)
-            m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
-                                         subset='')
-            m.plot_histogram_buoyancy_gradients_and_samples()
+            #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
+            #                             subset='')
+            #m.plot_histogram_buoyancy_gradients_and_samples()
             #m.plot_rmse_over_ensemble_sizes()
 
 
@@ -1558,7 +1698,7 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_full_model_day_week_std(save=True)
 
 #prep_hist(by_time='3W_rolling')
-#plot_hist(by_time='2W_rolling')
+plot_hist(by_time='2W_rolling')
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='2W_rolling')
