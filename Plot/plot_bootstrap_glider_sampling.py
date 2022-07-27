@@ -1540,8 +1540,7 @@ class bootstrap_plotting(object):
             ax.yaxis.set_label_coords(xpos, 0.5)
         axs1[0].yaxis.set_label_coords(xpos, 0.5)
 
-        plt.savefig(case + '_bg_RMSE_3_panel_' 
-                    + self.append + '.png', dpi=600)
+        plt.savefig(case + '_bg_RMSE_3_panel_' + self.append + '.png', dpi=600)
 
 
     def plot_correlation_rmse(self, case, by_time):
