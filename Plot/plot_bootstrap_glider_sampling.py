@@ -8,6 +8,7 @@ import dask
 import matplotlib
 import datetime
 import matplotlib.gridspec as gridspec
+import scipy.stats as stats
 #import itertools
 from get_transects import get_transects
 
@@ -1551,21 +1552,18 @@ class bootstrap_plotting(object):
             - spatial? standard deviation in bg
         '''
  
-        ####### fix colourbars to be the same accross samples!!!!
         # initialise figure
-        fig, axs = plt.subplots(4,3,figsize=(6.5,4))
-        plt.subplots_adjust(top=0.9, hspace=0.05, wspace=0.05)
+        fig, axs = plt.subplots(3, 1, figsize=(3.2,3.5))
+        plt.subplots_adjust(top=0.95, bottom=0.13, left=0.09, right=0.78,
+                            hspace=0.15)
 
         _, std = self.get_spatial_mean_and_std_bg(case)
 
-        def all_by_times(col, by_time, std, c='r'):
+        def all_by_times(by_time, std, c='r', pos=1):
 
             ensembles = self.get_ensembles(case, by_time)
             std = std.interp(time_counter=ensembles.time_counter)
-            #ensembles['bg_std'] = std.broadcast_like(ensembles.hist_mean)
-            #ensembles = ensembles.set_coords('bg_std')
 
-            print (ensembles)
             # calculate rmse
             rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
             rmse_u = self.rmsep(ensembles.hist_u_dec, ensembles.m_bg_abs)
@@ -1575,39 +1573,125 @@ class bootstrap_plotting(object):
             rmse_u = rmse_u.where(rmse_u != 100)
             rmse_l['bg_std'] = std.interp(time_counter=rmse_l.time_counter)
             rmse_u['bg_std'] = std.interp(time_counter=rmse_u.time_counter)
-            c = np.tile(plt.cm.inferno(np.linspace(0,1,len(rmse_l.ensemble_size))), (len(ensembles.time_counter),1))
-            print (c.shape)
 
             rmse_l = rmse_l.stack(z=['ensemble_size','time_counter'])
-            print (rmse_l)
             rmse_u = rmse_u.stack(z=['ensemble_size','time_counter'])
-            col[0].scatter(rmse_l.ensemble_size, rmse_l,
-                            c=rmse_l.sample_size, cmap=plt.cm.inferno,
-                            s=2, alpha=0.5)
-            col[1].scatter(rmse_l.ensemble_size, rmse_l,
-                            c=rmse_l.bg_std, cmap=plt.cm.inferno_r,
-                            s=2, alpha=0.5)
-            col[2].scatter(rmse_u.ensemble_size, rmse_u,
-                            c=rmse_u.sample_size, cmap=plt.cm.inferno,
-                            s=2, alpha=0.5)
-            col[3].scatter(rmse_u.ensemble_size, rmse_u,
-                            c=rmse_u.bg_std, cmap=plt.cm.inferno_r,
-                            s=2, alpha=0.5)
+            l_ensemble_size_norm=rmse_l.ensemble_size/rmse_l.ensemble_size.max()
+            u_ensemble_size_norm=rmse_u.ensemble_size/rmse_u.ensemble_size.max()
+            #sample_size_max = 448 # max for all rolling lengths
+            #l_sample_size_norm = rmse_l.sample_size/sample_size_max
+            #u_sample_size_norm = rmse_u.sample_size/sample_size_max
+            l_sample_size_norm = rmse_l.sample_size/rmse_l.sample_size.max()
+            u_sample_size_norm = rmse_u.sample_size/rmse_u.sample_size.max()
+            l_bg_std_norm = rmse_l.bg_std/rmse_l.bg_std.max()
+            u_bg_std_norm = rmse_u.bg_std/rmse_u.bg_std.max()
+            normalise = matplotlib.colors.Normalize(vmin=0, vmax=448)
 
-            #ax.scatter(rmse_l.sample_size, rmse_l, c=c, s=3, alpha=0.4)
-            #ax.scatter(rmse_u.sample_size, rmse_u, c=c, s=3, alpha=0.4)
-#
-#            ax.scatter(rmse_l.bg_std, rmse_l, c=c, s=3, alpha=0.4)
-#            ax.scatter(rmse_u.bg_std, rmse_u, c=c, s=3, alpha=0.4)
+            m='|'
+            s=5
+            a=0.4
+            axs[0].scatter(rmse_u, pos * np.ones(len(rmse_u)) + 0.2, 
+                           c=rmse_u.ensemble_size, s=s, alpha=a, marker=m)
+            axs[1].scatter(rmse_u, pos * np.ones(len(rmse_u)) + 0.2, 
+                           c=rmse_u.sample_size, s=s, alpha=a, marker=m,
+                           norm=normalise)
+            axs[2].scatter(rmse_u, pos * np.ones(len(rmse_u)) + 0.2, 
+                           c=rmse_u.bg_std, s=s, alpha=a, marker=m)
+            p0 = axs[0].scatter(rmse_l, pos * np.ones(len(rmse_l)) - 0.2, 
+                           c=rmse_l.ensemble_size, s=s, alpha=a, marker=m)
+            p1 = axs[1].scatter(rmse_l, pos * np.ones(len(rmse_l)) - 0.2, 
+                           c=rmse_l.sample_size, s=s, alpha=a, marker=m,
+                           norm=normalise)
+            p2 = axs[2].scatter(rmse_l, pos * np.ones(len(rmse_l)) - 0.2, 
+                           c=rmse_l.bg_std, s=s, alpha=a, marker=m)
 
-        all_by_times(axs[:,0], '1W_rolling', std, c='r')
-        all_by_times(axs[:,1], '2W_rolling', std, c='g')
-        all_by_times(axs[:,2], '3W_rolling', std, c='b')
+            # colour bar
+            pos0 = axs[0].get_position()
+            cbar_ax = fig.add_axes([0.86, pos0.y0, 0.02, pos0.y1 - pos0.y0])
+            cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+            cbar.ax.text(5.3, 0.5, 'ensemble size',
+                         fontsize=6, rotation=90, transform=cbar.ax.transAxes,
+                         va='center', ha='left', multialignment='center')
+            cbar.ax.tick_params(labelsize=6)
+            cbar.ax.yaxis.get_offset_text().set_visible(False)
+            pos1 = axs[1].get_position()
+            cbar_ax = fig.add_axes([0.86, pos1.y0, 0.02, pos1.y1 - pos1.y0])
+            cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
+            cbar.ax.text(5.3, 0.5, 'sample size',
+                         fontsize=6, rotation=90, transform=cbar.ax.transAxes,
+                         va='center', ha='left', multialignment='center')
+            cbar.ax.tick_params(labelsize=6)
+            cbar.ax.yaxis.get_offset_text().set_visible(False)
+            pos2 = axs[2].get_position()
+            cbar_ax = fig.add_axes([0.86, pos2.y0, 0.02, pos2.y1 - pos2.y0])
+            cbar = fig.colorbar(p2, cax=cbar_ax, orientation='vertical')
+            cbar.ax.text(5.3, 0.5, r'$\sigma_{bg} [\times 10^{-8}]$',
+                         fontsize=6, rotation=90, transform=cbar.ax.transAxes,
+                         va='center', ha='left', multialignment='center')
+            cbar.ax.tick_params(labelsize=6)
+            cbar.ax.yaxis.get_offset_text().set_visible(False)
+
+            for ax in axs:
+                ax.text(0, pos + 0.2, 'u', va='center', ha='center',
+                        fontsize=6, transform=ax.transData)
+                ax.text(0, pos - 0.2, 'l', va='center', ha='center',
+                        fontsize=6, transform=ax.transData)
+                ax.text(350, 4, r'$r$',
+                        va='center', ha='center',
+                        fontsize=6, transform=ax.transData)
+
+            # pearsons rank correlation
+            u_ens_pr = round(stats.pearsonr(rmse_u.ensemble_size, rmse_u)[0], 3)
+            l_ens_pr = round(stats.pearsonr(rmse_l.ensemble_size, rmse_u)[0], 3)
+            u_sam_pr = round(stats.pearsonr(rmse_u.sample_size, rmse_u)[0], 3)
+            l_sam_pr = round(stats.pearsonr(rmse_l.sample_size, rmse_u)[0], 3)
+            u_std_pr = round(stats.pearsonr(rmse_u.bg_std, rmse_u)[0], 3)
+            l_std_pr = round(stats.pearsonr(rmse_l.bg_std, rmse_u)[0], 3)
+
+            axs[0].text(350, pos + 0.2, str(u_ens_pr),
+                    va='center', ha='center',
+                    fontsize=6, transform=axs[0].transData)
+            axs[0].text(350, pos - 0.2, str(l_ens_pr),
+                    va='center', ha='center',
+                    fontsize=6, transform=axs[0].transData)
+            axs[1].text(350, pos + 0.2, str(u_sam_pr),
+                    va='center', ha='center',
+                    fontsize=6, transform=axs[1].transData)
+            axs[1].text(350, pos - 0.2, str(l_sam_pr),
+                     va='center', ha='center',
+                    fontsize=6, transform=axs[1].transData)
+            axs[2].text(350, pos + 0.2, str(u_std_pr),
+                     va='center', ha='center',
+                     fontsize=6, transform=axs[2].transData)
+            axs[2].text(350, pos - 0.2, str(l_std_pr),
+                    va='center', ha='center',
+                    fontsize=6, transform=axs[2].transData)
+
+        all_by_times('1W_rolling', std, c='r', pos=3)
+        all_by_times('2W_rolling', std, c='g', pos=2)
+        all_by_times('3W_rolling', std, c='b', pos=1)
  
-        for ax in axs[:-1].flatten():
-            ax.set_xticklabels([])
-        for ax in axs[:,1:].flatten():
-            ax.set_yticklabels([])
+        # axis details
+        ax_labels = ['ensemble size', 'sample size', r'$\sigma_{bg}$']
+        for i, ax in enumerate(axs):
+            ax.set_ylim(0,4)
+            ax.set_yticks([1,2,3])
+            ax.set_yticklabels(['3W', '2W', '1W'])
+            ax.text(0.5, 1.01, ax_labels[i], va='bottom', ha='center',
+                    fontsize=8, transform=ax.transAxes)
+
+            ax.spines['top'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            #ax.tick_params(tick1On=False)
+            #ax.tick_params(axis='y', which='both', length=0)
+            ax.tick_params(left=False)
+
+        axs[2].set_xlabel('RMSE of buoyancy gradients [%]')
+        for ax in axs[:2]:
+            ax.spines['bottom'].set_visible(False)
+            ax.set_xticks([])
+
         plt.savefig('EXP10_bg_rmse_corr.png', dpi=600)
   
 def plot_correlations(by_time):
@@ -1697,7 +1781,7 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_full_model_day_week_std(save=True)
 
 #prep_hist(by_time='3W_rolling')
-plot_hist(by_time='2W_rolling')
+#plot_hist(by_time='2W_rolling')
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='2W_rolling')
