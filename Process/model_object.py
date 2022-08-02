@@ -123,15 +123,16 @@ class model(object):
             # hack because transect doesn't currently take 2d-ds (1d-da only)
                 b_x_ml_transect = get_transects(
                                    sample.b_x_ml.isel(ctd_depth=10),
-                                   offset=True, rotation=rotation_rad)
+                                   offset=True, rotation=rotation_rad,
+                                   method='find e-w')
                 sample = sample.assign_coords(
                   {'transect': b_x_ml_transect.transect.reset_coords(drop=True),
                    'vertex'  : b_x_ml_transect.vertex.reset_coords(drop=True)})
 
             sample_set.append(sample.expand_dims('sample'))
         samples=xr.concat(sample_set, dim='sample')
-        samples.to_netcdf(self.data_path + prep + 
-                          rotation_label.rstrip('_') + '.nc')
+        #samples.to_netcdf(self.data_path + prep + 
+        #                  rotation_label.rstrip('_') + '.nc')
 
     def load_gridT_and_giddy(self):
         ''' minimal loading for glider sampling of model '''
@@ -189,10 +190,10 @@ class model(object):
                                         'conservative_temperature.nc',
                                         chunks={'time_counter':1})
         self.ds = xr.merge([alpha, beta, absolute_salinity,
-                            conservative_temperature,
-                            grid_T.mldr10_3])
+                           conservative_temperature,
+                           grid_T.mldr10_3])
 
-        # make grid regular
+         make grid regular
         self.x_y_to_lat_lon()
  
         self.ds.to_netcdf('state.nc')
@@ -563,65 +564,65 @@ class model(object):
         self.giddy_raw = self.giddy_raw.drop('remove_index')
 
 
-    def get_transects(self, concat_dim='ctd_data_point', method='cycle',
-                      shrink=None):
-        '''
-            split path into transects
-            NB: the get_transects script in /Plots is more robust
-        '''
+    #def get_transects(self, concat_dim='ctd_data_point', method='cycle',
+    #                  shrink=None):
+    #    '''
+    #        split path into transects
+    #        NB: the get_transects script in /Plots is more robust
+    #    '''
 
-        data = self.giddy_raw
-        if method == '2nd grad':
-            a = np.abs(np.diff(data.lat, 
-            append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-            idx = np.where(a>0.006)[0]
-        crit = [0,1,2,3]
-        if method == 'cycle':
-            #data = data.isel(distance=slice(0,400))
-            #data['orig_lon'] = data.lon - data.lon_offset
-            #data['orig_lat'] = data.lat - data.lat_offset
-            idx=[]
-            crit_iter = itertools.cycle(crit)
-            start = True
-            a = next(crit_iter)
-            for i in range(data[concat_dim].size)[::shrink]:
-                da = data.isel({concat_dim:i})
-                print (i)
-                if (a == 0) and (start == True):
-                    test = ((da.lat < -60.10) and (da.lon > 0.176))
-                elif a == 0:
-                    test = (da.lon > 0.176)
-                elif a == 1:
-                    test = (da.lat > -59.93)
-                elif a == 2:
-                    test = (da.lon < -0.173)
-                elif a == 3:
-                    test = (da.lat > -59.93)
-                if test: 
-                    start = False
-                    idx.append(i)
-                    a = next(crit_iter)
-                    print (idx)
-        var_list = []
-        for da in list(data.keys()):
-            da = np.split(data[da], idx)
-            transect = np.arange(len(da))
-            pop_list=[]
-            for i, arr in enumerate(da):
-                if len(da[i]) < 1:
-                    pop_list.append(i) 
-                else:
-                    da[i] = da[i].assign_coords({'transect':i})
-            for i in pop_list:
-                da.pop(i)
-            var_list.append(xr.concat(da, dim=concat_dim))
-        da = xr.merge(var_list)
-        print (da)
-        # remove initial and mid path excursions
-        da = da.where(da.transect>1, drop=True)
-        da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-        self.giddy_raw = da.load()
-        print (self.giddy_raw)
+    #    data = self.giddy_raw
+    #    if method == '2nd grad':
+    #        a = np.abs(np.diff(data.lat, 
+    #        append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
+    #        idx = np.where(a>0.006)[0]
+    #    crit = [0,1,2,3]
+    #    if method == 'cycle':
+    #        #data = data.isel(distance=slice(0,400))
+    #        #data['orig_lon'] = data.lon - data.lon_offset
+    #        #data['orig_lat'] = data.lat - data.lat_offset
+    #        idx=[]
+    #        crit_iter = itertools.cycle(crit)
+    #        start = True
+    #        a = next(crit_iter)
+    #        for i in range(data[concat_dim].size)[::shrink]:
+    #            da = data.isel({concat_dim:i})
+    #            print (i)
+    #            if (a == 0) and (start == True):
+    #                test = ((da.lat < -60.10) and (da.lon > 0.176))
+    #            elif a == 0:
+    #                test = (da.lon > 0.176)
+    #            elif a == 1:
+    #                test = (da.lat > -59.93)
+    #            elif a == 2:
+    #                test = (da.lon < -0.173)
+    #            elif a == 3:
+    #                test = (da.lat > -59.93)
+    #            if test: 
+    #                start = False
+    #                idx.append(i)
+    #                a = next(crit_iter)
+    #                print (idx)
+    #    var_list = []
+    #    for da in list(data.keys()):
+    #        da = np.split(data[da], idx)
+    #        transect = np.arange(len(da))
+    #        pop_list=[]
+    #        for i, arr in enumerate(da):
+    #            if len(da[i]) < 1:
+    #                pop_list.append(i) 
+    #            else:
+    #                da[i] = da[i].assign_coords({'transect':i})
+    #        for i in pop_list:
+    #            da.pop(i)
+    #        var_list.append(xr.concat(da, dim=concat_dim))
+    #    da = xr.merge(var_list)
+    #    print (da)
+    #    # remove initial and mid path excursions
+    #    da = da.where(da.transect>1, drop=True)
+    #    da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
+    #    self.giddy_raw = da.load()
+    #    print (self.giddy_raw)
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
                                append='', load_offset=False):
@@ -983,6 +984,9 @@ if __name__ == '__main__':
         m.prep_interp_to_raw_obs(rotate=rotate, rotation=rotation)
         if transects:
             m.get_transects(shrink=100)
+            m. get_transects(da, concat_dim='distance', method='cycle',
+                  shrink=None, drop_trans=[False,False,False,False],
+                  offset=False, rotation=None):
         if remove:
             m.prep_remove_dives(remove=append.rstrip('_transects'))
         for ind in range(0,1):
@@ -1017,6 +1021,13 @@ if __name__ == '__main__':
     def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
                         transects=False, south_limit=None, north_limit=None,
                         rotate=False, rotation=np.pi/2):
+        '''
+        this needs adjusting
+        currently has a conditional statement for get_transects that is
+        not used
+        method relies on orignal data already containing transects
+        '''
+
         m = model(case)
         m.interp_dist=interp_dist
         m.transects=transects
@@ -1029,9 +1040,9 @@ if __name__ == '__main__':
 
         m.save_interpolated_transects_to_one_file(n=100, rotation=None)
 
-    #combine_glider_samples('EXP10', remove=False,
-    #                       append='interp_1000_south_patch', 
-    #                       interp_dist=1000, transects=False, rotate=False)
+    combine_glider_samples('EXP10', remove=False,
+                           append='interp_1000_every_8', 
+                           interp_dist=1000, transects=False, rotate=False)
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)

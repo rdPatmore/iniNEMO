@@ -10,7 +10,7 @@
 #SBATCH --output=out_prof.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
-#SBATCH --time=0-06:00:00 #(2 days and 0 hours, default is 24 hours) 
+#SBATCH --time=0-24:00:00 #(2 days and 0 hours, default is 24 hours) 
 #SBATCH --mem=100GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=1
  
-python -u calc_richardson.py
+python -u calc_power_spectrum.py

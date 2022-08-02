@@ -83,7 +83,8 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
 
     if post_transect:
         print ('rotation', rotation)
-        glider = get_transects(glider.votemper, offset=True, rotation=rotation)
+        glider = get_transects(glider.votemper, offset=True, rotation=rotation,
+                               method='from interp_1000')
     return glider
 
 def get_raw_path():
@@ -101,14 +102,30 @@ def plot_path():
     #p2000 = get_interp_path('EXP10', '2000') 
     #raw = get_raw_path()
 
-    fig, axs = plt.subplots(1,1, figsize=(10,10))
 
      
-    full_path = get_sampled_path('EXP10', 'interp_1000_trans') 
-    cmap = plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
-    for (l,trans) in full_path.groupby('transect'):
+    #every_8 = get_sampled_path('EXP10', 'interp_1000') 
+    #print (every_8)
+    #print (lkjsdf)
+    every_8 = get_sampled_path('EXP10', 'every_8') 
+    cmap = plt.cm.inferno(np.linspace(0,1,every_8.transect.max().values+1))
+    fig, axs = plt.subplots(5,5, figsize=(10,10))
+    plt.subplots_adjust(hspace=0.02, wspace=0.02)
+    axs = axs.flatten()
+    for i, (l,trans) in enumerate(every_8.groupby('transect')):
         print (l)
-        axs.plot(trans.lon, trans.lat)
+        axs[i%25].plot(trans.lon, trans.lat)
+        axs[i%25].set_xlim(every_8.lon.min(), every_8.lon.max())
+        axs[i%25].set_ylim(every_8.lat.min(), every_8.lat.max())
+    for ax in axs:
+        ax.set_xticks([])
+        ax.set_yticks([])
+    
+    plt.show()
+        #plt.clear()
+    #raw = get_raw_path()
+    #axs.set_xlim(raw.lon.min(), raw.lon.max())
+    #axs.set_ylim(raw.lat.min(), raw.lat.max())
         #axs.plot(trans.lon, trans.lat, c=cmap[l])
     #for (l,trans) in p1000.groupby('transect'):
     #    print (l)
@@ -116,7 +133,6 @@ def plot_path():
     #for (l,trans) in p2000.groupby('transect'):
     #    print (l)
     #    axs[2].plot(trans.lon, trans.lat)
-    plt.show()
 
     
 def plot_paths():
