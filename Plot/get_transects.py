@@ -139,13 +139,15 @@ def get_transects(da, concat_dim='distance', method='cycle',
         glider = get_transects(glider.votemper, offset=True, method='cycle',
                                cut_meso=False)
         
-        
         # assign high res transects to low res path
         trans = glider.swap_dims({'distance':'ctd_data_point'}
                                     ).dropna('ctd_data_point')
         trans = trans.sel(ctd_data_point=da.ctd_data_point.values,
                          method='nearest').transect.astype('int').values
-        da['transect'] = xr.DataArray(trans, dims=('distance'))
+
+        dim = list(da.dims)[0] # target dim
+        da = da.assign_coords({'transect': xr.DataArray(trans, dims=(dim))})
+
         skip=True
 
     if not skip:
@@ -166,9 +168,11 @@ def get_transects(da, concat_dim='distance', method='cycle',
         da = da.where(da.transect>1, drop=True)
         # this should work but there is a bug in xarray perhaps
         # idxmin drops all coordinates...
-        da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,drop=True)
-        #transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
-        #da = da.where(da.transect != transect_south, drop=True)
+        # this works when transect is a coordinate rather than a variable
+        da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,
+                      drop=True)
+        # transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
+        # da = da.where(da.transect != transect_south, drop=True)
 
     # re-rotate
     if rotation:

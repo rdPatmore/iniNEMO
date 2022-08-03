@@ -11,7 +11,7 @@ import spectrum as sp
 from scipy import stats
 import itertools
 import matplotlib.pyplot as plt
-import iniNemo.Plot.get_transects as get_transects
+from iniNEMO.Plot.get_transects import get_transects
 
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
@@ -442,7 +442,7 @@ class power_spectrum_glider(object):
         
          
 
-    def calc_spectrum(self, proc='multi_taper', get_transects=False):
+    def calc_spectrum(self, proc='multi_taper', get_transects_flag=False):
         ''' 
         Calculate power spectrum with multi-taper method according to
         #Giddy 2020
@@ -463,8 +463,8 @@ class power_spectrum_glider(object):
             print ('sample: ', i)
             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
             print (var10)
-            if get_transects:
-                var10 = get_transects(var10.votemper, offset=True,
+            if get_transects_flag:
+                var10 = get_transects(var10, offset=True,
                                method='from interp_1000')
                 #var10 = self.get_transects(var10)
             Pset_transect = []
@@ -532,15 +532,20 @@ class power_spectrum_glider(object):
 
 if __name__ == '__main__':
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_2_',
+                              append='interp_1000_',
                               fs=1000)
     m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects=True)
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_8_',
+                              append='every_4_',
                               fs=1000)
     m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects=True)
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_3_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='every_2_',
     #                          fs=1000)

@@ -10,7 +10,7 @@ import matplotlib
 from skimage.filters import window
 import scipy.signal as sig
 import matplotlib.gridspec as gridspec
-from plot_interpolated_tracks import get_sampled_path
+from plot_interpolated_tracks import get_sampled_path, get_raw_path
 import cartopy.crs as ccrs
 
 matplotlib.rcParams.update({'font.size': 8})
@@ -324,6 +324,15 @@ class plot_power_spectrum(object):
         self.fig.legend(loc='upper right', bbox_to_anchor=(0.99, 0.99),
                         fontsize=6)
 
+    def get_raw_path(self):
+        glider_raw = xr.open_dataset(config.root() + 'Giddy_2020/merged_raw.nc')
+        glider_raw = glider_raw.rename({'longitude': 'lon', 'latitude': 'lat'})
+        index = np.arange(glider_raw.ctd_data_point.size)
+        glider_raw = glider_raw.assign_coords(ctd_data_point=index)
+        self.glider_raw = get_transects(
+                               glider_raw.dives,concat_dim='ctd_data_point',
+                                   shrink=100, offset=False)
+
     def plot_pre_post_transect(self):
         '''
         plot paths and associated spectra when retriving transects
@@ -331,13 +340,14 @@ class plot_power_spectrum(object):
         '''
 
         # initialised figure
-        fig = plt.figure(figsize=(6.5, 4.5), dpi=300)
+        fig = plt.figure(figsize=(5.5, 4.5), dpi=300)
         gs0 = gridspec.GridSpec(ncols=3, nrows=2)
         gs1 = gridspec.GridSpec(ncols=1, nrows=1)
         gs2 = gridspec.GridSpec(ncols=2, nrows=1)
-        gs0.update(top=0.93, bottom=0.58, left=0.13, right=0.78)
-        gs1.update(top=0.93, bottom=0.58, left=0.80, right=0.98)
-        gs2.update(top=0.55, bottom=0.25, left=0.13, right=0.98)
+        gs0.update(top=0.99, bottom=0.53, left=0.1,  right=0.78,
+                   wspace=0.05, hspace=0.05)
+        gs1.update(top=0.99, bottom=0.53, left=0.80, right=0.98)
+        gs2.update(top=0.50, bottom=0.1, left=0.1,  right=0.98, wspace=0.05)
 
         axs0, axs2 = [], []
         #for i in range(3):
@@ -346,10 +356,12 @@ class plot_power_spectrum(object):
         for i in range(6):
                 axs0.append(fig.add_subplot(gs0[i], 
                      projection=ccrs.AlbersEqualArea(central_latitude=60,
-                      standard_parallels=(-62,-58))))
+                      standard_parallels=(-62,-58)), frameon=False))
         for i in range(2):
             axs2.append(fig.add_subplot(gs2[i]))
-        axs1 = fig.add_subplot(gs2[0])
+        axs1 = fig.add_subplot(gs1[0],
+                     projection=ccrs.AlbersEqualArea(central_latitude=60,
+                      standard_parallels=(-62,-58)))
 
         proj = ccrs.PlateCarree()
 
@@ -391,6 +403,13 @@ class plot_power_spectrum(object):
         for (l,trans) in every_8.groupby('transect'):
             axs0[5].plot(trans.lon, trans.lat, transform=proj)
 
+        # plot raw path
+        raw = get_raw_path()
+        cmap = plt.cm.inferno(np.linspace(0,1,raw.transect.max().values+1))
+        for (l,trans) in raw.groupby('transect'):
+            axs1.plot(trans.lon, trans.lat, transform=proj)
+
+        # plot spectra
         spec = plot_power_spectrum()
         
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
@@ -401,35 +420,48 @@ class plot_power_spectrum(object):
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
      append='_every_2_transects_multi_taper_pre_transect_clean_pfit1',
-                                c='orange',
+                                c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
      append='_every_8_transects_multi_taper_pre_transect_clean_pfit1',
-                                c='orange',
+                                c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
 
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_interp_1000_multi_taper_transect_clean_pfit1',
+     append='_interp_1000_multi_taper_post_transect_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_every_2_multi_taper_transect_clean_pfit1',
-                                c='orange',
+     append='_every_2_multi_taper_post_transect_clean_pfit1',
+                                c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_every_8_multi_taper_transect_clean_pfit1',
-                                c='orange',
+     append='_every_8_multi_taper_post_transect_clean_pfit1',
+                                c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
+        for ax in axs2:
+            ax.set_xlim(5e-2,5e-1)
+
+        axs2[0].set_xlabel(r'Wavenumber [km$^{-1}$]')
+        axs2[1].set_xlabel(r'Wavenumber [km$^{-1}$]')
+        axs2[0].set_ylabel('Temperature Power Spectral Density')
+        axs2[1].set_yticklabels([])
+        #axs0.set_yticks([])
+        #axs0.set_xticks([])
+        #for ax in axs0:
+        #    for side in ['left','right','top','bottom']:
+        #        print (side)
+        #        ax.spines[side].set_visible(False)
         plt.savefig('EXP10_transect_pre_post.png', dpi=600)
           
 def glider_sampling_alteration():

@@ -193,7 +193,7 @@ class model(object):
                            conservative_temperature,
                            grid_T.mldr10_3])
 
-         make grid regular
+        # make grid regular
         self.x_y_to_lat_lon()
  
         self.ds.to_netcdf('state.nc')
@@ -528,6 +528,14 @@ class model(object):
         if remove == 'every_8':
             token = 1.0 
             remove_index = np.floor(self.giddy_raw.dives) % 8
+        if remove == 'every_2_offset':
+            # remove every other dive pair
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives + 0.5) % 2
+        if remove == 'every_4_offset':
+            # remove every other dive pair
+            token = 1.0 
+            remove_index = np.floor(self.giddy_raw.dives + 0.5) % 4
         if remove == 'every_8_and_climb':
             # remove all dives and sample every 8
             token = 0.0 
@@ -769,11 +777,9 @@ class model(object):
                               glider_uniform)
 
 
-        if self.transects:
-            append = append + '_transects'
         glider_uniform.to_netcdf(self.data_path + 
                                  'GliderRandomSampling/glider_uniform_'
-                                  + append + '_' + str(ind).zfill(2) + '.nc')
+                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):
@@ -961,14 +967,19 @@ if __name__ == '__main__':
         m.load_gsw()
         print (m.ds)
         m.get_alpha_and_beta(save=True)
-    save_alpha_and_beta('EXP10')
+    #save_alpha_and_beta('EXP10')
 
     def glider_sampling(case, remove=False, append='', interp_dist=1000,
                         transects=False, south_limit=None, north_limit=None,
                         rotate=False, rotation=np.pi/2):
         m = model(case)
         m.interp_dist=interp_dist
-        m.transects=transects
+        #m.transects=transects
+        m.save_append = 'interp_' + str(interp_dist) + '_' + append
+        if remove:
+            m.save_append = m.save_append + '_' + remove
+        if transects:
+            m.save_append = m.save_append + '_pre_transect'
         m.load_gridT_and_giddy()
 
         # reductions of nemo domain
@@ -983,12 +994,13 @@ if __name__ == '__main__':
         #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
         m.prep_interp_to_raw_obs(rotate=rotate, rotation=rotation)
         if transects:
-            m.get_transects(shrink=100)
-            m. get_transects(da, concat_dim='distance', method='cycle',
-                  shrink=None, drop_trans=[False,False,False,False],
-                  offset=False, rotation=None):
+            #m.get_transects(shrink=100)
+            print (m.giddy_raw)
+            m.giddy_raw = get_transects(m.giddy_raw, 
+                                           method='from interp_1000',
+                                           shrink=100)
         if remove:
-            m.prep_remove_dives(remove=append.rstrip('_transects'))
+            m.prep_remove_dives(remove=remove)
         for ind in range(0,1):
             m.ind = ind
             print ('ind: ', ind)
@@ -1009,9 +1021,16 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    #glider_sampling('EXP10', remove=False, append='interp_1000_rotate_180', 
-    #                interp_dist=1000, transects=False, rotate=True, 
-    #                rotation=np.pi)
+    glider_sampling('EXP10', append='interp_1000', 
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_2',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_2_offset',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4_offset',
+                    interp_dist=1000, transects=True)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 
 #                    interp_dist=2000, transects=False, rotate=False)
     ###
@@ -1040,9 +1059,9 @@ if __name__ == '__main__':
 
         m.save_interpolated_transects_to_one_file(n=100, rotation=None)
 
-    combine_glider_samples('EXP10', remove=False,
-                           append='interp_1000_every_8', 
-                           interp_dist=1000, transects=False, rotate=False)
+    #combine_glider_samples('EXP10', remove=False,
+    #                       append='interp_1000_every_8', 
+    #                       interp_dist=1000, transects=False, rotate=False)
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)
