@@ -817,7 +817,6 @@ class model(object):
         b = g * (1 - glider_sample.rho / rho_0)
         print (b)
         print (b.distance.diff('distance'))
-        print (fhsdf)
         b_x = b.diff('distance') / dx
 
         # buoyancy within mixed layer
@@ -975,7 +974,7 @@ if __name__ == '__main__':
         m = model(case)
         m.interp_dist=interp_dist
         #m.transects=transects
-        m.save_append = 'interp_' + str(interp_dist) + '_' + append
+        m.save_append = 'interp_' + str(interp_dist) + append
         if remove:
             m.save_append = m.save_append + '_' + remove
         if transects:
@@ -1001,7 +1000,7 @@ if __name__ == '__main__':
                                            shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
-        for ind in range(0,1):
+        for ind in range(0,100):
             m.ind = ind
             print ('ind: ', ind)
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)

@@ -463,6 +463,89 @@ class plot_power_spectrum(object):
         #        print (side)
         #        ax.spines[side].set_visible(False)
         plt.savefig('EXP10_transect_pre_post.png', dpi=600)
+
+    def compare_climb_dive_pair_reduction(self):
+        ''' 
+        multi-panel plot of removing:
+              (upper) every 2, 3, 4 and 8 pairs 
+              (lower) up, down, 2 and up, 2 and down 
+
+        !!!This should be pre-interpolation transecting!!!
+
+        '''
+    
+        fig, axs = plt.subplots(2, 4, figsize=(6.5,4))
+        plt.subplots_adjust(right=0.88)
+    
+        spec = plot_power_spectrum()
+        
+        for ax in axs.flatten():
+            spec.add_glider_spectra('EXP10', ax, var='votemper',
+         append='_interp_1000_transects_multi_taper_pre_transect_clean_pfit1',
+                                    c='green',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        # remove every 2
+        spec.add_glider_spectra('EXP10', axs[0,0], var='votemper',
+         append='_every_2_transects_multi_taper_pre_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+    
+        # remove every 3
+        spec.add_glider_spectra('EXP10', axs[0,1], var='votemper',
+         append='_every_3_multi_taper_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        # remove every 4
+        spec.add_glider_spectra('EXP10', axs[0,2], var='votemper',
+         append='_every_4_multi_taper_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        # remove every 8
+        spec.add_glider_spectra('EXP10', axs[0,3], var='votemper',
+         append='_every_8_transects_multi_taper_pre_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        # remove climbs
+        spec.add_glider_spectra('EXP10', axs[1,0], var='votemper',
+         append='_climb_multi_taper_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        for ax in axs.flatten():
+            ax.set_xlim(5e-2,5e-1)
+        for ax in axs[:,0]:
+            ax.set_ylabel('Temperature\nPower Spectral Density')
+        for ax in axs[1]:
+            ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
+            ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+        for ax in axs[0]:
+            ax.get_xaxis().set_minor_formatter(matplotlib.ticker.NullFormatter())
+            ax.get_xaxis().set_major_formatter(matplotlib.ticker.NullFormatter())
+            #ax.set_xticks([1e-1])
+            #ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+            #ax.get_xaxis().set_minor_formatter(matplotlib.ticker.ScalarFormatter())
+            #ax.set_xticks([])
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        plt.savefig('EXP10_multi_panel_sampling_reductions.png', dpi=600)
+    
+    
           
 def glider_sampling_alteration():
     m = plot_power_spectrum()
@@ -515,5 +598,6 @@ def model_res_compare():
     plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
 m = plot_power_spectrum()
-m.plot_pre_post_transect()
+#m.plot_pre_post_transect()
+m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()
