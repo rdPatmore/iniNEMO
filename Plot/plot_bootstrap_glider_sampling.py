@@ -515,16 +515,23 @@ class bootstrap_glider_samples(object):
             stacked_bgx = bg.bx.stack(z=('time_counter','x','y'))
             stacked_bgy = bg.by.stack(z=('time_counter','x','y'))
 
+            # bg norm
+            stacked_bg_norm = (stacked_bgx**2 + stacked_bgy**2)**0.5
+
             # histogram
             hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
                                    range=self.hist_range, density=True, bins=20)
             hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
                                    range=self.hist_range, density=True, bins=20)
+            hist_norm, bins = np.histogram(
+                                   stacked_bg_norm.dropna('z', how='all'),
+                                   range=self.hist_range, density=True, bins=20)
             bin_centers = (bins[:-1] + bins[1:]) / 2
 
             # assign to dataset
             hist_ds = xr.Dataset({'hist_x':(['bin_centers'], hist_x),
-                                  'hist_y':(['bin_centers'], hist_y)},
+                                  'hist_y':(['bin_centers'], hist_y),
+                                  'hist_norm':(['bin_centers'], hist_norm)},
                        coords={'bin_centers': (['bin_centers'], bin_centers),
                                'bin_left'   : (['bin_centers'], bins[:-1]),
                                'bin_right'  : (['bin_centers'], bins[1:])})
@@ -1139,8 +1146,13 @@ class bootstrap_plotting(object):
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                         self.append + '.nc')
        
-        ds['hist'] = (ds.hist_x + ds.hist_y) / 2
-        ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
+        # mean direction
+        #ds['hist'] = (ds.hist_x + ds.hist_y) / 2
+        #ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
+
+        # vector norm
+        #ds['hist'] = (ds.hist_x**2 + ds.hist_y**2) ** 0.5
+        #ds_all['hist'] = (ds_all.hist_x**2 + ds_all.hist_y**2) ** 0.5 
 
         date_list = np.array([(np.datetime64('2012-12-13')
                               + np.timedelta64(i, 'W')).astype('datetime64[D]')
@@ -1149,16 +1161,16 @@ class bootstrap_plotting(object):
             for (l, week) in ds.groupby('time_counter'):
                 i = int(np.argwhere(date_list==l.astype('datetime64[D]')))
                 print (week.time_counter)
-                self.axs.flatten()[i].vlines(week.hist,
+                self.axs.flatten()[i].vlines(week.hist_norm,
                         week.bin_left, week.bin_right,
                        transform=self.axs.flatten()[i].transData,
                        colors='black', lw=0.8, label='model bgx')
-            self.axs[1,-1].vlines(ds_all.hist,
+            self.axs[1,-1].vlines(ds_all.hist_norm,
                        ds_all.bin_left, ds_all.bin_right,
                        transform=self.axs[1,-1].transData,
                        colors='black', lw=0.8, label='model bgx')
         if style=='plot':
-            self.ax.plot(ds.bin_centers, ds.hist, c='black', lw=0.8,
+            self.ax.plot(ds.bin_centers, ds.hist_norm, c='black', lw=0.8,
                          label='model bg')
 
     def add_giddy(self, by_time=None):
@@ -1248,7 +1260,7 @@ class bootstrap_plotting(object):
             ax.set_xticklabels([])
         
         plt.savefig(case + '_bg_sampling_skill' + self.append + '_'
-                    + by_time + '.png',dpi=600)
+                    + by_time + '_pre_norm.png',dpi=600)
 
     def get_ensembles(self, case, by_time):
         '''
@@ -1278,7 +1290,11 @@ class bootstrap_plotting(object):
         ensembles = ensembles.set_coords('sample_size')
 
         # mean of the vectors
-        ensembles['m_bg_abs'] = (m.hist_x + m.hist_y) / 2
+        #ensembles['m_bg_abs'] = (m.hist_x + m.hist_y) / 2
+
+        # norm of the vectors
+        #ensembles['m_bg_abs'] = (m.hist_x**2 + m.hist_y) / 2
+        ensembles['m_bg_abs'] = m.hist_norm
 
         return ensembles
 
@@ -1302,7 +1318,10 @@ class bootstrap_plotting(object):
         bg = bg.isel(x=slice(20,-20), y=slice(20,-20))
   
         # absolute value of vector mean
-        bg = np.abs((bg.bx + bg.by)/2).load()
+        #bg = np.abs((bg.bx + bg.by)/2).load()
+
+        # bg normed
+        bg = ((bg.bx**2 + bg.by**2) ** 0.5).load()
 
         bg_mean = bg.mean(['x','y'])
         bg_std = bg.std(['x','y'])
@@ -1541,10 +1560,11 @@ class bootstrap_plotting(object):
             ax.yaxis.set_label_coords(xpos, 0.5)
         axs1[0].yaxis.set_label_coords(xpos, 0.5)
 
-        plt.savefig(case + '_bg_RMSE_3_panel_' + self.append + '.png', dpi=600)
+        plt.savefig(case + '_bg_RMSE_3_panel_' + self.append + 'pre_norm.png',
+                    dpi=600)
 
 
-    def plot_correlation_rmse(self, case, by_time):
+    def plot_correlation_rmse(self, case):
         '''
         scatter plots of RMSE against
             - ensemble size
@@ -1641,12 +1661,14 @@ class bootstrap_plotting(object):
                         fontsize=6, transform=ax.transData)
 
             # pearsons rank correlation
+            print (rmse_l)
+            rmse_l = rmse_l.dropna('z')
             u_ens_pr = round(stats.pearsonr(rmse_u.ensemble_size, rmse_u)[0], 3)
-            l_ens_pr = round(stats.pearsonr(rmse_l.ensemble_size, rmse_u)[0], 3)
+            l_ens_pr = round(stats.pearsonr(rmse_l.ensemble_size, rmse_l)[0], 3)
             u_sam_pr = round(stats.pearsonr(rmse_u.sample_size, rmse_u)[0], 3)
-            l_sam_pr = round(stats.pearsonr(rmse_l.sample_size, rmse_u)[0], 3)
+            l_sam_pr = round(stats.pearsonr(rmse_l.sample_size, rmse_l)[0], 3)
             u_std_pr = round(stats.pearsonr(rmse_u.bg_std, rmse_u)[0], 3)
-            l_std_pr = round(stats.pearsonr(rmse_l.bg_std, rmse_u)[0], 3)
+            l_std_pr = round(stats.pearsonr(rmse_l.bg_std, rmse_l)[0], 3)
 
             axs[0].text(350, pos + 0.2, str(u_ens_pr),
                     va='center', ha='center',
@@ -1674,6 +1696,7 @@ class bootstrap_plotting(object):
         # axis details
         ax_labels = ['ensemble size', 'sample size', r'$\sigma_{bg}$']
         for i, ax in enumerate(axs):
+            ax.set_xlim(0,335)
             ax.set_ylim(0,4)
             ax.set_yticks([1,2,3])
             ax.set_yticklabels(['3W', '2W', '1W'])
@@ -1692,13 +1715,13 @@ class bootstrap_plotting(object):
             ax.spines['bottom'].set_visible(False)
             ax.set_xticks([])
 
-        plt.savefig('EXP10_bg_rmse_corr.png', dpi=600)
+        plt.savefig('EXP10_bg_rmse_corr_pre_norm.png', dpi=600)
   
-def plot_correlations(by_time):
+def plot_correlations():
     boot = bootstrap_plotting()
-    boot.plot_correlation_rmse('EXP10', by_time)
+    boot.plot_correlation_rmse('EXP10')
 
-plot_correlations(by_time='1W_rolling')
+plot_correlations()
 
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
@@ -1727,11 +1750,11 @@ def prep_hist(by_time=None):
                                      subset='', transect=False)
         if by_time:
              m.append =  m.append + '_' + by_time
-        #m.get_full_model_hist(save=True, by_time=by_time)
+        m.get_full_model_hist(save=True, by_time=by_time)
         #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
-        for n in range(1,31):
-            print (n)
-            m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
+        #for n in range(1,31):
+        #    print (n)
+        #    m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
 
 def prep_timeseries(subset=''):
     cases = ['EXP10']
@@ -1781,7 +1804,10 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_full_model_day_week_std(save=True)
 
 #prep_hist(by_time='3W_rolling')
+#plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
+#plot_hist(by_time='3W_rolling')
+#prep_hist()
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='2W_rolling')

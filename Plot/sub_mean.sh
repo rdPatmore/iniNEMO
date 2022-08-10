@@ -14,7 +14,7 @@
 #SBATCH --mem=64GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
-#SBATCH --partition=cluster
+#SBATCH --partition=short
 #SBATCH --account=shared
  
 export OMP_NUM_THREADS=1

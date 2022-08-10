@@ -690,7 +690,7 @@ class model(object):
                                      'GliderRandomSampling/glider_raw_nemo_' + 
                                       append + '_' + ind + '.nc')
 
-    def interp_raw_obs_path_to_uniform_grid(self, ind='', append=''):
+    def interp_raw_obs_path_to_uniform_grid(self, ind=''):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
@@ -996,8 +996,8 @@ if __name__ == '__main__':
             #m.get_transects(shrink=100)
             print (m.giddy_raw)
             m.giddy_raw = get_transects(m.giddy_raw, 
-                                           method='from interp_1000',
-                                           shrink=100)
+                                        method='from interp_1000',
+                                        shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
         for ind in range(0,100):
@@ -1005,31 +1005,25 @@ if __name__ == '__main__':
             print ('ind: ', ind)
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
-            m.interp_raw_obs_path_to_uniform_grid(ind=ind, append=append)
+            m.interp_raw_obs_path_to_uniform_grid(ind=ind)
             print ('done part 2')
         #inds = np.arange(100)
         #m.ds['grid_T'] = m.ds['grid_T'].expand_dims(ind=inds)
-        #m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
-        #m.interp_raw_obs_path_to_uniform_grid(append=append)
-        #print (m.ds['grid_T'])
-        ##print (inds)
-        ##print (djkfs)
         #futures = client.map(process_all, inds, **dict(m=m))
         #client.gather(futures)
         #xr.apply_ufunc(process_all, inds, dask="parallelized")
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', append='interp_1000', 
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_2',
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_4',
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_2_offset',
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_4_offset',
-                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', interp_dist=1000, transects=True)
+    ######glider_sampling('EXP10', remove='every_2',
+    ######                interp_dist=1000, transects=True)
+    ######glider_sampling('EXP10', remove='every_4',
+    ######                interp_dist=1000, transects=True)
+    ######glider_sampling('EXP10', remove='every_2_offset',
+    ######                interp_dist=1000, transects=True)
+    ######glider_sampling('EXP10', remove='every_4_offset',
+    ######                interp_dist=1000, transects=True)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 
 #                    interp_dist=2000, transects=False, rotate=False)
     ###
@@ -1068,7 +1062,7 @@ if __name__ == '__main__':
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
         m.interp_to_raw_obs_path()
-        m.interp_raw_obs_path_to_uniform_grid(ind='', append='climbs')
+        m.interp_raw_obs_path_to_uniform_grid(ind='')
     
     
     #print ('start')

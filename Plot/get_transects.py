@@ -37,9 +37,31 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
     glider = glider.set_coords(['lon_offset','lat_offset','time_counter'])
     #glider = rotate(glider, np.radians(-90))
 
+def cut_meso(da, rotation=None):
+        ''' removes the mesoscale north-south transects '''
+
+        # some paths are saved rotated
+        if rotation: # shift back to unrotated
+            da = rotate_path(da, -rotation)
+
+        da = da.where(da.transect>1, drop=True)
+        # this should work but there is a bug in xarray perhaps
+        # idxmin drops all coordinates...
+        # this works when transect is a coordinate rather than a variable
+        da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,
+                      drop=True)
+        # transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
+        # da = da.where(da.transect != transect_south, drop=True)
+
+        # re-rotate
+        if rotation:
+            da = rotate_path(da, rotation)
+
+        return da
+
 def get_transects(da, concat_dim='distance', method='cycle',
                   shrink=None, drop_trans=[False,False,False,False],
-                  offset=False, rotation=None, cut_meso=True):
+                  offset=False, rotation=None, cut_meso=False):
     '''
     da is xr DataArray only
 
@@ -57,15 +79,18 @@ def get_transects(da, concat_dim='distance', method='cycle',
         da = rotate_path(da, -rotation)
 
     if method == '2nd grad':
+        # finds the maxima in the second order gradients 
+
         a = np.abs(np.diff(da.lat, 
         append=da.lon.max(), prepend=da.lon.min(), n=2))# < 0.001))[0]
         idx = np.where(a>0.006)[0]
 
     if method == 'cycle':
+        # loops through the data and interates transect when lat-lon
+        # thresholds are met
+ 
         crit = [0,1,2,3]
         #da = da.isel(distance=slice(0,400))
-
-
 
         # shift back to origin
         if offset:
@@ -99,7 +124,9 @@ def get_transects(da, concat_dim='distance', method='cycle',
 
     if method == 'find e-w':
         # find local maximums in east west travel
-        #a = np.abs(np.diff(da.lon.isel(distance=slice(None,None,10)), n=2))
+        # a = np.abs(np.diff(da.lon.isel(distance=slice(None,None,10)), n=2))
+        # works ok but not uniform accross the data reductions (every 2 etc.)
+
         def differ(arr):
             print (arr.lon)
             a = np.abs(arr.lon.isel(max_diff=-1) - arr.lon.isel(max_diff=0))
@@ -128,6 +155,9 @@ def get_transects(da, concat_dim='distance', method='cycle',
         idx = np.where(max_dist>0.009)[0]
 
     if method == 'from interp_1000':
+        # get transects from interp_1000_00
+        # this data has the mesoscale transects included
+
         path = config.data_path() + 'EXP10/'
         file_path = path + 'GliderRandomSampling/' + \
                     'glider_uniform_interp_1000_00.nc'
@@ -163,24 +193,27 @@ def get_transects(da, concat_dim='distance', method='cycle',
             da.pop(i)
         da = xr.concat(da, dim=concat_dim)
 
-        # remove initial and mid path excursions
+    # remove initial and mid-path mesoscale excursions
+    # defunct due to next naming lines
     if cut_meso:
-        da = da.where(da.transect>1, drop=True)
-        # this should work but there is a bug in xarray perhaps
-        # idxmin drops all coordinates...
-        # this works when transect is a coordinate rather than a variable
-        da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,
-                      drop=True)
-        # transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
-        # da = da.where(da.transect != transect_south, drop=True)
+        da = cut_meso(da)
+
+    # name mesoscale transects
+    # 1 for bow tie, 0 for n-s transects
+    meso = xr.where(da.transect>1, 1, 0) # get 1st transect
+    lat_nan_t0 = da.lat.where(meso) # temp arr with 1st path removed
+    # get second 
+    meso = xr.where(da.transect != lat_nan_t0.idxmin(skipna=True).transect,
+                    meso, 0)
+    da = da.assign_coords({'meso_transect': meso})
 
     # re-rotate
     if rotation:
         da = rotate_path(da, rotation)
 
     # catagorise
-    category = da.transect%4
-    da = da.assign_coords({'vertex': da.transect%4})
+    category = da.transect % 4
+    da = da.assign_coords({'vertex': da.transect % 4})
 
     #category = (np.tile([0,1,2,3], 1 + (da.size/4)))[:ds.size]
     #print (np.unique(category))
@@ -193,5 +226,6 @@ def get_transects(da, concat_dim='distance', method='cycle',
     #for (_, v) in da.groupby('vertex'):
     #    plt.plot(v.lon, v.lat)
     #plt.show()
+
     return da
 
