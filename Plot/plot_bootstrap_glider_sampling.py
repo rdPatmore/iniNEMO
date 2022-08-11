@@ -1007,7 +1007,7 @@ class bootstrap_glider_samples(object):
                    '_'+ t0 + '_' + t1 + '.png', dpi=600)
 
 class bootstrap_plotting(object):
-    def __init__(self, append=''):
+    def __init__(self, append='', bg_method='norm'):
         self.data_path = config.data_path()
         if append == '':
             self.append = ''
@@ -1016,6 +1016,7 @@ class bootstrap_plotting(object):
 
         self.hist_range = (0,2e-8)
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
+        self.bg_method = bg_method
 
     def plot_variance(self, cases):
 
@@ -1147,12 +1148,14 @@ class bootstrap_plotting(object):
                         self.append + '.nc')
        
         # mean direction
-        #ds['hist'] = (ds.hist_x + ds.hist_y) / 2
-        #ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
+        if self.bg_method == 'mean':
+            ds['hist'] = (ds.hist_x + ds.hist_y) / 2
+            ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
 
         # vector norm
-        #ds['hist'] = (ds.hist_x**2 + ds.hist_y**2) ** 0.5
-        #ds_all['hist'] = (ds_all.hist_x**2 + ds_all.hist_y**2) ** 0.5 
+        if self.bg_method == 'norm':
+            ds['hist'] = ds.hist_norm
+            ds_all['hist'] = ds.hist_norm
 
         date_list = np.array([(np.datetime64('2012-12-13')
                               + np.timedelta64(i, 'W')).astype('datetime64[D]')
@@ -1161,16 +1164,16 @@ class bootstrap_plotting(object):
             for (l, week) in ds.groupby('time_counter'):
                 i = int(np.argwhere(date_list==l.astype('datetime64[D]')))
                 print (week.time_counter)
-                self.axs.flatten()[i].vlines(week.hist_norm,
+                self.axs.flatten()[i].vlines(week.hist,
                         week.bin_left, week.bin_right,
                        transform=self.axs.flatten()[i].transData,
                        colors='black', lw=0.8, label='model bgx')
-            self.axs[1,-1].vlines(ds_all.hist_norm,
+            self.axs[1,-1].vlines(ds_all.hist,
                        ds_all.bin_left, ds_all.bin_right,
                        transform=self.axs[1,-1].transData,
                        colors='black', lw=0.8, label='model bgx')
         if style=='plot':
-            self.ax.plot(ds.bin_centers, ds.hist_norm, c='black', lw=0.8,
+            self.ax.plot(ds.bin_centers, ds.hist, c='black', lw=0.8,
                          label='model bg')
 
     def add_giddy(self, by_time=None):
@@ -1201,15 +1204,63 @@ class bootstrap_plotting(object):
                                'bin_right'  : (['bin_centers'], bins[1:])})
             return hist_ds
        
-        # time splitting
+        # time splitting - hists are loaded for other variables
+        #                - maybe move this to calcs section and save as file...
         dbdx = dbdx.swap_dims({'distance':'time'})
-        print (dbdx)
-        hist_ds = dbdx.resample(time='1W', skipna=True).map(
-                                get_hist)
-        for i, (_,week) in enumerate(hist_ds.groupby('time')):
+
+        # base list of weeks for rolling
+        date_list = [np.datetime64('2018-12-10 00:00:00') +
+                     np.timedelta64(i, 'W')
+                     for i in range(16)]
+        # mid week dates
+        mid_date = [date_list[i] + (date_list[i+1] - date_list[i])/2
+                   for i in range(15)]
+
+        if by_time == 'weekly':
+            # split into groups of weeks
+            hist_ds = dbdx.resample(time='1W', skipna=True).map(
+                                                         get_hist)
+        elif by_time == '1W_rolling':
+            # split into 1 week samples, sampled by week
+            hist_ds = dbdx.groupby_bins('time', date_list,
+                                    labels=mid_date).map(get_hist)
+            hist_ds = hist_ds.rename({'time_bins':'time'})
+        elif by_time == '2W_rolling':
+            # split into 2 week samples, sampled by week
+            mid_date=mid_date[1:]
+            l_dl = date_list[::2] + np.timedelta64(84, 'h')
+            l_label = mid_date[::2]
+            hist_ds_l = dbdx.groupby_bins('time', l_dl,
+                         labels=l_label).map(get_hist)
+            u_dl = date_list[1:-1:2] + np.timedelta64(84, 'h')
+            u_label = mid_date[1:-1:2]# + np.timedelta64(1, 'W')
+            hist_ds_u = dbdx.groupby_bins('time', u_dl,
+                         labels=u_label).map(get_hist)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_l])
+            hist_ds = hist_ds.rename({'time_bins':'time'})
+        elif by_time == '3W_rolling':
+            # split into 3 week samples, sampled by week
+            mid_date=mid_date[1:]
+            l_dl = date_list[::3]
+            l_label = mid_date[::3]
+            hist_ds_l = dbdx.groupby_bins('time', l_dl,
+                         labels=l_label).map(get_hist)
+            m_dl = date_list[1:-1:3]
+            m_label = mid_date[1:-1:3]
+            hist_ds_m = dbdx.groupby_bins('time', m_dl,
+                         labels=m_label).map(get_hist)
+            u_dl = date_list[2:-1:3]
+            u_label = mid_date[2:-1:3]
+            hist_ds_u = dbdx.groupby_bins('time', u_dl,
+                         labels=u_label).map(get_hist)
+            hist_ds = xr.merge([hist_ds_u, hist_ds_m, hist_ds_l])
+            hist_ds = hist_ds.rename({'time_bins':'time'})
+
+        # plot over rolling intervals
+        for i, (_,t) in enumerate(hist_ds.groupby('time')):
             if i == 15: continue
             ax = self.axs.flatten()[i]
-            ax.vlines(week.hist, week.bin_left, week.bin_right,
+            ax.vlines(t.hist, t.bin_left, t.bin_right,
                       transform=ax.transData, colors='orange', lw=0.8,
                       label='Giddy et al. (2020)')
 
@@ -1230,7 +1281,8 @@ class bootstrap_plotting(object):
         self.figure, self.axs = plt.subplots(2,8, figsize=(6.5,3.5))
         plt.subplots_adjust(wspace=0.3, bottom=0.15, left=0.08, right=0.98,
                             top=0.95)
-        self.add_giddy(self.axs[0,0])
+        #self.add_giddy(self.axs[0,0])
+        self.add_giddy(by_time=by_time)
 
         sample_sizes = [1, 4, 20]
         colours = ['g', 'b', 'r', 'y', 'c']
@@ -1265,6 +1317,7 @@ class bootstrap_plotting(object):
     def get_ensembles(self, case, by_time):
         '''
         load weekly model hists and calculate mean buoyancy gradients in x and y
+            - for rmse differences
         '''
 
         # load weekly model hists
@@ -1289,12 +1342,13 @@ class bootstrap_plotting(object):
         ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
         ensembles = ensembles.set_coords('sample_size')
 
-        # mean of the vectors
-        #ensembles['m_bg_abs'] = (m.hist_x + m.hist_y) / 2
+        # mean of the histograms
+        if self.bg_method == 'mean':
+            ensembles['m_bg_abs'] = (m.hist_x + m.hist_y) / 2
 
-        # norm of the vectors
-        #ensembles['m_bg_abs'] = (m.hist_x**2 + m.hist_y) / 2
-        ensembles['m_bg_abs'] = m.hist_norm
+        # norm of the vectors - calculated before hist
+        elif self.bg_method == 'norm':
+            ensembles['m_bg_abs'] = m.hist_norm
 
         return ensembles
 
@@ -1318,10 +1372,15 @@ class bootstrap_plotting(object):
         bg = bg.isel(x=slice(20,-20), y=slice(20,-20))
   
         # absolute value of vector mean
-        #bg = np.abs((bg.bx + bg.by)/2).load()
+        if self.bg_method == 'mean':
+            bg = np.abs((bg.bx + bg.by)/2).load()
 
         # bg normed
-        bg = ((bg.bx**2 + bg.by**2) ** 0.5).load()
+        elif self.bg_method == 'norm':
+            bg = ((bg.bx**2 + bg.by**2) ** 0.5).load()
+
+        else:
+            print ('method not recognised')
 
         bg_mean = bg.mean(['x','y'])
         bg_std = bg.std(['x','y'])
@@ -1334,7 +1393,7 @@ class bootstrap_plotting(object):
             contourf
         '''
 
-        ensembles = self.get_ensembles(case, by_time)
+        ensembles = self.get_ensembles(case, by_time, method='norm')
 
         # calculate rmse
         rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
@@ -1403,7 +1462,7 @@ class bootstrap_plotting(object):
         sample_size = ensembles.sample_size.isel(ensemble_size=0)
         axs1.plot(sample_size.time_counter, sample_size)
 
-        # add time series of bg
+        # add time series of bg - standard deviation
         _, std = self.get_spatial_mean_and_std_bg(case)
         axs1_2 = axs1.twinx()
         axs1_2.plot(std.time_counter, std)
@@ -1451,7 +1510,7 @@ class bootstrap_plotting(object):
         def calc_and_render(by_time, a0, a1):
 
             # load data
-            ensembles = self.get_ensembles(case, by_time)
+            ensembles = self.get_ensembles(case, by_time, method='norm')
 
             # calculate rmse
             rmse_l = self.rmsep(ensembles.hist_l_dec, ensembles.m_bg_abs)
@@ -1483,7 +1542,7 @@ class bootstrap_plotting(object):
         calc_and_render('2W_rolling', axs0[2:4], axs1[1])
         p0, p1, time_counter = calc_and_render('3W_rolling', axs0[4:], axs1[2])
 
-        # add time series of bg
+        # add time series of bg - standard deviation
         _, std = self.get_spatial_mean_and_std_bg(case)
         twin_axes, p  = [], []
         for ax in axs1[:2]:
@@ -1577,6 +1636,7 @@ class bootstrap_plotting(object):
         plt.subplots_adjust(top=0.95, bottom=0.13, left=0.09, right=0.78,
                             hspace=0.15)
 
+        # get standard deviation of bg for correlations
         _, std = self.get_spatial_mean_and_std_bg(case)
 
         def all_by_times(by_time, std, c='r', pos=1):
@@ -1718,7 +1778,7 @@ class bootstrap_plotting(object):
         plt.savefig('EXP10_bg_rmse_corr_pre_norm.png', dpi=600)
   
 def plot_correlations():
-    boot = bootstrap_plotting()
+    boot = bootstrap_plotting(bg_method='norm')
     boot.plot_correlation_rmse('EXP10')
 
 plot_correlations()
@@ -1727,11 +1787,11 @@ def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     if by_time:
-        boot = bootstrap_plotting()
-        #boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
-        #                                                      'EXP10', by_time)
+        boot = bootstrap_plotting(bg_method='norm')
+        boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
+                                                              'EXP10', by_time)
         #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
-        boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
+        #boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
     
     else:
         for case in cases:
@@ -1804,9 +1864,9 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_full_model_day_week_std(save=True)
 
 #prep_hist(by_time='3W_rolling')
-#plot_hist(by_time='1W_rolling')
-#plot_hist(by_time='2W_rolling')
-#plot_hist(by_time='3W_rolling')
+plot_hist(by_time='1W_rolling')
+plot_hist(by_time='2W_rolling')
+plot_hist(by_time='3W_rolling')
 #prep_hist()
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')

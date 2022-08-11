@@ -6,6 +6,7 @@ from matplotlib.ticker import FormatStrFormatter
 import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
+import cmocean
 
 class plot_buoyancy_ratio(object):
 
@@ -20,52 +21,104 @@ class plot_buoyancy_ratio(object):
 
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
 
+    #def save_10_m_vars(self):
     def load_basics(self):
+
+        chunks = {'time_counter':1,'deptht':1}
         self.bg = xr.open_dataset(config.data_path() + self.case +
                              self.file_id + 'bg.nc',
-                             chunks='auto')
-        self.gridT = xr.open_dataset(config.data_path() + self.case +
+                             chunks=chunks)
+        self.T = xr.open_dataset(config.data_path() + self.case +
                               self.file_id + 'grid_T.nc',
-                              chunks='auto')
+                              chunks=chunks).votemper
+        self.S = xr.open_dataset(config.data_path() + self.case +
+                              self.file_id + 'grid_T.nc',
+                              chunks=chunks).vosaline
         self.alpha = xr.open_dataset(config.data_path() + self.case +
                               self.file_id + 'alpha.nc',
-                              chunks='auto').to_array().squeeze()
+                              chunks=chunks).to_array().squeeze()
         self.beta = xr.open_dataset(config.data_path() + self.case +
                               self.file_id + 'beta.nc',
-                              chunks='auto').to_array().squeeze()
+                              chunks=chunks).to_array().squeeze()
 
         # name the arrays (this should really be done in model_object
         #                  where the data is made)
         self.alpha.name = 'alpha'
         self.beta.name = 'beta'
 
-        self.cfg = xr.open_dataset(config.data_path() + self.case +
-                                   '/domain_cfg.nc').squeeze()
+        # make bg nameing consistent
+        self.bg = self.bg.rename({'bx':'dbdx', 'by':'dbdy'})
 
+        # restrict to 10 m
+        sel_kwargs = dict(deptht=10, method='nearest')
+        self.bg = self.bg.sel(**sel_kwargs)#.load()
+        self.T = self.T.sel(**sel_kwargs)#.load()
+        self.S = self.S.sel(**sel_kwargs)#.load()
+        self.alpha = self.alpha.sel(**sel_kwargs)#.load()
+        self.beta = self.beta.sel(**sel_kwargs)#.load()
 
         # assign index for x and y for merging
         self.bg = self.bg.assign_coords({'x':np.arange(1,self.bg.sizes['x']+1),
                                          'y':np.arange(1,self.bg.sizes['y']+1)})
-        self.gridT = self.gridT.assign_coords(
-                                        {'x':np.arange(self.gridT.sizes['x']),
-                                         'y':np.arange(self.gridT.sizes['y'])})
+        self.T = self.T.assign_coords(
+                                        {'x':np.arange(self.T.sizes['x']),
+                                         'y':np.arange(self.T.sizes['y'])})
+        self.S = self.S.assign_coords(
+                                        {'x':np.arange(self.S.sizes['x']),
+                                         'y':np.arange(self.S.sizes['y'])})
         self.alpha = self.alpha.assign_coords(
                                         {'x':np.arange(self.alpha.sizes['x']),
                                          'y':np.arange(self.alpha.sizes['y'])})
         self.beta = self.beta.assign_coords(
                                         {'x':np.arange(self.beta.sizes['x']),
                                          'y':np.arange(self.beta.sizes['y'])})
+
+
+        #self.bg.to_netcdf(config.data_path() + self.case + '/TenMetreVars' + 
+        #             self.file_id + 'bg_10.nc')
+        #self.T.to_netcdf(config.data_path() + self.case + '/TenMetreVars' + 
+        #             self.file_id + 'T_10.nc')
+        #self.S.to_netcdf(config.data_path() + self.case + '/TenMetreVars' + 
+        ##             self.file_id + 'S_10.nc')
+        #self.alpha.to_netcdf(config.data_path() + self.case + '/TenMetreVars' + 
+        #             self.file_id + 'alpha_10.nc')
+        #self.beta.to_netcdf(config.data_path() + self.case + '/TenMetreVars' + 
+        #             self.file_id + 'beta_10.nc')
+       # 
+
+   #     self.bg = xr.open_dataset(config.data_path() + self.case + 
+   #                          '/TenMetreVars' + self.file_id + 'bg_10.nc',
+   #                           chunks='auto')
+   #     self.T = xr.open_dataset(config.data_path() + self.case + 
+   #                          '/TenMetreVars' + self.file_id + 'T_10.nc',
+   #                           chunks='auto')
+   #     self.S = xr.open_dataset(config.data_path() + self.case + 
+   #                          '/TenMetreVars' + self.file_id + 'S_10.nc',
+   #                           chunks='auto')
+   #     self.alpha = xr.open_dataset(config.data_path() + self.case + 
+   #                          '/TenMetreVars' + self.file_id + 'alpha_10.nc',
+   #                           chunks='auto')
+   #     self.beta = xr.open_dataset(config.data_path() + self.case + 
+   #                          '/TenMetreVars' + self.file_id + 'beta_10.nc',
+   #                           chunks='auto')
+
+        self.cfg = xr.open_dataset(config.data_path() + self.case +
+                                   '/domain_cfg.nc').squeeze()
+
+        # assign index for x and y for merging
         self.cfg = self.cfg.assign_coords(
                                         {'x':np.arange(self.cfg.sizes['x']),
                                          'y':np.arange(self.cfg.sizes['y'])})
 
-        # make bg nameing consistent
-        self.bg = self.bg.rename({'bx':'dbdx', 'by':'dbdy'})
+        # add norm
+        self.bg['norm_grad_b'] = (self.bg.dbdx**2 + self.bg.dbdy**2)**0.5
 
         # subset model
         if self.subset=='north':
             self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
-            self.gridT = self.gridT.where(self.gridT.nav_lat>-59.9858036,
+            self.T = self.T.where(self.T.nav_lat>-59.9858036,
+                                          drop=True)
+            self.S = self.T.where(self.S.nav_lat>-59.9858036,
                                           drop=True)
             self.alpha = self.alpha.where(self.alpha.nav_lat>-59.9858036,
                                           drop=True)
@@ -74,21 +127,15 @@ class plot_buoyancy_ratio(object):
             self.cfg = self.cfg.where(self.cfg.gphit>-59.9858036, drop=True)
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
-            self.gridT = self.gridT.where(self.gridT.nav_lat<-59.9858036, 
+            self.T = self.T.where(self.T.nav_lat<-59.9858036, 
+                                          drop=True)
+            self.S = self.S.where(self.S.nav_lat<-59.9858036, 
                                           drop=True)
             self.alpha = self.alpha.where(self.alpha.nav_lat<-59.9858036, 
                                           drop=True)
             self.beta = self.beta.where(self.beta.nav_lat<-59.9858036, 
                                           drop=True)
             self.cfg = self.cfg.where(self.cfg.gphit<-59.9858036, drop=True)
-
-
-        # restrict to 10 m
-        sel_kwargs = dict(deptht=10, method='nearest')
-        self.bg = self.bg.sel(**sel_kwargs)#.load()
-        self.gridT = self.gridT.sel(**sel_kwargs)#.load()
-        self.alpha = self.alpha.sel(**sel_kwargs)#.load()
-        self.beta = self.beta.sel(**sel_kwargs)#.load()
 
         self.giddy_raw = xr.open_dataset(config.root() +
                                          'Giddy_2020/merged_raw.nc')
@@ -119,19 +166,19 @@ class plot_buoyancy_ratio(object):
             dy = self.cfg.e2t
             if giddy_method: 
                 # take scalar gradients only
-                dgridTx = self.gridT.diff('x').pad(x=(1,0),
-                                          constant_value=0) # u-pts
-                dgridTy = self.gridT.diff('y').pad(y=(1,0),
-                                          constant_value=0) # v-pts
+                dTx = self.T.diff('x').pad(x=(1,0), constant_value=0) # u-pts
+                dTy = self.T.diff('y').pad(y=(1,0), constant_value=0) # v-pts
+                dSx = self.S.diff('x').pad(x=(1,0), constant_value=0) # u-pts
+                dSy = self.S.diff('y').pad(y=(1,0), constant_value=0) # v-pts
                 
-                dTdx = self.alpha * dgridTx.votemper / dx
-                dTdy = self.alpha * dgridTy.votemper / dy
-                dSdx = self.beta  * dgridTx.vosaline / dx
-                dSdy = self.beta  * dgridTy.vosaline / dy
+                dTdx = self.alpha * dTx / dx
+                dTdy = self.alpha * dTy / dy
+                dSdx = self.beta  * dSx / dx
+                dSdy = self.beta  * dSy / dy
             else:
                 # gradient of alpha and beta included
-                rhoT = self.alpha * self.gridT.votemper
-                rhoS = self.beta  * self.gridT.vosaline
+                rhoT = self.alpha * self.T
+                rhoS = self.beta  * self.S
 
                 dTdx = rhoT.diff('x').pad(x=(1,0), constant_value=0) # u-pts
                 dTdy = rhoT.diff('y').pad(x=(1,0), constant_value=0) # v-pts
@@ -147,8 +194,8 @@ class plot_buoyancy_ratio(object):
             dTdy.name = 'alpha_dTdy'
             dSdx.name = 'beta_dSdx'
             dSdy.name = 'beta_dSdy'
-            gradT.name = 'gradT'
-            gradS.name = 'gradS'
+            gradT.name = 'gradTrho'
+            gradS.name = 'gradSrho'
             
             self.TS_grad = xr.merge([dTdx,dTdy,dSdx,dSdy,gradT,gradS])
             
@@ -159,15 +206,15 @@ class plot_buoyancy_ratio(object):
                                        self.subset_var + '.nc')
 
     def get_density_ratio(self):
-        ''' get
-        (alpha * dTdx)/ (beta * dSdx)
-        (alpha * dTdy)/ (beta * dSdy)
+        ''' 
+        get  (alpha * dTdx)/ (beta * dSdx)
+             (alpha * dTdy)/ (beta * dSdy)
         '''
 
         # nan/inf issues are with TS_grad
         dr_x = np.abs(self.TS_grad.alpha_dTdx / self.TS_grad.beta_dSdx)
         dr_y = np.abs(self.TS_grad.alpha_dTdy / self.TS_grad.beta_dSdy)
-        dr   = np.abs(self.TS_grad.gradT / self.TS_grad.gradS)
+        dr   = np.abs(self.TS_grad.gradTrho / self.TS_grad.gradSrho)
 
         # drop inf
         dr_x = xr.where(np.isinf(dr_x), np.nan, dr_x)
@@ -383,7 +430,7 @@ class plot_buoyancy_ratio(object):
 
         plt.savefig('density_ratio_two_panel.png')
 
-    def render_Ro_sea_ice(self, axs):
+    def render_Ro_sea_ice(self, fig,  axs):
         ### this needs to be transformed to albers projection!
     
         # load sea ice and Ro
@@ -447,11 +494,9 @@ class plot_buoyancy_ratio(object):
         '''
 
         # get stats
+        fig = plt.figure(figsize=(5.5, 4.5), dpi=300)
         self.get_T_S_bg_stats(load=True)
 
-        fig, axs = plt.subplots(2,2, figsize=(5.5,4.0))
-        plt.subplots_adjust(top=0.95, right=0.98, left=0.15, bottom=0.2,
-                            hspace=0.05, wspace=0.05)
         #rho seaice
         #plt.subplots_adjust(bottom=0.3, top=0.99, right=0.99, left=0.1,
         #                    wspace=0.05)
@@ -468,9 +513,9 @@ class plot_buoyancy_ratio(object):
             axs1.append(fig.add_subplot(gs1[i]))
 
         # tan of density ratio
-        self.stats['turner_angle_norm_ts_mean' + subset] = np.arctan(
+        self.stats['turner_angle_norm_ts_mean'] = np.arctan(
                                        self.stats.density_ratio_x_ts_mean)/np.pi
-        self.stats['turner_angle_norm_ts_std' + subset] = np.arctan(
+        self.stats['turner_angle_norm_ts_std'] = np.arctan(
                                        self.stats.density_ratio_y_ts_std)/np.pi
 
         def render(ax, var):
@@ -485,12 +530,17 @@ class plot_buoyancy_ratio(object):
             ax.fill_between(upper.time_counter, 0.25, upper,
                             edgecolor=None, color='tab:red')
 
-        render(axs0[0], 'gradT_ts_mean')
-        render(axs0[1], 'gradT_ts_std')
+        # render Temperature contirbution
+        render(axs0[0], 'gradTrho_ts_mean')
+        #render(axs0[0], 'gradTrho_ts_mean_north')
+        #render(axs0[0], 'gradTrho_ts_mean_south')
+        render(axs0[1], 'gradTrho_ts_std')
+        #render(axs0[1], 'gradTrho_ts_std_north')
+        #render(axs0[1], 'gradTrho_ts_std_south')
         #render(axs0[2], 'gradT_ts_std') # qt_ocean and sfx
         render_density_ratio(axs0[3], 'density_ratio_norm')
 
-        self.render_Ro_sea_ice(axs)
+        self.render_Ro_sea_ice(fig, axs1)
 
         #db_lims = (0,3.6e-8)
         #ratio_lims = (0,0.35)
@@ -525,14 +575,14 @@ class plot_buoyancy_ratio(object):
 
        #### make files ####
 
-for subset in ['north', 'south', '']:
-    m = plot_buoyancy_ratio('EXP10', subset=subset)
-    m.load_basics()
-    m.get_grad_T_and_S(save=True)
-    m.get_density_ratio()
-    m.get_T_S_bg_stats(save=True)
+#for subset in ['north', 'south', '']:
+#    m = plot_buoyancy_ratio('EXP10', subset=subset)
+#    m.load_basics()
+#    m.get_grad_T_and_S(save=True)
+#    m.get_density_ratio()
+#    m.get_T_S_bg_stats(save=True)
 
                ### plot ###
-#m = plot_buoyancy_ratio('EXP10')
+m = plot_buoyancy_ratio('EXP10')
 #m.get_T_S_bg_stats(load=True)
-#m.plot_density_ratio_two_panel()
+m.plot_density_ratio_with_SI_Ro_and_bg_time_series()

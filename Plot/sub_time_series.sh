@@ -6,7 +6,7 @@
 #SBATCH --threads-per-core=1 
  
 # the job name and output file
-#SBATCH --job-name=nemo_mean #(default is the script name)
+#SBATCH --job-name=dens_ratio #(default is the script name)
 #SBATCH --output=myout.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
@@ -14,7 +14,7 @@
 #SBATCH --mem=128GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
-#SBATCH --partition=cluster
+#SBATCH --partition=short
 #SBATCH --account=shared
 
 export OMP_NUM_THREADS=1

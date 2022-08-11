@@ -636,7 +636,7 @@ class model(object):
                                append='', load_offset=False):
         '''
         sample model along glider's raw path
-        using giddy (2020)
+        using giddy (2021)
         '''
  
         # get glider lat-lons
@@ -694,7 +694,7 @@ class model(object):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
-           following giddy (2020)
+           following giddy (2021)
         '''
 
         #glider_raw = xr.open_dataset(self.data_path +
@@ -1015,11 +1015,11 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_2',
-    ######                interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_4',
-    ######                interp_dist=1000, transects=True)
+    ######glider_sampling('EXP10', interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_2',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4',
+                    interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2_offset',
     ######                interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_4_offset',
