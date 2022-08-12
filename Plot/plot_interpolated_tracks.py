@@ -71,7 +71,8 @@ def get_sampled_path_set(model, rotation=None):
  
     return samples
 
-def get_sampled_path(model, append, post_transect=True, rotation=None):
+def get_sampled_path(model, append, post_transect=True, rotation=None,
+                     drop_meso=False):
     ''' load a single glider path '''
     path = config.data_path() + model + '/'
     file_path = path + 'GliderRandomSampling/glider_uniform_' + \
@@ -85,15 +86,20 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
         print ('rotation', rotation)
         glider = get_transects(glider.votemper, offset=True, rotation=rotation,
                                method='from interp_1000')
+
+    if drop_meso:
+        glider = glider.where(glider.meso_transect==1, drop=True)
     return glider
 
-def get_raw_path():
+def get_raw_path(drop_meso=False):
     glider_raw = xr.open_dataset(config.root() + 'Giddy_2020/merged_raw.nc')
     glider_raw = glider_raw.rename({'longitude': 'lon', 'latitude': 'lat'})
     index = np.arange(glider_raw.ctd_data_point.size)
     glider_raw = glider_raw.assign_coords(ctd_data_point=index)
     glider_raw = get_transects(glider_raw.dives, concat_dim='ctd_data_point',
                                shrink=100, offset=False)
+    if drop_meso:
+        glider_raw = glider_raw.where(glider_raw.meso_transect==1, drop=True)
     return glider_raw
 
 def plot_path():

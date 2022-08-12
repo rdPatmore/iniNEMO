@@ -11,10 +11,10 @@
  
 # time limit and memory allocation 
 #SBATCH --time=0-24:00:00 #(2 days and 0 hours, default is 24 hours) 
-#SBATCH --mem=128GB #(8 GB, default is 1G)
+#SBATCH --mem=100GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
-#SBATCH --partition=short
+#SBATCH --partition=cluster
 #SBATCH --account=shared
 
 export OMP_NUM_THREADS=1

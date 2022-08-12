@@ -10,10 +10,11 @@ import cmocean
 
 class plot_buoyancy_ratio(object):
 
-    def __init__(self, case, subset=''):
+    def __init__(self, case, subset='', giddy_method=False):
 
         self.case = case
         self.subset = subset
+        self.giddy_method = giddy_method
         if subset == '':
             self.subset_var = ''
         else:
@@ -154,7 +155,7 @@ class plot_buoyancy_ratio(object):
         ds = ds.sel(time_counter=slice(start,end))
         return ds
 
-    def get_grad_T_and_S(self, load=False, save=False, giddy_method=False):
+    def get_grad_T_and_S(self, load=False, save=False):
         ''' get dCdx and dCdy where C=[T,S] '''
 
         if load:
@@ -164,7 +165,7 @@ class plot_buoyancy_ratio(object):
         else:
             dx = self.cfg.e1t
             dy = self.cfg.e2t
-            if giddy_method: 
+            if self.giddy_method: 
                 # take scalar gradients only
                 dTx = self.T.diff('x').pad(x=(1,0), constant_value=0) # u-pts
                 dTy = self.T.diff('y').pad(y=(1,0), constant_value=0) # v-pts
@@ -188,6 +189,8 @@ class plot_buoyancy_ratio(object):
             # get norms
             gradT = (dTdx**2 + dTdy**2)**0.5
             gradS = (dSdx**2 + dSdy**2)**0.5
+
+
            
             # name
             dTdx.name = 'alpha_dTdx'
@@ -212,20 +215,27 @@ class plot_buoyancy_ratio(object):
         '''
 
         # nan/inf issues are with TS_grad
+        # density ratio vectors
         dr_x = np.abs(self.TS_grad.alpha_dTdx / self.TS_grad.beta_dSdx)
         dr_y = np.abs(self.TS_grad.alpha_dTdy / self.TS_grad.beta_dSdy)
-        dr   = np.abs(self.TS_grad.gradTrho / self.TS_grad.gradSrho)
+
+        # 2d denstiy ratio, where 1 is dividing line between T and S dominance
+        # see Ferrari and Paparella ((2004)
+        Tu_comp = (self.TS_grad.alpha_dTdx + 1j * self.TS_grad.alpha_dTdy)  \
+                / (self.TS_grad.alpha_dSdx + 1j * self.TS_grad.alpha_dSdy)
+        Tu_phi = np.angle(self.TS_grad.Tu_comp)
+        Tu_mod = np.abs(self.TS_grad.Tu_comp)
 
         # drop inf
         dr_x = xr.where(np.isinf(dr_x), np.nan, dr_x)
         dr_y = xr.where(np.isinf(dr_y), np.nan, dr_y)
-        dr   = xr.where(np.isinf(dr  ), np.nan, dr  )
 
         dr_x.name = 'density_ratio_x'
         dr_y.name = 'density_ratio_y'
-        dr.name   = 'density_ratio_norm'
+        Tu_phi.name   = 'density_ratio_2d_angle'
+        Tu_mod.name   = 'density_ratio_2d_mod'
         
-        self.density_ratio = xr.merge([dr_x, dr_y, dr])
+        self.density_ratio = xr.merge([dr_x, dr_y, Tu_phi, Tu_mod])
         print ('merged')
 
     def get_stats(self, ds):
@@ -252,11 +262,17 @@ class plot_buoyancy_ratio(object):
         return ds_stats
 
     def get_T_S_bg_stats(self, save=False, load=False):
-   
+
+        # define save str for giddy method   
+        if self.giddy_method:
+            giddy_str = '_giddy_method'
+        else:
+            giddy_str = ''
+
         if load:
             self.stats = xr.open_dataset(config.data_path() + self.case + 
-                self.file_id + 'density_ratio_stats_giddy_method'
-                                      + self.subset_var + '.nc')
+                self.file_id + 'density_ratio_stats' + giddy_str +
+                                       self.subset_var + '.nc')
         else:
             self.get_grad_T_and_S()
             self.get_density_ratio()
@@ -270,7 +286,7 @@ class plot_buoyancy_ratio(object):
             # save
             if save:
                 self.stats.to_netcdf(config.data_path() + self.case + 
-                self.file_id + 'density_ratio_stats_giddy_method'
+                self.file_id + 'density_ratio_stats' + giddy_str +
                                       + self.subset_var + '.nc')
                                        #self.file_id + 'density_ratio_stats.nc')
 
@@ -513,28 +529,29 @@ class plot_buoyancy_ratio(object):
             axs1.append(fig.add_subplot(gs1[i]))
 
         # tan of density ratio
-        self.stats['turner_angle_norm_ts_mean'] = np.arctan(
-                                       self.stats.density_ratio_x_ts_mean)/np.pi
-        self.stats['turner_angle_norm_ts_std'] = np.arctan(
-                                       self.stats.density_ratio_y_ts_std)/np.pi
+        self.stats['density_ratio_norm_ts_mean'] = \
+                                           self.stats.density_ratio_norm_ts_mean
 
         def render(ax, var):
             ax.plot(self.stats.time_counter, self.stats[var])
 
         def render_density_ratio(ax, var):
             var_mean = var + '_ts_mean'
-            lower = self.stats[var_mean].where(self.stats[var_mean] < 0.25)
-            upper = self.stats[var_mean].where(self.stats[var_mean] > 0.25)
-            ax.fill_between(lower.time_counter, lower, 0.25,
+            lower = self.stats[var_mean].where(self.stats[var_mean] < 1)
+            upper = self.stats[var_mean].where(self.stats[var_mean] > 1)
+            ax.fill_between(lower.time_counter, lower, 1,
                             edgecolor=None, color='teal')
-            ax.fill_between(upper.time_counter, 0.25, upper,
+            ax.fill_between(upper.time_counter, 1, upper,
                             edgecolor=None, color='tab:red')
 
         # render Temperature contirbution
         render(axs0[0], 'gradTrho_ts_mean')
+        #ax_r = axs0[0].twinx()
+        #render(axs0[1], 'gradSrho_ts_mean')
         #render(axs0[0], 'gradTrho_ts_mean_north')
         #render(axs0[0], 'gradTrho_ts_mean_south')
-        render(axs0[1], 'gradTrho_ts_std')
+        #render(axs0[1], 'gradTrho_ts_std')
+        #render(axs0[1], 'gradSrho_ts_std')
         #render(axs0[1], 'gradTrho_ts_std_north')
         #render(axs0[1], 'gradTrho_ts_std_south')
         #render(axs0[2], 'gradT_ts_std') # qt_ocean and sfx
@@ -575,14 +592,14 @@ class plot_buoyancy_ratio(object):
 
        #### make files ####
 
-#for subset in ['north', 'south', '']:
-#    m = plot_buoyancy_ratio('EXP10', subset=subset)
-#    m.load_basics()
-#    m.get_grad_T_and_S(save=True)
-#    m.get_density_ratio()
-#    m.get_T_S_bg_stats(save=True)
+for subset in ['north', 'south', '']:
+    m = plot_buoyancy_ratio('EXP10', subset=subset)
+    m.load_basics()
+    m.get_grad_T_and_S(save=True)
+    m.get_density_ratio()
+    m.get_T_S_bg_stats(save=True)
 
                ### plot ###
-m = plot_buoyancy_ratio('EXP10')
+#m = plot_buoyancy_ratio('EXP10')
 #m.get_T_S_bg_stats(load=True)
-m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
+#m.plot_density_ratio_with_SI_Ro_and_bg_time_series()

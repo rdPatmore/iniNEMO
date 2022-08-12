@@ -445,7 +445,9 @@ class power_spectrum_glider(object):
     def calc_spectrum(self, proc='multi_taper', get_transects_flag=False):
         ''' 
         Calculate power spectrum with multi-taper method according to
-        #Giddy 2020
+        #Giddy 2021
+        get_transects_flag: define transects post interpolation according to 
+                            interp_1000 transect positions
         '''
 
         var10_stack = self.glider.sel(ctd_depth=10, method='nearest')
@@ -462,11 +464,15 @@ class power_spectrum_glider(object):
         #for i in range(10):
             print ('sample: ', i)
             var10 = var10_stack.isel(sample=i).dropna(dim='distance')
-            print (var10)
+
+            # post interpolation transect
             if get_transects_flag:
                 var10 = get_transects(var10, offset=True,
                                method='from interp_1000')
-                #var10 = self.get_transects(var10)
+
+            # drop mesoscale transects
+            var10 = var10.where(var10.meso_transect==1, drop=True)
+
             Pset_transect = []
             for (label, transect) in var10.groupby('transect'):
                 #print ('transect: ', label)
@@ -513,11 +519,11 @@ class power_spectrum_glider(object):
         if self.append == '':
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum' + self.append.rstrip('_') +
-                        '_' + proc + '_post_transect_clean_pfit1.nc')
+                        '_' + proc + '_clean_pfit1.nc')
         else:
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum_' + self.append.rstrip('_') +
-                        '_' + proc + '_post_transect_clean_pfit1.nc')
+                        '_' + proc + '_clean_pfit1.nc')
 
     def calc_variance(self, proc='fft'):
         ''' calculate integral under first sample spectrum '''
@@ -531,8 +537,31 @@ class power_spectrum_glider(object):
         print (integ.values)
 
 if __name__ == '__main__':
+    # pre transect
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_2_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_4_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+
+    # post transect
     m = power_spectrum_glider('EXP10', 'votemper', 
                               append='interp_1000_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_2_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
@@ -541,11 +570,7 @@ if __name__ == '__main__':
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_3_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='every_2_',
     #                          fs=1000)

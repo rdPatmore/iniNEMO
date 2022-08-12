@@ -365,46 +365,53 @@ class plot_power_spectrum(object):
 
         proj = ccrs.PlateCarree()
 
-        # plot post transect
-        full_path = get_sampled_path('EXP10', 'interp_1000') 
-        cmap = plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
-        for (l,trans) in full_path.groupby('transect'):
-            axs0[0].plot(trans.lon, trans.lat, transform=proj)
-
-        every_2 = get_sampled_path('EXP10', 'every_2') 
-        cmap = plt.cm.inferno(np.linspace(0,1,every_2.transect.max().values+1))
-        for (l,trans) in every_2.groupby('transect'):
-            axs0[1].plot(trans.lon, trans.lat, transform=proj)
-
-        every_8 = get_sampled_path('EXP10', 'every_8') 
-        cmap = plt.cm.inferno(np.linspace(0,1,every_8.transect.max().values+1))
-        for (l,trans) in every_8.groupby('transect'):
-            axs0[2].plot(trans.lon, trans.lat, transform=proj)
 
         # plot pre transect
-        full_path = get_sampled_path('EXP10', 'interp_1000_transects',
-                                     post_transect=False) 
+        # full path
+        full_path = get_sampled_path('EXP10', 'interp_1000_pre_transect',
+                                     post_transect=False, drop_meso=True) 
         cmap = plt.cm.inferno(np.linspace(0,1,
                                         int(full_path.transect.max().values)+1))
         for (l,trans) in full_path.groupby('transect'):
-            axs0[3].plot(trans.lon, trans.lat, transform=proj)
+            axs0[0].plot(trans.lon, trans.lat, transform=proj)
 
-        every_2 = get_sampled_path('EXP10', 'every_2_transects',
-                                     post_transect=False) 
+        # every other pair removed
+        every_2 = get_sampled_path('EXP10', 'interp_1000_every_2_pre_transect',
+                                     post_transect=False, drop_meso=True) 
         cmap = plt.cm.inferno(
                           np.linspace(0,1,int(every_2.transect.max().values)+1))
         for (l,trans) in every_2.groupby('transect'):
+            axs0[1].plot(trans.lon, trans.lat, transform=proj)
+
+        # sample every 4 pairs
+        every_4 = get_sampled_path('EXP10', 'interp_1000_every_4_pre_transect',
+                                     post_transect=False, drop_meso=True) 
+        cmap = plt.cm.inferno(
+                         np.linspace(0,1,int(every_4.transect.max().values)+1))
+        for (l,trans) in every_4.groupby('transect'):
+            axs0[2].plot(trans.lon, trans.lat, transform=proj)
+
+        # plot post transect
+        # full path
+        full_path = get_sampled_path('EXP10', 'interp_1000', drop_meso=True) 
+        cmap =plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
+        for (l,trans) in full_path.groupby('transect'):
+            axs0[3].plot(trans.lon, trans.lat, transform=proj)
+
+        # every other pair removed
+        every_2 = get_sampled_path('EXP10', 'every_2', drop_meso=True) 
+        cmap = plt.cm.inferno(np.linspace(0,1,every_2.transect.max().values+1))
+        for (l,trans) in every_2.groupby('transect'):
             axs0[4].plot(trans.lon, trans.lat, transform=proj)
 
-        every_8 = get_sampled_path('EXP10', 'every_8_transects',
-                                     post_transect=False) 
-        cmap = plt.cm.inferno(
-                         np.linspace(0,1,int(every_8.transect.max().values)+1))
-        for (l,trans) in every_8.groupby('transect'):
+        # sample every 4 pairs
+        every_4 = get_sampled_path('EXP10', 'every_4', drop_meso=True) 
+        cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
+        for (l,trans) in every_4.groupby('transect'):
             axs0[5].plot(trans.lon, trans.lat, transform=proj)
 
         # plot raw path
-        raw = get_raw_path()
+        raw = get_raw_path(drop_meso=True)
         cmap = plt.cm.inferno(np.linspace(0,1,raw.transect.max().values+1))
         for (l,trans) in raw.groupby('transect'):
             axs1.plot(trans.lon, trans.lat, transform=proj)
@@ -413,19 +420,19 @@ class plot_power_spectrum(object):
         spec = plot_power_spectrum()
         
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_interp_1000_transects_multi_taper_pre_transect_clean_pfit1',
+     append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_every_2_transects_multi_taper_pre_transect_clean_pfit1',
+     append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
                                 c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_every_8_transects_multi_taper_pre_transect_clean_pfit1',
+     append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
@@ -462,7 +469,7 @@ class plot_power_spectrum(object):
         #    for side in ['left','right','top','bottom']:
         #        print (side)
         #        ax.spines[side].set_visible(False)
-        plt.savefig('EXP10_transect_pre_post.png', dpi=600)
+        plt.savefig('EXP10_transect_pre_post_alt.png', dpi=600)
 
     def compare_climb_dive_pair_reduction(self):
         ''' 
@@ -598,6 +605,6 @@ def model_res_compare():
     plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
 m = plot_power_spectrum()
-#m.plot_pre_post_transect()
-m.compare_climb_dive_pair_reduction()
+m.plot_pre_post_transect()
+#m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()

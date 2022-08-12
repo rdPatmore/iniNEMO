@@ -1016,14 +1016,14 @@ if __name__ == '__main__':
         print ('successfully ended')
         print (' ')
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_2',
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_4',
-                    interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_2_offset',
+    ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_4_offset',
+    ######glider_sampling('EXP10', remove='every_4',
     ######                interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_2_offset',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4_offset',
+                    interp_dist=1000, transects=True)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 
 #                    interp_dist=2000, transects=False, rotate=False)
     ###
