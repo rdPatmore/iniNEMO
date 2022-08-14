@@ -9,6 +9,8 @@ import matplotlib.gridspec as gridspec
 import cmocean
 import cartopy.crs as ccrs
 
+matplotlib.rcParams.update({'font.size': 8})
+
 class plot_buoyancy_ratio(object):
 
     def __init__(self, case, subset='', giddy_method=False):
@@ -31,12 +33,12 @@ class plot_buoyancy_ratio(object):
             arr = arr.where(arr.nav_lat<-59.9858036, drop=True)
         return arr
 
-    def assign_x_y_index(self.arr, shift=0)
+    def assign_x_y_index(self, arr, shift=0):
         arr = arr.assign_coords({'x':np.arange(shift,arr.sizes['x']+shift),
                                  'y':np.arange(shift,arr.sizes['y']+shift)})
         return arr
 
-    def load_basics(self, surface_fluxes=False):
+    def load_basics(self):
 
         chunks = {'time_counter':1,'deptht':1}
         self.bg = xr.open_dataset(self.f_path + 'bg.nc', chunks=chunks)
@@ -181,49 +183,70 @@ class plot_buoyancy_ratio(object):
                                        self.file_id + 'TS_grad_10m' +
                                        self.subset_var + '.nc')
 
-    def get_density_ratio(self):
+    def get_density_ratio(self, load=False, save=False):
         ''' 
         get  (alpha * dTdx)/ (beta * dSdx)
              (alpha * dTdy)/ (beta * dSdy)
+ 
+        requires get_grad_T_and_S()
         '''
 
-        # nan/inf issues are with TS_grad
-        # density ratio vectors
-        dr_x = np.abs(self.TS_grad.alpha_dTdx / self.TS_grad.beta_dSdx)
-        dr_y = np.abs(self.TS_grad.alpha_dTdy / self.TS_grad.beta_dSdy)
+        # define save str for giddy method   
+        if self.giddy_method:
+            giddy_str = '_giddy_method'
+        else:
+            giddy_str = ''
 
-        # 2d denstiy ratio, where 1 is dividing line between T and S dominance
-        # see Ferrari and Paparella ((2004)
-        Tu_comp = (self.TS_grad.alpha_dTdx + 1j * self.TS_grad.alpha_dTdy)  \
-                / (self.TS_grad.beta_dSdx  + 1j * self.TS_grad.beta_dSdy )
+        f = self.f_path + 'density_ratio' + giddy_str + self.subset_var \
+            + '.nc'
 
-        # get complex argument (angle
-        # workaround :: np.angle is yet to be dask enabled
-        def get_complex_arg(arr):
-            return np.angle(arr)
-        Tu_phi = xr.apply_ufunc(get_complex_arg, Tu_comp, dask='parallelized')
+        if load:
+            self.density_ratio = xr.open_dataset(f)
 
-        # get the complex modulus
-        Tu_mod = np.abs(Tu_comp)
+        else:
 
-        # drop inf
-        dr_x = xr.where(np.isinf(dr_x), np.nan, dr_x)
-        dr_y = xr.where(np.isinf(dr_y), np.nan, dr_y)
+            # nan/inf issues are with TS_grad
+            # density ratio vectors
+            dr_x = np.abs(self.TS_grad.alpha_dTdx / self.TS_grad.beta_dSdx)
+            dr_y = np.abs(self.TS_grad.alpha_dTdy / self.TS_grad.beta_dSdy)
 
-        dr_x.name = 'density_ratio_x'
-        dr_y.name = 'density_ratio_y'
-        Tu_phi.name   = 'density_ratio_2d_angle'
-        Tu_mod.name   = 'density_ratio_2d_mod'
-        
-        self.density_ratio = xr.merge([dr_x, dr_y, Tu_phi, Tu_mod])
-        print ('merged')
+            # 2d denstiy ratio, where 1 is dividing line between
+            # T and S dominance
+            # see Ferrari and Paparella ((2004)
+            dT = self.TS_grad.alpha_dTdx + 1j * self.TS_grad.alpha_dTdy 
+            dS = self.TS_grad.beta_dSdx  + 1j * self.TS_grad.beta_dSdy 
+            Tu_comp = dT / dS
+
+            # get complex argument (angle)
+            # workaround :: np.angle is yet to be dask enabled
+            # returns angle between 0 and 180 in radians
+            def get_complex_arg(arr):
+                return np.angle(arr)
+            Tu_phi = np.abs(xr.apply_ufunc(get_complex_arg, Tu_comp,
+                                    dask='parallelized'))
+
+            # get the complex modulus
+            # returns positive angle in radians
+            Tu_mod = np.arctan(np.abs(Tu_comp))
+
+            # drop inf
+            dr_x = xr.where(np.isinf(dr_x), np.nan, dr_x)
+            dr_y = xr.where(np.isinf(dr_y), np.nan, dr_y)
+
+            dr_x.name = 'density_ratio_x'
+            dr_y.name = 'density_ratio_y'
+            Tu_phi.name   = 'density_ratio_2d_phi'
+            Tu_mod.name   = 'density_ratio_2d_mod'
+            
+            self.density_ratio = xr.merge([dr_x, dr_y, Tu_phi, Tu_mod])
+
+            # save
+            if save:
+                self.density_ratio.to_netcdf(f)
 
     def get_stats(self, ds):
         ''' 
-           get model mean and std time_series
-               - buoyancy
-               - theta
-               - salinity
+           get model mean, std and quantile time_series
         '''
 
         ds_mean  = np.abs(ds).mean(['x','y'], skipna=True)
@@ -231,11 +254,31 @@ class plot_buoyancy_ratio(object):
         chunks = dict(x=-1, y=-1)
         ds_quant   = np.abs(ds.chunk(chunks)).quantile([0.05, 0.95],
                      ['x','y'], skipna=True)
-        for key in ds.keys():
-            ds_mean  = ds_mean.rename({key: key + '_ts_mean' + self.subset_var})
-            ds_std  = ds_std.rename({key: key + '_ts_std'+ self.subset_var})
-            ds_quant  = ds_quant.rename(
-                                     {key: key + '_ts_quant' + self.subset_var})
+
+ 
+        # test for DataArray/Dataset
+        if type(ds).__name__ == 'DataArray':
+
+            def rename_da(da, append):
+                ds  = da.to_dataset()
+                key = da.name
+                return ds.rename({key: key + append + self.subset_var})
+
+            ds_mean  = rename_da(ds_mean, '_ts_mean')
+            ds_std   = rename_da(ds_std,  '_ts_std')
+            ds_quant = rename_da(ds_quant,'_ts_quant')
+
+        if type(ds).__name__ == 'Dataset':
+
+            def rename_keys(var, key, append):
+                return var.rename({key: key + append + self.subset_var})
+
+            for key in ds.keys():
+                ds_mean  = rename_keys(ds_mean,  key, '_ts_mean')
+                ds_std   = rename_keys(ds_std,   key, '_ts_std')
+                ds_quant = rename_keys(ds_quant, key, '_ts_quant')
+
+        print (ds_mean)
 
         ds_stats = xr.merge([ds_mean, ds_std, ds_quant]).load()
  
@@ -285,7 +328,7 @@ class plot_buoyancy_ratio(object):
         '''
 
         # define file name
-        f = self.f_path + 'bg_and_suface_flux_stats' + self.subset_var + '.nc'
+        f = self.f_path + 'bg_and_surface_flux_stats' + self.subset_var + '.nc'
 
         if load:
             self.stats = xr.open_dataset(f) 
@@ -295,6 +338,8 @@ class plot_buoyancy_ratio(object):
             bg_stats = self.get_stats(self.bg)
             sfx_stats = self.get_stats(self.sfx)
             qt_oce_stats = self.get_stats(self.qt_oce)
+
+            self.stats = xr.merge([bg_stats, sfx_stats, qt_oce_stats])
 
             # save
             if save:
@@ -470,25 +515,50 @@ class plot_buoyancy_ratio(object):
         '''
 
         # get stats
-        self.get_T_S_bg_stats(load=True)
+        self.get_bg_and_surface_flux_stats(load=True)
 
-        fig = plt.figure(figsize=(5.5, 4.5), dpi=300)
+        self.get_grad_T_and_S(load=True)
+        m.get_density_ratio(load=True)
+
+        # why is the Tu data a strange shape? 1 removed from y and 2 from x
+        # rather than 1 and 1
+        area = xr.open_dataset(self.f_path + 'grid_T.nc').area
+        area = area.isel(x=slice(1,None), y=slice(1,-1))
+        area_sum = area.sum(['x','y'])
+        
+        Tu_phi = self.density_ratio.density_ratio_2d_phi.drop(['x','y'])
+        Tu_mod = self.density_ratio.density_ratio_2d_mod.drop(['x','y'])
+
+        # Tu_phi
+        Tu_compen = xr.where(Tu_phi<np.pi/4, area,0).sum(['x','y']) / area_sum
+        Tu_constr = xr.where(Tu_phi>np.pi/4, area,0).sum(['x','y']) / area_sum
+
+        # Tu_mod
+        Tu_sal = xr.where(Tu_mod>np.pi/4, area,0).sum(['x','y']) / area_sum
+        Tu_tem = xr.where(Tu_mod<np.pi/4, area,0).sum(['x','y']) / area_sum
+        
+        #halo=2
+        #self.density_ratio = self.density_ratio.isel(x=slice(1*halo, -1*halo),
+        #                                             y=slice(1*halo, -1*halo))
+
+        fig = plt.figure(figsize=(5.5, 6.5), dpi=300)
 
         #rho seaice
         #plt.subplots_adjust(bottom=0.3, top=0.99, right=0.99, left=0.1,
         #                    wspace=0.05)
 
-        gs0 = gridspec.GridSpec(ncols=2, nrows=2)
-        gs1 = gridspec.GridSpec(ncols=1, nrows=3)
-        gs0.update(top=0.99, bottom=0.55, left=0.1, right=0.98, hspace=0.05)
-        gs1.update(top=0.50, bottom=0.1,  left=0.1, right=0.98, wspace=0.05)
+        gs0 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=5)
+        gs0.update(top=0.99, bottom=0.65, left=0.15, right=0.98, wspace=0.05)
+        gs1.update(top=0.49, bottom=0.07,  left=0.15, right=0.98, hspace=0.16)
 
         axs0, axs1 = [], []
-        for i in range(4):
-            axs0.append(fig.add_subplot(gs1[i],
-                     projection=ccrs.AlbersEqualArea(central_latitude=60,
-                      standard_parallels=(-62,-58))))
-        for i in range(3):
+        for i in range(2):
+#            axs0.append(fig.add_subplot(gs0[i],
+#                     projection=ccrs.AlbersEqualArea(central_latitude=60,
+#                      standard_parallels=(-62,-58))))
+            axs0.append(fig.add_subplot(gs0[i]))
+        for i in range(5):
             axs1.append(fig.add_subplot(gs1[i]))
 
         def render(ax, var):
@@ -504,7 +574,9 @@ class plot_buoyancy_ratio(object):
                             edgecolor=None, color='tab:red')
 
         # render Temperature contirbution
-        render(axs0[0], 'gradTrho_ts_mean')
+        render(axs1[0], 'norm_grad_b_ts_mean')
+        render(axs1[1], 'qt_oce_ts_mean')
+        render(axs1[2], 'sfx_ts_mean')
         #render(axs0[2], 'gradT_ts_std') # qt_ocean and sfx
         #render_density_ratio(axs0[3], 'density_ratio_norm')
 
@@ -514,92 +586,171 @@ class plot_buoyancy_ratio(object):
         Ro = xr.open_dataset(config.data_path_old() + 
                      'EXP10/rossby_number.nc').Ro
         # plot sea ice
-        halo=(1%3) + 1 # ???
+        halo=2
         si = si.sel(time_counter='2012-12-30 00:00:00', method='nearest')
         si = si.isel(x=slice(1*halo, -1*halo), y=slice(1*halo, -1*halo))
         
-        p0 = axs0[0,0].pcolor(si.nav_lon, si.nav_lat, si, shading='nearest',
-                              cmap=cmocean.cm.ice, vmin=0, vmax=1,
-                              projection=ccrs.PlateCarree())
+#        p0 = axs0[0].pcolor(si.nav_lon, si.nav_lat, si, shading='nearest',
+#                              cmap=cmocean.cm.ice, vmin=0, vmax=1,
+#                              transform=ccrs.PlateCarree())
+        p0 = axs0[0].pcolor(si.nav_lon, si.nav_lat, si, shading='nearest',
+                            cmap=cmocean.cm.ice, vmin=0, vmax=1)
+        axs0[0].set_aspect('equal')
     
         # plot Ro
         Ro = Ro.sel(time_counter='2012-12-30 00:00:00', method='nearest')
         Ro = Ro.isel(x=slice(1*halo, -1*halo), y=slice(1*halo, -1*halo))
         Ro = Ro.isel(depth=10)
         
-        # render
-        p1 = axs0[0,1].pcolor(Ro.nav_lon, Ro.nav_lat, Ro, shading='nearest',
-                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45,
-                              projection=ccrs.PlateCarree())
+#        # render
+#        p1 = axs0[1].pcolor(Ro.nav_lon, Ro.nav_lat, Ro, shading='nearest',
+#                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45,
+#                              transform=ccrs.PlateCarree())
+        p1 = axs0[1].pcolor(Ro.nav_lon, Ro.nav_lat, Ro, shading='nearest',
+                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45)
+        axs0[1].set_aspect('equal')
+
+        # plot Tu angle
+        seg0 = Tu_compen
+        seg1 = seg0 + Tu_constr
+        axs1[3].fill_between(seg0.time_counter, 0, seg0, facecolor='navy',
+                                label='compensating')
+        axs1[3].fill_between(seg1.time_counter, seg0, seg1, facecolor='maroon',
+                                label='constructive')
+        axs1[3].legend(loc='upper right', fontsize=6)
+
+        seg0 = Tu_sal
+        seg1 = seg0 + Tu_tem
+        axs1[4].fill_between(seg0.time_counter, 0, seg0, facecolor='navy',
+                                label='alpha')
+        axs1[4].fill_between(seg1.time_counter, seg0, seg1, facecolor='maroon',
+                                label='beta')
+        axs1[4].legend(loc='upper right', fontsize=6)
+
 
         # axes formatting
-        for ax in axs0[:,0]:
-            ax.set_ylabel('Latitude')
-        for ax in axs0[1,:]:
-            axs[1].set_xlabel('Longitude')
-        for ax in axs0[:,1]:
-            ax.yaxis.set_ticklabels([])
-        for ax in axs0.flatten():
-            axs[1].set_xlim([-3.7,3.7])
-            axs[1].set_ylim([-63.8,-56.2])
+        axs0[0].set_ylabel('latitude')
+        axs0[1].yaxis.set_ticklabels([])
+        for ax in axs0:
+            ax.set_xlabel('longitude')
+            ax.set_xlim([-3.7,3.7])
+            ax.set_ylim([-63.8,-56.2])
         
-        ## colour bars
-        #pos = axs[0].get_position()
-        #cbar_ax = fig.add_axes([pos.x0, 0.13, pos.x1 - pos.x0, 0.02])
-        #cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
-        #cbar.ax.text(0.5, -4.3, r'Sea Ice Concentration', fontsize=8,
-        #        rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
-    
-        #pos = axs[1].get_position()
-        #cbar_ax = fig.add_axes([pos.x0, 0.13, pos.x1 - pos.x0, 0.02])
-        #cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
-        #cbar.ax.text(0.5, -4.3, r'$\zeta / f$', fontsize=8,
-        #        rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+        # colour bars
+        pos = axs0[0].get_position()
+        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.0, r'Sea Ice Concentration', fontsize=8,
+                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+   
+        pos = axs0[1].get_position()
+        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.0, r'$\zeta / f$', fontsize=8,
+                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
 
-        #axs[0].text(0.1, 0.9, '2012-12-30', transform=axs[0].transAxes, c='w')
+        axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
 
+        date_lims = (self.stats.time_counter.min(), 
+                     self.stats.time_counter.max())
+        
+        for ax in axs1:
+            ax.set_xlim(date_lims)
+        for ax in axs1[:-1]:
+            ax.set_xticklabels([])
+        for ax in axs1[-2:]:
+            ax.set_ylim(0,1)
 
-        #db_lims = (0,3.6e-8)
-        #ratio_lims = (0,0.35)
-        #print (self.stats)
-        #date_lims = (self.stats.time_counter.min(), 
-        #             self.stats.time_counter.max())
-        #
-        #for i in [0,1]:
-        #    axs[0,i].set_xlim(date_lims)
-        #    axs[1,i].set_xlim(date_lims)
-        #    axs[0,i].set_ylim(db_lims)
-        #    axs[1,i].set_ylim(ratio_lims)
-        #    axs[1,i].yaxis.set_major_formatter(FormatStrFormatter('%g $\pi$'))
-        #    axs[1,i].yaxis.set_major_locator(
-        #                           matplotlib.ticker.MultipleLocator(base=0.25))
-        #    axs[1,i].axhline(0.25, 0, 1)
-        #    axs[0,i].set_xticklabels([])
-        #    axs[i,1].set_yticklabels([])
+        # date labels
+        axs1[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs1[-1].set_xlabel('date')
 
-        #    # date labels
-        #    axs[1,i].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
-        #    # Rotates and right-aligns 
-        #    for label in axs[1,i].get_xticklabels(which='major'):
-        #        label.set(rotation=35, horizontalalignment='right')
-        #    axs[1,i].set_xlabel('date')
+        axs1[0].set_ylabel(r'$|\nabla \mathbf{b}|$')
+        axs1[1].set_ylabel(r'$Q_{surf}^{\theta}$')
+        axs1[2].set_ylabel(r'$Q_{surf}^{fw}$')
+        axs1[3].set_ylabel(r'$\phi$' + '\nfrac')
+        axs1[4].set_ylabel(r'$|R|$' + '\nfrac')
 
-        #axs[0,0].set_ylabel('buoyancy gradient')
-        #axs[1,0].set_ylabel('denstiy ratio')
+        # align labels
+        xpos = -0.11  # axes coords
+        for ax in axs1:
+            ax.yaxis.set_label_coords(xpos, 0.5)
+        #axs1[0].yaxis.set_label_coords(xpos, 0.5)
 
-        plt.savefig('density_ratio_with_SI_Ro_and_bg_time_series.png')
+        plt.savefig('density_ratio_with_SI_Ro_and_bg_time_series_with_flxs.png',
+                    dpi=600)
 
 
        #### make files ####
 
+    def plot_density_ratio_slice(self):
+        '''
+        plot 2 x 1 panels of Tu phi and Tu mod
+        '''
+        
+        fig, axs = plt.subplots(1,2, figsize=(5.5,3.8))
+        plt.subplots_adjust(left=0.1, right=0.98, top=0.98, bottom=0.2,
+                            wspace=0.05)
+       
+        m.get_density_ratio(load=True)
+
+        lat = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lat
+        lon = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lon
+        lat = lat.isel(x=slice(1,None), y=slice(1,-1))
+        lon = lon.isel(x=slice(1,None), y=slice(1,-1))
+        
+        Tu_phi = self.density_ratio.density_ratio_2d_phi.drop(['x','y'])
+        Tu_mod = self.density_ratio.density_ratio_2d_mod.drop(['x','y'])
+
+        Tu_phi_t0 = Tu_phi.sel(time_counter='2012-12-30 00:00:00',
+                               method='nearest')
+        Tu_mod_t0 = Tu_mod.sel(time_counter='2012-12-30 00:00:00',
+                               method='nearest')
+        p0 = axs[0].pcolor(lon, lat, Tu_phi_t0,
+                           cmap=plt.cm.RdBu_r, vmin=0, vmax=np.pi/2)
+        p1 = axs[1].pcolor(lon, lat, Tu_mod_t0,
+                            cmap=plt.cm.RdBu_r, vmin=0, vmax=np.pi/2)
+
+        for ax in axs:
+            ax.set_aspect('equal')
+
+        # colour bars
+        pos = axs[0].get_position()
+        cbar_ax = fig.add_axes([pos.x0, 0.12, pos.x1 - pos.x0, 0.02])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.3, r'$\phi$', fontsize=8,
+                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+   
+        pos = axs[1].get_position()
+        cbar_ax = fig.add_axes([pos.x0, 0.12, pos.x1 - pos.x0, 0.02])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.3, r'$|R|$', fontsize=8,
+                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+
+        # axes formatting
+        axs[0].set_ylabel('latitude')
+        axs[1].yaxis.set_ticklabels([])
+        for ax in axs:
+            ax.set_xlabel('longitude')
+            ax.set_xlim([-3.7,3.7])
+
+        plt.savefig('density_ratio_snapshot_dec.png', dpi=600)
+
+
+
 # this needs to be run in two rounds, saving intermediate files: 1st/2nd round
-for subset in ['north', 'south', '']:
-    m = plot_buoyancy_ratio('EXP10', subset=subset)
-    m.load_basics()
-    #m.get_grad_T_and_S(save=True)  # first round
-    m.get_T_S_bg_stats(save=True) # second round
+#for subset in ['north', 'south', '']:
+#     m = plot_buoyancy_ratio('EXP10', subset=subset)
+#    m.load_basics()
+#    #m.get_grad_T_and_S(save=True)  # first round
+#    #m.get_T_S_bg_stats(save=True) # second round
+#    m.load_surface_fluxes()
+#    m.get_bg_and_surface_flux_stats(save=True)
+#     m.get_grad_T_and_S(load=True)
+#     m.get_density_ratio(save=True)
+
 
                ### plot ###
-#m = plot_buoyancy_ratio('EXP10')
-#m.get_T_S_bg_stats(load=True)
-#m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
+m = plot_buoyancy_ratio('EXP10')
+m.plot_density_ratio_slice()
+m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
