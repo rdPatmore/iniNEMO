@@ -97,24 +97,24 @@ class plot_buoyancy_ratio(object):
     def load_surface_fluxes(self):
         '''
         load
-            - sfx   : surface freshwater fluxes
+            - wfo   : surface freshwater fluxes
             - qt_oce: surface heat fluxes
         '''
 
         # load
         chunks = {'time_counter':1,'deptht':1}
-        self.sfx    = xr.open_dataset(self.f_path + 'grid_T.nc',
-                                   chunks=chunks).sfx
+        self.wfo    = xr.open_dataset(self.f_path + 'grid_T.nc',
+                                   chunks=chunks).wfo
         self.qt_oce = xr.open_dataset(self.f_path + 'grid_T.nc',
                                       chunks=chunks).qt_oce
 
         # assign index for x and y for merging
-        self.sfx    = self.assign_x_y_index(self.sfx)
+        self.wfo    = self.assign_x_y_index(self.wfo)
         self.qt_oce = self.assign_x_y_index(self.qt_oce)
 
         # subset model
         if self.subset:
-            self.sfx    = self.subset_n_s(self.sfx,    loc=self.subset) 
+            self.wfo    = self.subset_n_s(self.wfo,    loc=self.subset) 
             self.qt_oce = self.subset_n_s(self.qt_oce, loc=self.subset) 
 
 
@@ -336,10 +336,10 @@ class plot_buoyancy_ratio(object):
         else:
             # get stats (require load_basics and load_surface_fluxes)
             bg_stats = self.get_stats(self.bg)
-            sfx_stats = self.get_stats(self.sfx)
+            wfo_stats = self.get_stats(self.wfo)
             qt_oce_stats = self.get_stats(self.qt_oce)
 
-            self.stats = xr.merge([bg_stats, sfx_stats, qt_oce_stats])
+            self.stats = xr.merge([bg_stats, wfo_stats, qt_oce_stats])
 
             # save
             if save:
@@ -505,7 +505,7 @@ class plot_buoyancy_ratio(object):
         '''
         plot over time - buoyancy gradient mean (n,s,all)
                        - buoyancy gradient std (n,s,all)
-                       - fresh water fluxes and sfx (n,s,all)
+                       - fresh water fluxes and wfo (n,s,all)
                        - density ratio
         plot map - Sea ice concentration
                  - Ro
@@ -550,7 +550,7 @@ class plot_buoyancy_ratio(object):
         gs0 = gridspec.GridSpec(ncols=2, nrows=1)
         gs1 = gridspec.GridSpec(ncols=1, nrows=5)
         gs0.update(top=0.99, bottom=0.65, left=0.15, right=0.98, wspace=0.05)
-        gs1.update(top=0.49, bottom=0.07,  left=0.15, right=0.98, hspace=0.16)
+        gs1.update(top=0.49, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
 
         axs0, axs1 = [], []
         for i in range(2):
@@ -576,8 +576,8 @@ class plot_buoyancy_ratio(object):
         # render Temperature contirbution
         render(axs1[0], 'norm_grad_b_ts_mean')
         render(axs1[1], 'qt_oce_ts_mean')
-        render(axs1[2], 'sfx_ts_mean')
-        #render(axs0[2], 'gradT_ts_std') # qt_ocean and sfx
+        render(axs1[2], 'wfo_ts_mean')
+        #render(axs0[2], 'gradT_ts_std') # qt_ocean and wfo
         #render_density_ratio(axs0[3], 'density_ratio_norm')
 
         # load sea ice and Ro
@@ -740,17 +740,17 @@ class plot_buoyancy_ratio(object):
 
 # this needs to be run in two rounds, saving intermediate files: 1st/2nd round
 #for subset in ['north', 'south', '']:
-#     m = plot_buoyancy_ratio('EXP10', subset=subset)
+#    m = plot_buoyancy_ratio('EXP10', subset=subset)
 #    m.load_basics()
-#    #m.get_grad_T_and_S(save=True)  # first round
-#    #m.get_T_S_bg_stats(save=True) # second round
+##    #m.get_grad_T_and_S(save=True)  # first round
+##    #m.get_T_S_bg_stats(save=True) # second round
 #    m.load_surface_fluxes()
 #    m.get_bg_and_surface_flux_stats(save=True)
-#     m.get_grad_T_and_S(load=True)
-#     m.get_density_ratio(save=True)
+##     m.get_grad_T_and_S(load=True)
+##     m.get_density_ratio(save=True)
 
 
                ### plot ###
 m = plot_buoyancy_ratio('EXP10')
-m.plot_density_ratio_slice()
+#m.plot_density_ratio_slice()
 m.plot_density_ratio_with_SI_Ro_and_bg_time_series()

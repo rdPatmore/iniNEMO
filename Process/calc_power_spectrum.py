@@ -516,14 +516,20 @@ class power_spectrum_glider(object):
                         coords=dict(freq=freq),
                         attrs=dict(description=self.var + 
                                      ' power spectrum for 100 glider samples'))
+
+        if get_transects_flag:
+            transect_append = '_post_transect'
+        else:
+            transect_append = ''
+
         if self.append == '':
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum' + self.append.rstrip('_') +
-                        '_' + proc + '_clean_pfit1.nc')
+                          transect_append + '_' + proc + '_clean_pfit1.nc')
         else:
             ds.to_netcdf(self.path + 'Spectra/glider_samples_' + self.var + 
                               '_spectrum_' + self.append.rstrip('_') +
-                        '_' + proc + '_clean_pfit1.nc')
+                     transect_append + '_' + proc + '_clean_pfit1.nc')
 
     def calc_variance(self, proc='fft'):
         ''' calculate integral under first sample spectrum '''
@@ -538,38 +544,40 @@ class power_spectrum_glider(object):
 
 if __name__ == '__main__':
     # pre transect
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='interp_1000_pre_transect_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_pre_transect_',
+                              append='interp_1000_every_3_pre_transect_',
                               fs=1000)
     m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_every_2_pre_transect_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_every_4_pre_transect_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='interp_1000_every_4_pre_transect_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
     # post transect
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_2_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='every_4_',
-                              fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='interp_1000_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='every_2_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                          append='every_4_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='every_2_',

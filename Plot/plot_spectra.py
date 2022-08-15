@@ -420,38 +420,38 @@ class plot_power_spectrum(object):
         spec = plot_power_spectrum()
         
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
+                     append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
+             append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
                                 c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-     append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
+             append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
 
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_interp_1000_multi_taper_post_transect_clean_pfit1',
+                    append='_interp_1000_post_transect_multi_taper_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_every_2_multi_taper_post_transect_clean_pfit1',
+                        append='_every_2_post_transect_multi_taper_clean_pfit1',
                                 c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-     append='_every_8_multi_taper_post_transect_clean_pfit1',
+                        append='_every_4_post_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
