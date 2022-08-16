@@ -1020,10 +1020,10 @@ if __name__ == '__main__':
     ######                interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_4',
     ######                interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_8',
+    glider_sampling('EXP10', remove='every_3',
                     interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_8',
-                    interp_dist=1000, transects=False)
+    #glider_sampling('EXP10', remove='every_3',
+    #                interp_dist=1000, transects=False)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 
 #                    interp_dist=2000, transects=False, rotate=False)
     ###

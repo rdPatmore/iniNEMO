@@ -479,6 +479,11 @@ class power_spectrum_glider(object):
                 if len(transect) <= 6:
                     continue
                 self.detrend(transect, remove_mean=False)
+
+                # remove tansects with uniform distribution
+                if np.abs(self.h_detrended).mean() < 1e-8:
+                    continue
+
                 if proc == 'multi_taper':
                     if np.mean(self.h_detrended) == 0.0:
                         continue
@@ -493,8 +498,8 @@ class power_spectrum_glider(object):
             Pset_transect_stack = np.stack(Pset_transect)
 
             mean_spec = np.nanmean(Pset_transect_stack, axis=0)
-            ldecile_spec = np.quantile(Pset_transect_stack, 0.1, axis=0)
-            udecile_spec = np.quantile(Pset_transect_stack, 0.9, axis=0)
+            ldecile_spec = np.nanquantile(Pset_transect_stack, 0.1, axis=0)
+            udecile_spec = np.nanquantile(Pset_transect_stack, 0.9, axis=0)
             mean_set.append(mean_spec) 
             ldecile_set.append(ldecile_spec) 
             udecile_set.append(udecile_spec) 
@@ -551,7 +556,7 @@ if __name__ == '__main__':
     #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
     m = power_spectrum_glider('EXP10', 'votemper', 
-                              append='interp_1000_every_3_pre_transect_',
+                              append='interp_1000_every_8_pre_transect_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
@@ -572,11 +577,11 @@ if __name__ == '__main__':
     #                          append='every_2_',
     #                          fs=1000)
     #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='every_4_',
-    #                          fs=1000)
-    #m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_8_',
+                              fs=1000)
+    m.get_glider()
     #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
     #m = power_spectrum_glider('EXP10', 'votemper', 

@@ -384,7 +384,7 @@ class plot_power_spectrum(object):
             axs0[1].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
-        every_4 = get_sampled_path('EXP10', 'interp_1000_every_4_pre_transect',
+        every_4 = get_sampled_path('EXP10', 'interp_1000_every_8_pre_transect',
                                      post_transect=False, drop_meso=True) 
         cmap = plt.cm.inferno(
                          np.linspace(0,1,int(every_4.transect.max().values)+1))
@@ -405,7 +405,7 @@ class plot_power_spectrum(object):
             axs0[4].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
-        every_4 = get_sampled_path('EXP10', 'every_4', drop_meso=True) 
+        every_4 = get_sampled_path('EXP10', 'every_8', drop_meso=True) 
         cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
         for (l,trans) in every_4.groupby('transect'):
             axs0[5].plot(trans.lon, trans.lat, transform=proj)
@@ -432,7 +432,7 @@ class plot_power_spectrum(object):
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
-             append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
+             append='_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
@@ -451,7 +451,7 @@ class plot_power_spectrum(object):
                                 old_spec_calc=False,
                                 simple_calc=False)
         spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
-                        append='_every_4_post_transect_multi_taper_clean_pfit1',
+                        append='_every_8_post_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,

@@ -13,15 +13,15 @@ matplotlib.rcParams.update({'font.size': 8})
 
 class plot_buoyancy_ratio(object):
 
-    def __init__(self, case, subset='', giddy_method=False):
+    def __init__(self, case, subset=None, giddy_method=False):
 
         self.case = case
         self.subset = subset
         self.giddy_method = giddy_method
-        if subset == '':
-            self.subset_var = ''
-        else:
+        if subset:
             self.subset_var = '_' + subset
+        else:
+            self.subset_var = ''
 
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
         self.f_path  = config.data_path() + case + self.file_id 
@@ -75,8 +75,8 @@ class plot_buoyancy_ratio(object):
         self.bg    = self.assign_x_y_index(self.bg, shift=1)
         self.T     = self.assign_x_y_index(self.T)
         self.S     = self.assign_x_y_index(self.S)
-        self.alpha = self.assign_x_y_index(self.alpha)
-        self.beta  = self.assign_x_y_index(self.beta)
+        self.alpha = self.assign_x_y_index(self.alpha, shift=1)
+        self.beta  = self.assign_x_y_index(self.beta, shift=1)
         self.cfg   = self.assign_x_y_index(self.cfg)
 
         # add norm
@@ -132,6 +132,21 @@ class plot_buoyancy_ratio(object):
         ds = ds.sel(time_counter=slice(start,end))
         return ds
 
+    def shift_points(self, var, direc, drop=False):
+        ''' between c, u and v points by averaging neighbours '''
+
+        # mean neighbors
+        shifted = var.rolling({direc:2}).mean() 
+
+        # move blank to end of arr
+        shifted = shifted.roll({direc:-1}, roll_coords=False)
+
+        # drop nans created by rolling
+        if drop:
+            shifted = shifted.dropna(direc)
+
+        return shifted
+
     def get_grad_T_and_S(self, load=False, save=False):
         ''' get dCdx and dCdy where C=[T,S] '''
 
@@ -144,10 +159,10 @@ class plot_buoyancy_ratio(object):
             dy = self.cfg.e2t
             if self.giddy_method: 
                 # take scalar gradients only
-                dTx = self.T.diff('x').pad(x=(1,0), constant_value=0) # u-pts
-                dTy = self.T.diff('y').pad(y=(1,0), constant_value=0) # v-pts
-                dSx = self.S.diff('x').pad(x=(1,0), constant_value=0) # u-pts
-                dSy = self.S.diff('y').pad(y=(1,0), constant_value=0) # v-pts
+                dTx = self.T.diff('x').pad(x=(0,1), constant_value=0) # u-pts
+                dTy = self.T.diff('y').pad(y=(0,1), constant_value=0) # v-pts
+                dSx = self.S.diff('x').pad(x=(0,1), constant_value=0) # u-pts
+                dSy = self.S.diff('y').pad(y=(0,1), constant_value=0) # v-pts
                 
                 dTdx = self.alpha * dTx / dx
                 dTdy = self.alpha * dTy / dy
@@ -158,24 +173,53 @@ class plot_buoyancy_ratio(object):
                 rhoT = self.alpha * self.T
                 rhoS = self.beta  * self.S
 
-                dTdx = rhoT.diff('x').pad(x=(1,0), constant_value=0) # u-pts
-                dTdy = rhoT.diff('y').pad(x=(1,0), constant_value=0) # v-pts
-                dSdx = rhoS.diff('x').pad(x=(1,0), constant_value=0) # u-pts
-                dSdy = rhoS.diff('y').pad(x=(1,0), constant_value=0) # v-pts
+                dTdx = rhoT.diff('x').pad(x=(0,1),constant_value=0) / dx # u-pts
+                dTdy = rhoT.diff('y').pad(y=(0,1),constant_value=0) / dy # v-pts
+                dSdx = rhoS.diff('x').pad(x=(0,1),constant_value=0) / dx # u-pts
+                dSdy = rhoS.diff('y').pad(y=(0,1),constant_value=0) / dy # v-pts
 
+
+            # move from u/v-pts to vorticity-points 
+            dTdx_f = self.shift_points(dTdx, 'y')
+            dTdy_f = self.shift_points(dTdy, 'x')
+            dSdx_f = self.shift_points(dTdx, 'y')
+            dSdy_f = self.shift_points(dTdy, 'x')
+
+            # lat lon on f points
+            nav_lon_u = self.shift_points(self.T.nav_lon, 'x')
+            nav_lon_f = self.shift_points(nav_lon_u, 'y')
+            nav_lat_u = self.shift_points(self.T.nav_lat, 'x')
+            nav_lat_f = self.shift_points(nav_lat_u, 'y')
+
+            # restore indexes
+            dTdx_f['x'] = rhoT.x.isel(x=slice(None,-1))
+            dTdy_f['y'] = rhoT.y.isel(y=slice(None,-1))
+            dSdx_f['x'] = rhoS.x.isel(x=slice(None,-1))
+            dSdy_f['y'] = rhoS.y.isel(y=slice(None,-1))
+
+            # restore lat lon
+            dTdx_f['nav_lon'] = nav_lon_f
+            dTdx_f['nav_lat'] = nav_lat_f
+            dTdy_f['nav_lon'] = nav_lon_f
+            dTdy_f['nav_lat'] = nav_lat_f
+            dSdx_f['nav_lon'] = nav_lon_f
+            dSdx_f['nav_lat'] = nav_lat_f
+            dSdy_f['nav_lon'] = nav_lon_f
+            dSdy_f['nav_lat'] = nav_lat_f
+            
             # get norms
-            gradT = (dTdx**2 + dTdy**2)**0.5
-            gradS = (dSdx**2 + dSdy**2)**0.5
+            gradT = (dTdx_f**2 + dTdy_f**2)**0.5
+            gradS = (dSdx_f**2 + dSdy_f**2)**0.5
            
             # name
-            dTdx.name = 'alpha_dTdx'
-            dTdy.name = 'alpha_dTdy'
-            dSdx.name = 'beta_dSdx'
-            dSdy.name = 'beta_dSdy'
+            dTdx_f.name = 'alpha_dTdx'
+            dTdy_f.name = 'alpha_dTdy'
+            dSdx_f.name = 'beta_dSdx'
+            dSdy_f.name = 'beta_dSdy'
             gradT.name = 'gradTrho'
             gradS.name = 'gradSrho'
             
-            self.TS_grad = xr.merge([dTdx,dTdy,dSdx,dSdy,gradT,gradS])
+            self.TS_grad = xr.merge([dTdx_f,dTdy_f,dSdx_f,dSdy_f,gradT,gradS])
             
             # save
             if save:
@@ -345,6 +389,56 @@ class plot_buoyancy_ratio(object):
             if save:
                 self.stats.to_netcdf(f)
 
+    def get_Tu_frac(self):
+        '''
+        get fraction of domain containing
+            - alpha versus beta ocean
+            - compensating versus constructive horizontal buoyancy gradients
+
+        why is the Tu data a strange shape? 1 removed from y and 2 from x
+        rather than 1 and 1
+        '''
+
+        # get area and regrid to vorticity points
+        area = xr.open_dataset(self.f_path + 'grid_T.nc').area
+        area_u = self.shift_points(area,   'x')
+        area_f = self.shift_points(area_u, 'y')
+        area_f = area_f.isel(x=slice(1,-1),y=slice(1,-1)) # match with alpha
+        
+        # restore index
+        area_f['x'] = area.x.isel(x=slice(1,-1))
+        area_f['y'] = area.y.isel(y=slice(1,-1))
+        
+        Tu_phi = self.density_ratio.density_ratio_2d_phi#.drop(['x','y'])
+        Tu_mod = self.density_ratio.density_ratio_2d_mod#.drop(['x','y'])
+
+        # subset north south
+        if self.subset:
+            Tu_phi = self.subset_n_s(Tu_phi, loc=self.subset)
+            Tu_mod = self.subset_n_s(Tu_mod, loc=self.subset)
+            area_f   = self.subset_n_s(area_f,   loc=self.subset)
+
+        # total area
+        area_sum = area_f.sum(['x','y'])
+
+        # Tu_phi
+        print (' ')
+        print (' ')
+        print (area_f)
+        print (' ')
+        print (' ')
+        print (Tu_phi)
+        print (' ')
+        print (' ')
+        Tu_compen = xr.where(Tu_phi<np.pi/4, area_f,0).sum(['x','y']) / area_sum
+        Tu_constr = xr.where(Tu_phi>np.pi/4, area_f,0).sum(['x','y']) / area_sum
+
+        # Tu_mod
+        Tu_sal = xr.where(Tu_mod<np.pi/4, area_f,0).sum(['x','y']) / area_sum
+        Tu_tem = xr.where(Tu_mod>np.pi/4, area_f,0).sum(['x','y']) / area_sum
+
+        return Tu_compen, Tu_constr, Tu_sal, Tu_tem
+
     def plot_density_ratio(self):
         '''
         plot - buoyancy gradient
@@ -510,42 +604,14 @@ class plot_buoyancy_ratio(object):
         plot map - Sea ice concentration
                  - Ro
         GridSpec
+         a) 1 x 2
          a) 4 x 1
-         b) 1 x 2
         '''
 
-        # get stats
-        self.get_bg_and_surface_flux_stats(load=True)
 
-        self.get_grad_T_and_S(load=True)
-        m.get_density_ratio(load=True)
-
-        # why is the Tu data a strange shape? 1 removed from y and 2 from x
-        # rather than 1 and 1
-        area = xr.open_dataset(self.f_path + 'grid_T.nc').area
-        area = area.isel(x=slice(1,None), y=slice(1,-1))
-        area_sum = area.sum(['x','y'])
         
-        Tu_phi = self.density_ratio.density_ratio_2d_phi.drop(['x','y'])
-        Tu_mod = self.density_ratio.density_ratio_2d_mod.drop(['x','y'])
-
-        # Tu_phi
-        Tu_compen = xr.where(Tu_phi<np.pi/4, area,0).sum(['x','y']) / area_sum
-        Tu_constr = xr.where(Tu_phi>np.pi/4, area,0).sum(['x','y']) / area_sum
-
-        # Tu_mod
-        Tu_sal = xr.where(Tu_mod>np.pi/4, area,0).sum(['x','y']) / area_sum
-        Tu_tem = xr.where(Tu_mod<np.pi/4, area,0).sum(['x','y']) / area_sum
-        
-        #halo=2
-        #self.density_ratio = self.density_ratio.isel(x=slice(1*halo, -1*halo),
-        #                                             y=slice(1*halo, -1*halo))
-
         fig = plt.figure(figsize=(5.5, 6.5), dpi=300)
 
-        #rho seaice
-        #plt.subplots_adjust(bottom=0.3, top=0.99, right=0.99, left=0.1,
-        #                    wspace=0.05)
 
         gs0 = gridspec.GridSpec(ncols=2, nrows=1)
         gs1 = gridspec.GridSpec(ncols=1, nrows=5)
@@ -562,7 +628,7 @@ class plot_buoyancy_ratio(object):
             axs1.append(fig.add_subplot(gs1[i]))
 
         def render(ax, var):
-            ax.plot(self.stats.time_counter, self.stats[var])
+            ax.plot(self.stats.time_counter, self.stats[var + self.subset_var])
 
         def render_density_ratio(ax, var):
             var_mean = var + '_ts_mean'
@@ -573,12 +639,6 @@ class plot_buoyancy_ratio(object):
             ax.fill_between(upper.time_counter, 1, upper,
                             edgecolor=None, color='tab:red')
 
-        # render Temperature contirbution
-        render(axs1[0], 'norm_grad_b_ts_mean')
-        render(axs1[1], 'qt_oce_ts_mean')
-        render(axs1[2], 'wfo_ts_mean')
-        #render(axs0[2], 'gradT_ts_std') # qt_ocean and wfo
-        #render_density_ratio(axs0[3], 'density_ratio_norm')
 
         # load sea ice and Ro
         si = xr.open_dataset(config.data_path() + 
@@ -610,22 +670,30 @@ class plot_buoyancy_ratio(object):
                               cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45)
         axs0[1].set_aspect('equal')
 
-        # plot Tu angle
-        seg0 = Tu_compen
-        seg1 = seg0 + Tu_constr
-        axs1[3].fill_between(seg0.time_counter, 0, seg0, facecolor='navy',
-                                label='compensating')
-        axs1[3].fill_between(seg1.time_counter, seg0, seg1, facecolor='maroon',
-                                label='constructive')
-        axs1[3].legend(loc='upper right', fontsize=6)
+        for subset in [None, 'north', 'south']:
+            # update region
+            self.subset = subset
+            if subset:
+                self.subset_var = '_' + subset
+            else:
+                self.subset_var = ''
+            print ('subset', subset)
 
-        seg0 = Tu_sal
-        seg1 = seg0 + Tu_tem
-        axs1[4].fill_between(seg0.time_counter, 0, seg0, facecolor='navy',
-                                label='alpha')
-        axs1[4].fill_between(seg1.time_counter, seg0, seg1, facecolor='maroon',
-                                label='beta')
-        axs1[4].legend(loc='upper right', fontsize=6)
+            # get stats
+            self.get_bg_and_surface_flux_stats(load=True)
+            self.get_density_ratio(load=True)
+            Tu_compen, Tu_constr, Tu_sal, Tu_tem = self.get_Tu_frac()
+
+            #self.get_grad_T_and_S(load=True)
+
+            # render Temperature contirbution
+            render(axs1[0], 'norm_grad_b_ts_mean')
+            render(axs1[1], 'qt_oce_ts_mean')
+            render(axs1[2], 'wfo_ts_mean')
+
+            # plot Tu angle
+            axs1[3].plot(Tu_constr.time_counter, Tu_constr*100)
+            axs1[4].plot(Tu_sal.time_counter, Tu_sal*100)
 
 
         # axes formatting
@@ -658,8 +726,6 @@ class plot_buoyancy_ratio(object):
             ax.set_xlim(date_lims)
         for ax in axs1[:-1]:
             ax.set_xticklabels([])
-        for ax in axs1[-2:]:
-            ax.set_ylim(0,1)
 
         # date labels
         axs1[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
@@ -694,11 +760,13 @@ class plot_buoyancy_ratio(object):
        
         m.get_density_ratio(load=True)
 
+        # get grid - dubious method...
         lat = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lat
         lon = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lon
         lat = lat.isel(x=slice(1,None), y=slice(1,-1))
         lon = lon.isel(x=slice(1,None), y=slice(1,-1))
         
+        # get Tu data
         Tu_phi = self.density_ratio.density_ratio_2d_phi.drop(['x','y'])
         Tu_mod = self.density_ratio.density_ratio_2d_mod.drop(['x','y'])
 
@@ -706,6 +774,8 @@ class plot_buoyancy_ratio(object):
                                method='nearest')
         Tu_mod_t0 = Tu_mod.sel(time_counter='2012-12-30 00:00:00',
                                method='nearest')
+        
+        # plot
         p0 = axs[0].pcolor(lon, lat, Tu_phi_t0,
                            cmap=plt.cm.RdBu_r, vmin=0, vmax=np.pi/2)
         p1 = axs[1].pcolor(lon, lat, Tu_mod_t0,
@@ -739,18 +809,24 @@ class plot_buoyancy_ratio(object):
 
 
 # this needs to be run in two rounds, saving intermediate files: 1st/2nd round
-#for subset in ['north', 'south', '']:
-#    m = plot_buoyancy_ratio('EXP10', subset=subset)
-#    m.load_basics()
-##    #m.get_grad_T_and_S(save=True)  # first round
-##    #m.get_T_S_bg_stats(save=True) # second round
-#    m.load_surface_fluxes()
-#    m.get_bg_and_surface_flux_stats(save=True)
-##     m.get_grad_T_and_S(load=True)
-##     m.get_density_ratio(save=True)
+def prep_data():
+    for subset in ['north', 'south', None]:
+        m = plot_buoyancy_ratio('EXP10', subset=subset)
+        m.load_basics()
+        m.get_grad_T_and_S(save=True)  # first round
+    #    #m.get_T_S_bg_stats(save=True) # second round
+    #    m.load_surface_fluxes()
+    #    m.get_bg_and_surface_flux_stats(save=True)
+        #m.get_grad_T_and_S(load=True)
+        #m.get_density_ratio(save=True)
 
+def plot():
+    m = plot_buoyancy_ratio('EXP10')
+    #m.plot_density_ratio_slice()
+    m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
 
-               ### plot ###
-m = plot_buoyancy_ratio('EXP10')
-#m.plot_density_ratio_slice()
-m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
+prep_data()
+#m = plot_buoyancy_ratio('EXP10')
+#m.load_basics()
+#m.get_grad_T_and_S()
+#plot()
