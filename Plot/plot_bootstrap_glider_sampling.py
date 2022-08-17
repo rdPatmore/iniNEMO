@@ -242,6 +242,8 @@ class bootstrap_glider_samples(object):
         self.bg = self.bg.sel(deptht=10, method='nearest').load()
         self.bg = np.abs(self.bg)
 
+        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
+
         # subset model
         if self.subset=='north':
             self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
@@ -256,14 +258,51 @@ class bootstrap_glider_samples(object):
         daily_std = daily_std.rename({'time_counter':'day'})
         weekly_std = weekly_std.rename({'time_counter':'day'})
 
-        bg_d = daily_std.rename({'bx':'bx_ts_day_std', 'by':'by_ts_day_std'})
-        bg_w = weekly_std.rename({'bx':'bx_ts_week_std', 'by':'by_ts_week_std'})
+        bg_d = daily_std.rename({'bx':'bx_ts_day_std', 'by':'by_ts_day_std',
+                                 'bg_norm':'bg_norm_ts_day_std'})
+        bg_w = weekly_std.rename({'bx':'bx_ts_week_std', 'by':'by_ts_week_std',
+                                 'bg_norm':'bg_norm_ts_week_std'})
         bg_stats = xr.merge([bg_w,bg_d])
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
               '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_timeseries' + 
                     self.append + '.nc')
 
+    def get_full_model_day_week_change_in_mean_bg(self, save=False):
+        ''' 
+        get mean bg for each day/week of full model data 
+        out put retains x and y coordinates
+        '''
+
+        self.get_model_buoyancy_gradients(ml=False)
+        self.bg = self.bg.sel(deptht=10, method='nearest').load()
+        self.bg = np.abs(self.bg)
+
+        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
+
+        # subset model
+        if self.subset=='north':
+            self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
+        if self.subset=='south':
+            self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
+ 
+        dims=['time_counter']
+        daily_mean = self.bg.resample(time_counter='1D').mean(dim=dims)
+        weekly_mean = self.bg.resample(time_counter='1W').mean(dim=dims)
+
+        # rename time for compatability
+        daily_std = daily_std.rename({'time_counter':'day'})
+        weekly_std = weekly_std.rename({'time_counter':'day'})
+
+        bg_d = daily_mean.rename({'bx':'bx_ts_day_std', 'by':'by_ts_day_std',
+                                 'bg_norm':'bg_norm_ts_day_std'})
+        bg_w = weekly_mean.rename({'bx':'bx_ts_week_std', 'by':'by_ts_week_std',
+                                 'bg_norm':'bg_norm_ts_week_std'})
+        bg_stats = xr.merge([bg_w,bg_d])
+        if save:
+            bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
+              '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_mean_timeseries' 
+                     + self.append + '.nc')
 
     def get_full_model_timeseries(self, save=False):
         ''' 
@@ -290,6 +329,19 @@ class bootstrap_glider_samples(object):
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                     self.append + '.nc')
+
+    #def get_model_weekly_mean_and_std(self, save=False):
+    #    '''
+#        get the weekly mean and std for the model buoyancy gradient
+    #    '''
+##
+#        self.get_model_buoyancy_gradients()
+#        self.bg = self.bg.sel(deptht=10, method='nearest')
+#        self.bg = np.abs(self.bg)
+#
+#        # add norm
+#        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
+        
 
     def get_hist_stats(self, hist_set, bins):    
         ''' get mean, lower and upper deciles of group of histograms '''
@@ -921,6 +973,18 @@ class bootstrap_glider_samples(object):
         m = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                     self.append + '.nc')
+        print (' ')
+        print (' ')
+        print ('begin...')
+        print (' ')
+        print (' ')
+        print (g)
+        print (' ')
+        print (' ')
+        print (m)
+        print (' ')
+        print (' ')
+        print (sdkjs)
 
         # change in bg
         m_week = m.resample(time_counter='1W',skipna=True).mean()
@@ -1846,7 +1910,7 @@ def plot_quantify_delta_bg(subset=''):
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 ##plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
-##plot_quantify_delta_bg(subset='south')
+#plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
@@ -1863,10 +1927,12 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
+m = bootstrap_glider_samples('EXP10', load_samples=False, subset='south')
+m.get_full_model_day_week_change_in_mean_bg(save=True)
 #prep_hist(by_time='3W_rolling')
-plot_hist(by_time='1W_rolling')
-plot_hist(by_time='2W_rolling')
-plot_hist(by_time='3W_rolling')
+#plot_hist(by_time='1W_rolling')
+#plot_hist(by_time='2W_rolling')
+#plot_hist(by_time='3W_rolling')
 #prep_hist()
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')

@@ -178,24 +178,25 @@ class plot_buoyancy_ratio(object):
                 dSdx = rhoS.diff('x').pad(x=(0,1),constant_value=0) / dx # u-pts
                 dSdy = rhoS.diff('y').pad(y=(0,1),constant_value=0) / dy # v-pts
 
-
             # move from u/v-pts to vorticity-points 
             dTdx_f = self.shift_points(dTdx, 'y')
             dTdy_f = self.shift_points(dTdy, 'x')
             dSdx_f = self.shift_points(dTdx, 'y')
             dSdy_f = self.shift_points(dTdy, 'x')
 
-            # lat lon on f points
-            nav_lon_u = self.shift_points(self.T.nav_lon, 'x')
-            nav_lon_f = self.shift_points(nav_lon_u, 'y')
-            nav_lat_u = self.shift_points(self.T.nav_lat, 'x')
-            nav_lat_f = self.shift_points(nav_lat_u, 'y')
-
             # restore indexes
             dTdx_f['x'] = rhoT.x.isel(x=slice(None,-1))
             dTdy_f['y'] = rhoT.y.isel(y=slice(None,-1))
             dSdx_f['x'] = rhoS.x.isel(x=slice(None,-1))
             dSdy_f['y'] = rhoS.y.isel(y=slice(None,-1))
+
+            # lat lon on f points
+            nav_lon_u = self.shift_points(self.T.nav_lon, 'x')
+            nav_lon_f = self.shift_points(nav_lon_u, 'y')
+            nav_lat_u = self.shift_points(self.T.nav_lat, 'x')
+            nav_lat_f = self.shift_points(nav_lat_u, 'y')
+            nav_lon_f = nav_lon_f.isel(x=slice(1,-1),y=slice(1,-1))
+            nav_lat_f = nav_lat_f.isel(x=slice(1,-1),y=slice(1,-1))
 
             # restore lat lon
             dTdx_f['nav_lon'] = nav_lon_f
@@ -219,7 +220,9 @@ class plot_buoyancy_ratio(object):
             gradT.name = 'gradTrho'
             gradS.name = 'gradSrho'
             
-            self.TS_grad = xr.merge([dTdx_f,dTdy_f,dSdx_f,dSdy_f,gradT,gradS])
+            self.TS_grad = xr.merge([dTdx_f.load(), dTdy_f.load(),
+                                     dSdx_f.load(), dSdy_f.load(),
+                                     gradT.load(),  gradS.load()])
             
             # save
             if save:
@@ -401,13 +404,22 @@ class plot_buoyancy_ratio(object):
 
         # get area and regrid to vorticity points
         area = xr.open_dataset(self.f_path + 'grid_T.nc').area
+        area = self.assign_x_y_index(area)
         area_u = self.shift_points(area,   'x')
         area_f = self.shift_points(area_u, 'y')
         area_f = area_f.isel(x=slice(1,-1),y=slice(1,-1)) # match with alpha
         
-        # restore index
-        area_f['x'] = area.x.isel(x=slice(1,-1))
-        area_f['y'] = area.y.isel(y=slice(1,-1))
+        # lat lon on f points
+        nav_lon_u = self.shift_points(area.nav_lon, 'x')
+        nav_lon_f = self.shift_points(nav_lon_u, 'y')
+        nav_lat_u = self.shift_points(area.nav_lat, 'x')
+        nav_lat_f = self.shift_points(nav_lat_u, 'y')
+        nav_lon_f = nav_lon_f.isel(x=slice(1,-1),y=slice(1,-1))
+        nav_lat_f = nav_lat_f.isel(x=slice(1,-1),y=slice(1,-1))
+
+        # restore lat lon
+        area_f['nav_lon'] = nav_lon_f
+        area_f['nav_lat'] = nav_lat_f
         
         Tu_phi = self.density_ratio.density_ratio_2d_phi#.drop(['x','y'])
         Tu_mod = self.density_ratio.density_ratio_2d_mod#.drop(['x','y'])
@@ -424,10 +436,12 @@ class plot_buoyancy_ratio(object):
         # Tu_phi
         print (' ')
         print (' ')
-        print (area_f)
+        print (np.unique(area_f.nav_lat))
+        #print (area_f)
         print (' ')
         print (' ')
-        print (Tu_phi)
+        print (np.unique(Tu_phi.nav_lat))
+        #print (Tu_phi)
         print (' ')
         print (' ')
         Tu_compen = xr.where(Tu_phi<np.pi/4, area_f,0).sum(['x','y']) / area_sum
@@ -807,25 +821,24 @@ class plot_buoyancy_ratio(object):
         plt.savefig('density_ratio_snapshot_dec.png', dpi=600)
 
 
-
 # this needs to be run in two rounds, saving intermediate files: 1st/2nd round
 def prep_data():
-    for subset in ['north', 'south', None]:
+    for subset in [None, 'north', 'south']:
         m = plot_buoyancy_ratio('EXP10', subset=subset)
         m.load_basics()
-        m.get_grad_T_and_S(save=True)  # first round
-    #    #m.get_T_S_bg_stats(save=True) # second round
+        #m.get_grad_T_and_S(save=True)  # first round
     #    m.load_surface_fluxes()
     #    m.get_bg_and_surface_flux_stats(save=True)
-        #m.get_grad_T_and_S(load=True)
-        #m.get_density_ratio(save=True)
+        m.get_grad_T_and_S(load=True)
+        m.get_density_ratio(save=True)
+        #m.get_T_S_bg_stats(save=True) # second round
+prep_data()
 
 def plot():
     m = plot_buoyancy_ratio('EXP10')
     #m.plot_density_ratio_slice()
     m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
 
-prep_data()
 #m = plot_buoyancy_ratio('EXP10')
 #m.load_basics()
 #m.get_grad_T_and_S()

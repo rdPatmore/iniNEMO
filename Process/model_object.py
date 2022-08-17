@@ -536,6 +536,22 @@ class model(object):
             # remove every other dive pair
             token = 1.0 
             remove_index = np.floor(self.giddy_raw.dives + 0.5) % 4
+        if remove == 'every_2_and_climb':
+            # remove all dives and sample every 2
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 2
+        if remove == 'every_2_and_dive':
+            # remove all climbs and sample every 2
+            token = 0.5 
+            remove_index = self.giddy_raw.dives % 2
+        if remove == 'every_4_and_climb':
+            # remove all dives and sample every 4
+            token = 0.0 
+            remove_index = self.giddy_raw.dives % 4
+        if remove == 'every_4_and_dive':
+            # remove all climbs and sample every 4
+            token = 0.5 
+            remove_index = self.giddy_raw.dives % 4
         if remove == 'every_8_and_climb':
             # remove all dives and sample every 8
             token = 0.0 
@@ -1020,7 +1036,13 @@ if __name__ == '__main__':
     ######                interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_4',
     ######                interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_3',
+    glider_sampling('EXP10', remove='every_2_and_dive',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_2_and_climb',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4_and_dive',
+                    interp_dist=1000, transects=True)
+    glider_sampling('EXP10', remove='every_4_and_climb',
                     interp_dist=1000, transects=True)
     #glider_sampling('EXP10', remove='every_3',
     #                interp_dist=1000, transects=False)

@@ -341,27 +341,25 @@ class plot_power_spectrum(object):
 
         # initialised figure
         fig = plt.figure(figsize=(5.5, 4.5), dpi=300)
-        gs0 = gridspec.GridSpec(ncols=3, nrows=2)
-        gs1 = gridspec.GridSpec(ncols=1, nrows=1)
-        gs2 = gridspec.GridSpec(ncols=2, nrows=1)
-        gs0.update(top=0.99, bottom=0.53, left=0.1,  right=0.78,
+        gs0 = gridspec.GridSpec(ncols=4, nrows=2)
+        gs1 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs0.update(top=0.99, bottom=0.53, left=0.1,  right=0.98,
                    wspace=0.05, hspace=0.05)
-        gs1.update(top=0.99, bottom=0.53, left=0.80, right=0.98)
-        gs2.update(top=0.50, bottom=0.1, left=0.1,  right=0.98, wspace=0.05)
+        gs1.update(top=0.50, bottom=0.1, left=0.1,  right=0.98, wspace=0.05)
 
-        axs0, axs2 = [], []
+        axs0, axs1 = [], []
         #for i in range(3):
         #    for j in range(2):
                 #axs0.append(fig.add_subplot(gs0[j,i], 
-        for i in range(6):
+        for i in range(8):
                 axs0.append(fig.add_subplot(gs0[i], 
                      projection=ccrs.AlbersEqualArea(central_latitude=60,
                       standard_parallels=(-62,-58)), frameon=False))
         for i in range(2):
-            axs2.append(fig.add_subplot(gs2[i]))
-        axs1 = fig.add_subplot(gs1[0],
-                     projection=ccrs.AlbersEqualArea(central_latitude=60,
-                      standard_parallels=(-62,-58)))
+            axs1.append(fig.add_subplot(gs1[i]))
+        #axs1 = fig.add_subplot(gs1[0],
+        #             projection=ccrs.AlbersEqualArea(central_latitude=60,
+        #              standard_parallels=(-62,-58)))
 
         proj = ccrs.PlateCarree()
 
@@ -384,85 +382,106 @@ class plot_power_spectrum(object):
             axs0[1].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
-        every_4 = get_sampled_path('EXP10', 'interp_1000_every_8_pre_transect',
+        every_4 = get_sampled_path('EXP10', 'interp_1000_every_4_pre_transect',
                                      post_transect=False, drop_meso=True) 
         cmap = plt.cm.inferno(
                          np.linspace(0,1,int(every_4.transect.max().values)+1))
         for (l,trans) in every_4.groupby('transect'):
             axs0[2].plot(trans.lon, trans.lat, transform=proj)
 
+        # sample every 4 pairs
+        every_8 = get_sampled_path('EXP10', 'interp_1000_every_8_pre_transect',
+                                     post_transect=False, drop_meso=True) 
+        cmap = plt.cm.inferno(
+                         np.linspace(0,1,int(every_8.transect.max().values)+1))
+        for (l,trans) in every_8.groupby('transect'):
+            axs0[3].plot(trans.lon, trans.lat, transform=proj)
+
         # plot post transect
         # full path
         full_path = get_sampled_path('EXP10', 'interp_1000', drop_meso=True) 
         cmap =plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
         for (l,trans) in full_path.groupby('transect'):
-            axs0[3].plot(trans.lon, trans.lat, transform=proj)
+            axs0[4].plot(trans.lon, trans.lat, transform=proj)
 
         # every other pair removed
         every_2 = get_sampled_path('EXP10', 'every_2', drop_meso=True) 
         cmap = plt.cm.inferno(np.linspace(0,1,every_2.transect.max().values+1))
         for (l,trans) in every_2.groupby('transect'):
-            axs0[4].plot(trans.lon, trans.lat, transform=proj)
+            axs0[5].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
+        every_4 = get_sampled_path('EXP10', 'every_4', drop_meso=True) 
+        cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
+        for (l,trans) in every_4.groupby('transect'):
+            axs0[6].plot(trans.lon, trans.lat, transform=proj)
+
+        # sample every 8 pairs
         every_4 = get_sampled_path('EXP10', 'every_8', drop_meso=True) 
         cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
         for (l,trans) in every_4.groupby('transect'):
-            axs0[5].plot(trans.lon, trans.lat, transform=proj)
+            axs0[7].plot(trans.lon, trans.lat, transform=proj)
 
-        # plot raw path
-        raw = get_raw_path(drop_meso=True)
-        cmap = plt.cm.inferno(np.linspace(0,1,raw.transect.max().values+1))
-        for (l,trans) in raw.groupby('transect'):
-            axs1.plot(trans.lon, trans.lat, transform=proj)
 
         # plot spectra
         spec = plot_power_spectrum()
         
-        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[0], var='votemper',
                      append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
-        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[0], var='votemper',
              append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
                                 c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
-        spec.add_glider_spectra('EXP10', axs2[0], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[0], var='votemper',
+             append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
+                                c='red',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs1[0], var='votemper',
              append='_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
 
-        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[1], var='votemper',
                     append='_interp_1000_post_transect_multi_taper_clean_pfit1',
                                 c='orange',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
-        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[1], var='votemper',
                         append='_every_2_post_transect_multi_taper_clean_pfit1',
                                 c='green',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
-        spec.add_glider_spectra('EXP10', axs2[1], var='votemper',
+        spec.add_glider_spectra('EXP10', axs1[1], var='votemper',
+                        append='_every_4_post_transect_multi_taper_clean_pfit1',
+                                c='red',
+                                label='', old=False, ls='-', 
+                                old_spec_calc=False,
+                                simple_calc=False)
+        spec.add_glider_spectra('EXP10', axs1[1], var='votemper',
                         append='_every_8_post_transect_multi_taper_clean_pfit1',
                                 c='blue',
                                 label='', old=False, ls='-', 
                                 old_spec_calc=False,
                                 simple_calc=False)
-        for ax in axs2:
+        for ax in axs1:
             ax.set_xlim(5e-2,5e-1)
 
-        axs2[0].set_xlabel(r'Wavenumber [km$^{-1}$]')
-        axs2[1].set_xlabel(r'Wavenumber [km$^{-1}$]')
-        axs2[0].set_ylabel('Temperature Power Spectral Density')
-        axs2[1].set_yticklabels([])
+        axs1[0].set_xlabel(r'Wavenumber [km$^{-1}$]')
+        axs1[1].set_xlabel(r'Wavenumber [km$^{-1}$]')
+        axs1[0].set_ylabel('Temperature Power Spectral Density')
+        axs1[1].set_yticklabels([])
         #axs0.set_yticks([])
         #axs0.set_xticks([])
         #for ax in axs0:
@@ -488,7 +507,7 @@ class plot_power_spectrum(object):
         
         for ax in axs.flatten():
             spec.add_glider_spectra('EXP10', ax, var='votemper',
-         append='_interp_1000_transects_multi_taper_pre_transect_clean_pfit1',
+                     append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
                                     c='green',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
@@ -496,7 +515,7 @@ class plot_power_spectrum(object):
 
         # remove every 2
         spec.add_glider_spectra('EXP10', axs[0,0], var='votemper',
-         append='_every_2_transects_multi_taper_pre_transect_clean_pfit1',
+         append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
@@ -504,7 +523,7 @@ class plot_power_spectrum(object):
     
         # remove every 3
         spec.add_glider_spectra('EXP10', axs[0,1], var='votemper',
-         append='_every_3_multi_taper_transect_clean_pfit1',
+         append='_interp_1000_every_3_pre_transect_multi_taper_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
@@ -512,7 +531,7 @@ class plot_power_spectrum(object):
 
         # remove every 4
         spec.add_glider_spectra('EXP10', axs[0,2], var='votemper',
-         append='_every_4_multi_taper_transect_clean_pfit1',
+         append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
@@ -520,7 +539,7 @@ class plot_power_spectrum(object):
 
         # remove every 8
         spec.add_glider_spectra('EXP10', axs[0,3], var='votemper',
-         append='_every_8_transects_multi_taper_pre_transect_clean_pfit1',
+         append='_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
