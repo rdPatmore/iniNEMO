@@ -1036,14 +1036,14 @@ if __name__ == '__main__':
     ######                interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_4',
     ######                interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_2_and_dive',
-                    interp_dist=1000, transects=True)
+    #glider_sampling('EXP10', remove='every_2_and_dive',
+    #                interp_dist=1000, transects=True)
     glider_sampling('EXP10', remove='every_2_and_climb',
                     interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_4_and_dive',
-                    interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_4_and_climb',
-                    interp_dist=1000, transects=True)
+    #glider_sampling('EXP10', remove='every_4_and_dive',
+    #                interp_dist=1000, transects=True)
+    #glider_sampling('EXP10', remove='every_4_and_climb',
+    #                interp_dist=1000, transects=True)
     #glider_sampling('EXP10', remove='every_3',
     #                interp_dist=1000, transects=False)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 

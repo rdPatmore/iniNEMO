@@ -268,7 +268,7 @@ class bootstrap_glider_samples(object):
               '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_timeseries' + 
                     self.append + '.nc')
 
-    def get_full_model_day_week_change_in_mean_bg(self, save=False):
+    def get_full_model_day_week_sdt_and_mean_bg(self, save=False):
         ''' 
         get mean bg for each day/week of full model data 
         out put retains x and y coordinates
@@ -276,6 +276,7 @@ class bootstrap_glider_samples(object):
 
         self.get_model_buoyancy_gradients(ml=False)
         self.bg = self.bg.sel(deptht=10, method='nearest').load()
+        self.bg = np.abs(self.bg)
         self.bg = np.abs(self.bg)
 
         self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
@@ -286,33 +287,56 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
  
+        # stats dims
         dims=['time_counter']
+
+        # time means
         daily_mean = self.bg.resample(time_counter='1D').mean(dim=dims)
         weekly_mean = self.bg.resample(time_counter='1W').mean(dim=dims)
 
+        # time stds
+        daily_std = self.bg.resample(time_counter='1D').std(dim=dims)
+        weekly_std = self.bg.resample(time_counter='1W').std(dim=dims)
+
         # rename time for compatability
+        daily_mean = daily_mean.rename({'time_counter':'day'})
+        weekly_mean = weekly_mean.rename({'time_counter':'day'})
         daily_std = daily_std.rename({'time_counter':'day'})
         weekly_std = weekly_std.rename({'time_counter':'day'})
 
-        bg_d = daily_mean.rename({'bx':'bx_ts_day_std', 'by':'by_ts_day_std',
-                                 'bg_norm':'bg_norm_ts_day_std'})
-        bg_w = weekly_mean.rename({'bx':'bx_ts_week_std', 'by':'by_ts_week_std',
-                                 'bg_norm':'bg_norm_ts_week_std'})
-        bg_stats = xr.merge([bg_w,bg_d])
+        bg_d_mean = daily_mean.rename({'bx':'bx_ts_day_mean',
+                                  'by':'by_ts_day_mean',
+                                  'bg_norm':'bg_norm_ts_day_mean'})
+
+        bg_w_mean = weekly_mean.rename({'bx':'bx_ts_week_mean',
+                                   'by':'by_ts_week_mean',
+                                   'bg_norm':'bg_norm_ts_week_mean'})
+
+        bg_d_std = daily_std.rename({'bx':'bx_ts_day_std',
+                                  'by':'by_ts_day_std',
+                                  'bg_norm':'bg_norm_ts_day_std'})
+
+        bg_w_std = weekly_std.rename({'bx':'bx_ts_week_std',
+                                   'by':'by_ts_week_std',
+                                   'bg_norm':'bg_norm_ts_week_std'})
+
+        bg_stats = xr.merge([bg_w_mean,bg_d_mean,bg_w_std,bg_d_std])
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
-              '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_mean_timeseries' 
+              '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_mean_timeseries' 
                      + self.append + '.nc')
 
     def get_full_model_timeseries(self, save=False):
         ''' 
-           get model mean and std time_series
+           get model mean, std, and quantiles time_series
                - buoyancy
         '''
 
         self.get_model_buoyancy_gradients()
         self.bg = self.bg.sel(deptht=10, method='nearest')
         self.bg = np.abs(self.bg)
+
+        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
 
         # subset model
         if self.subset=='north':
@@ -322,26 +346,19 @@ class bootstrap_glider_samples(object):
 
         bg_mean  = self.bg.mean(['x','y'])
         bg_std   = self.bg.std(['x','y'])
-        bg_mean  = bg_mean.rename({'bx':'bx_ts_mean', 'by':'by_ts_mean'})
-        bg_std   = bg_std.rename({'bx':'bx_ts_std', 'by':'by_ts_std'})
-        bg_stats = xr.merge([bg_mean,bg_std])
+        self.bg  = self.bg.chunk(chunks={'x':-1,'y':-1})
+        bg_quant = self.bg.quantile([0.1,0.2,0.5,0.8,0.9], ['x','y'])
+        bg_mean  = bg_mean.rename({'bx':'bx_ts_mean', 'by':'by_ts_mean',
+                                   'bg_norm':'bg_norm_ts_mean'})
+        bg_std   = bg_std.rename({'bx':'bx_ts_std', 'by':'by_ts_std',
+                                  'bg_norm':'bg_norm_ts_std'})
+        bg_quant   = bg_quant.rename({'bx':'bx_ts_quant', 'by':'by_ts_quant',
+                                  'bg_norm':'bg_norm_ts_quant'})
+        bg_stats = xr.merge([bg_mean,bg_std,bg_quant])
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                     self.append + '.nc')
-
-    #def get_model_weekly_mean_and_std(self, save=False):
-    #    '''
-#        get the weekly mean and std for the model buoyancy gradient
-    #    '''
-##
-#        self.get_model_buoyancy_gradients()
-#        self.bg = self.bg.sel(deptht=10, method='nearest')
-#        self.bg = np.abs(self.bg)
-#
-#        # add norm
-#        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
-        
 
     def get_hist_stats(self, hist_set, bins):    
         ''' get mean, lower and upper deciles of group of histograms '''
@@ -948,124 +965,144 @@ class bootstrap_glider_samples(object):
                     '.png', dpi=600)
 
     def plot_quantify_delta_bg(self, t0='2013-01-01', t1='2013-03-15'):
+        ''' plot glider and model changes in buoyancy gradients over time '''
 
+        # time series data 
         def pre_proc(ds):
             ds = ds.expand_dims('ensemble_size')
             return ds
 
-        # get data
-        #prep = 'BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
-        #ensemble_list = [self.data_path + prep + str(i).zfill(2) +
-        #                 '_timeseries' + self.append + '.nc' 
-        #                 for i in range(1,31)]
-        #ensembles = xr.open_mfdataset(ensemble_list, 
-        #                           combine='nested', concat_dim='ensemble_size',
-        #                           preprocess=pre_proc).load()
-        #ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
-        #ensembles['time_counter'] = ensembles.time_counter / 1e9 
-        #unit = "seconds since 1970-01-01 00:00:00"
-        #ensembles.time_counter.attrs['units'] = unit
-        #ensembles = xr.decode_cf(ensembles)
+        prep = 'BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
+        ensemble_list = [self.data_path + prep + str(i).zfill(2) +
+                       '_timeseries' + self.append + '.nc' for i in range(1,31)]
+        ensembles = xr.open_mfdataset(ensemble_list, 
+                                   combine='nested', concat_dim='ensemble_size',
+                                     preprocess=pre_proc).load()
+        ensembles = ensembles.assign_coords(ensemble_size=np.arange(1,31))
+        m_ts = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
+                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
+                          self.append + '.nc')
 
+        # define fig
+        fig, axs = plt.subplots(2,2, figsize=(6.5,4.0))
+        # initialised figure
+        fig = plt.figure(figsize=(6.5, 4), dpi=300)
+        gs0 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs1 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs0.update(top=0.97, bottom=0.45, left=0.13, right=0.97)
+        gs1.update(top=0.4, bottom=0.15, left=0.13, right=0.97)
+
+        axs0 = fig.add_subplot(gs0[0])
+        axs1 = []
+        for i in range(2):
+            axs1.append(fig.add_subplot(gs1[i]))
+
+        ensemble_list = [1,4,30]
+        colours = ['green', 'red', 'navy', 'orange']
+        for i, l in enumerate(ensemble_list):
+            e = ensembles.sel(ensemble_size=l)
+            e = e.reset_coords('time_counter').mean('sets')
+            e['time_counter'] = e.time_counter / 1e9 
+            unit = "seconds since 1970-01-01 00:00:00"
+            e.time_counter.attrs['units'] = unit
+            e = xr.decode_cf(e)
+            e = e.where((e.time_counter>np.datetime64('2012-12-15')) &
+                        (e.time_counter<np.datetime64('2013-03-15')))
+            #e = e.sel(time_counter=slice('2012-12-15','2013-03-15'))
+            axs0.fill_between(e.time_counter, 
+                              e.bg_ts_dec.sel(quantile=0.1),
+                              e.bg_ts_dec.sel(quantile=0.9),
+                              color=colours[i], edgecolor=None, alpha=1.0,
+                              label=str(l))
+        
+
+        # reneder model time series
+        m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
+        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
+                      c='cyan', lw=0.8, label='model mean')
+        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.5),
+                      c='cyan', lw=0.8, label='model mean')
+        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.8),
+                      c='cyan', lw=0.8, label='model mean')
+
+        # diff data
         g = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_timeseries' + 
                     self.append + '.nc').dropna(dim='day')
         m = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
-                    '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
-                    self.append + '.nc')
-        print (' ')
-        print (' ')
-        print ('begin...')
-        print (' ')
-        print (' ')
-        print (g)
-        print (' ')
-        print (' ')
-        print (m)
-        print (' ')
-        print (' ')
-        print (sdkjs)
+           '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_mean_timeseries' 
+              + self.append + '.nc').dropna(dim='day')
+        
+        # change in bg - model differences
+        m0 = m.sel(day=t0, method='nearest')  
+        m1 = m.sel(day=t1, method='nearest')
+        m_diff = m0 - m1
+        qs = [0.20,0.5,0.8] # quantiles
+        deltaM_mean_stats = m_diff.bg_norm_ts_week_mean.quantile(qs,('x','y'))
+        deltaM_std_stats  = m_diff.bg_norm_ts_week_std.quantile(qs,('x','y'))
 
-        # change in bg
-        m_week = m.resample(time_counter='1W',skipna=True).mean()
-        m0 = m_week.sel(time_counter=t0, method='nearest')
-        m1 = m_week.sel(time_counter=t1, method='nearest')
+        # add median to time series
+        diff_mean = m_diff.bg_norm_ts_week_mean
 
-        print (g)
-        g0_mean = g.b_x_ml_week_mean.sel(day=t0, method='nearest')
-        g1_mean = g.b_x_ml_week_mean.sel(day=t1, method='nearest')
-        g0_std = g.b_x_ml_week_std.sel(day=t0, method='nearest')
-        g1_std = g.b_x_ml_week_std.sel(day=t1, method='nearest')
+        diff_mean = diff_mean.assign_coords(
+                           {'x':np.arange(diff_mean.sizes['x']),
+                            'y':np.arange(diff_mean.sizes['y'])})
+        print ((diff_mean - deltaM_mean_stats.sel(quantile=0.5)))
+        ind0 = (np.abs(diff_mean - deltaM_mean_stats.sel(quantile=0.5))
+               ).argmin(dim='x')
+        diff_mean_1d = diff_mean.isel(x=ind0)
+        ind1 = (np.abs(diff_mean_1d - deltaM_mean_stats.sel(quantile=0.5))
+               ).argmin(dim='y')
+        dm = diff_mean_1d.isel(y=ind1) # median difference (x,y) in week-mean
+        m0_median = m0.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+        m1_median = m1.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+        axs0.axhline(m0_median)
+        axs0.axhline(m1_median)
+
+        # change in bg - glider differences
+        g0 = g.sel(day=t0, method='nearest')  
+        g1 = g.sel(day=t1, method='nearest')
+        g_diff = g0 - g1
+        qs = [0.01,0.05,0.1,0.9,0.95,0.99] # quantiles
+        deltaG_mean_stats = g_diff.b_x_ml_week_mean.quantile(qs,'sets')
+        deltaG_std_stats  = g_diff.b_x_ml_week_std.quantile(qs,'sets')
        
-        #m0 = m.sel(time_counter=slice('2013-01-01 00:00:00',
-        #                         '2013-01-15 00:00:00')).mean('time_counter')
-        #m1 = m.sel(time_counter=slice('2013-03-01 00:00:00',
-        #                         '2013-03-15 00:00:00')).mean('time_counter')
-        #g0 = ensembles.where(
-        #         (ensembles.time_counter>np.datetime64('2013-01-01 00:00:00')) &
-        #         (ensembles.time_counter<np.datetime64('2013-01-15 00:00:00'))
-        #                     ).mean('distance')
-        #g1 = ensembles.where(
-        #         (ensembles.time_counter>np.datetime64('2013-03-01 00:00:00')) &
-        #         (ensembles.time_counter<np.datetime64('2013-03-15 00:00:00'))
-        #                     ).mean('distance')
-        model_delta_x_mean = m0.bx_ts_mean - m1.bx_ts_mean
-        model_delta_y_mean = m0.by_ts_mean - m1.by_ts_mean
-        model_delta_x_std = m0.bx_ts_std - m1.bx_ts_std
-        model_delta_y_std = m0.by_ts_std - m1.by_ts_std
-        glider_delta_mean = (g0_mean - g1_mean).quantile([0.05,0.95],'sets')
-        glider_delta_std  = (g0_std  - g1_std ).quantile([0.05,0.95],'sets')
-
-        # define fig
-        self.figure, self.axs = plt.subplots(2,1, figsize=(6.5,4.0))
 
         # plot
-        def render(ax, m_x, m_y, g):
-            ax.plot(g.ensemble_size, 
-                    g.sel(quantile=0.05), c='black')
-            ax.plot(g.ensemble_size, 
-                    g.sel(quantile=0.95), c='black')
-            ax.axhline(m_x, c='red')
-            ax.axhline(m_y, c='green')
+        def render(ax, g, m):
+            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.01),
+                            g.sel(quantile=0.99), facecolor='purple',
+                            edgecolor=None)
+            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.05),
+                            g.sel(quantile=0.95), facecolor='green',
+                            edgecolor=None)
+            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.10),
+                            g.sel(quantile=0.90), facecolor='orange',
+                            edgecolor=None)
+            ax.axhline(m.sel(quantile=0.20))
+            ax.axhline(m.sel(quantile=0.5))
+            ax.axhline(m.sel(quantile=0.80))
 
-            # percentage error
-            ax.axhline(m_x - (m_x*0.20), c='pink', ls=':')
-            ax.axhline(m_x + (m_x*0.20), c='pink', ls=':')
-            ax.axhline(m_x - (m_x*0.40), c='navy', ls=':')
-            ax.axhline(m_x + (m_x*0.40), c='navy', ls=':')
-            ax.axhline(m_x - (m_x*0.60), c='grey', ls=':')
-            ax.axhline(m_x + (m_x*0.60), c='grey', ls=':')
-            
-            txt = ['20 %', '20 %', '40 %', '40 %', '60 %', '60 %']
-            print (ax.lines)
-            for i, line in enumerate(ax.lines[-6:]):
-                y = line.get_ydata()[-1]
-                print (line)
-                ax.annotate(txt[i], xy=(1,y), xytext=(6,0), 
-                            color=line.get_color(), 
-                            xycoords=ax.get_yaxis_transform(),
-                            textcoords='offset points',
-                            size=8, va='center')
+        render(axs1[0], deltaG_mean_stats, deltaM_mean_stats)
+        render(axs1[1], deltaG_std_stats, deltaM_std_stats)
 
-        render(self.axs[0], model_delta_x_mean, model_delta_y_mean,
-               glider_delta_mean)
-        render(self.axs[1], model_delta_x_std, model_delta_y_std,
-               glider_delta_std)
 
         # labels 
-        self.axs[1].set_xlabel('Ensemble size')
-        self.axs[0].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
+        axs1[1].set_xlabel('Ensemble size')
+        axs1[0].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
                                t0.lstrip('2013')[1:] + ' :: ' +
                                t1.lstrip('2013')[1:]+
                                '\n [mean]')
-        self.axs[1].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
+        axs1[1].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
                                t0.lstrip('2013')[1:] + ' :: ' +
                                t1.lstrip('2013')[1:]+
                                '\n [standard deviation]')
 
-        self.axs[0].set_ylim(-1e-8,4.5e-8)
-        self.axs[1].set_ylim(-1e-8,5.0e-8)
-        self.axs[0].set_xticks([])
+        axs1[0].set_ylim(-2e-8,8.0e-8)
+        axs1[1].set_ylim(-2e-8,8.0e-8)
+        axs1[0].set_xticks([])
+        for ax in axs1:
+            ax.set_xlim(1,30)
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '_'+ t0 + '_' + t1 + '.png', dpi=600)
@@ -1845,7 +1882,7 @@ def plot_correlations():
     boot = bootstrap_plotting(bg_method='norm')
     boot.plot_correlation_rmse('EXP10')
 
-plot_correlations()
+#plot_correlations()
 
 def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
@@ -1908,7 +1945,7 @@ def plot_quantify_delta_bg(subset=''):
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
                                      subset=subset)
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
-##plot_quantify_delta_bg()
+#plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
 #plot_quantify_delta_bg(subset='south')
 
@@ -1928,7 +1965,9 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_full_model_day_week_std(save=True)
 
 m = bootstrap_glider_samples('EXP10', load_samples=False, subset='south')
-m.get_full_model_day_week_change_in_mean_bg(save=True)
+m.get_full_model_day_week_sdt_and_mean_bg(save=True)
+m.get_full_model_timeseries(save=True)
+
 #prep_hist(by_time='3W_rolling')
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')

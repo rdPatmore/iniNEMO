@@ -28,8 +28,12 @@ class plot_buoyancy_ratio(object):
 
     def subset_n_s(self, arr, loc='north'):
         if loc == 'north':
+        #    ind = int((arr.nav_lat + 59.9858035).idxmin('y', skipna=True)[0])
+        #    arr = arr.isel(y=slice(ind,None))
             arr = arr.where(arr.nav_lat>-59.9858036, drop=True)
         if loc == 'south':
+        #    ind = int((arr.nav_lat + 59.9858035).idxmin('y', skipna=True)[0])
+        #    arr = arr.isel(y=slice(None,ind))
             arr = arr.where(arr.nav_lat<-59.9858036, drop=True)
         return arr
 
@@ -147,6 +151,21 @@ class plot_buoyancy_ratio(object):
 
         return shifted
 
+    def diff(self, arr, direc='x'):
+        ''' diff, pad and reset x-coords '''
+
+        # get end pad
+        pad = xr.zeros_like(arr.isel({direc:-1}))
+
+        # diff
+        diffed = arr.diff(direc, label='lower')
+
+        # pad
+        diffed_padded = xr.concat([diffed,pad], dim=direc)
+
+        return diffed_padded
+        
+
     def get_grad_T_and_S(self, load=False, save=False):
         ''' get dCdx and dCdy where C=[T,S] '''
 
@@ -173,32 +192,32 @@ class plot_buoyancy_ratio(object):
                 rhoT = self.alpha * self.T
                 rhoS = self.beta  * self.S
 
-                dTdx = rhoT.diff('x').pad(x=(0,1),constant_value=0) / dx # u-pts
-                dTdy = rhoT.diff('y').pad(y=(0,1),constant_value=0) / dy # v-pts
-                dSdx = rhoS.diff('x').pad(x=(0,1),constant_value=0) / dx # u-pts
-                dSdy = rhoS.diff('y').pad(y=(0,1),constant_value=0) / dy # v-pts
+                dTdx = self.diff(rhoT, direc='x') / dx # u-pts
+                dTdy = self.diff(rhoT, direc='y') / dy # v-pts
+                dSdx = self.diff(rhoS, direc='x') / dx # u-pts
+                dSdy = self.diff(rhoS, direc='y') / dy # v-pts
 
             # move from u/v-pts to vorticity-points 
             dTdx_f = self.shift_points(dTdx, 'y')
             dTdy_f = self.shift_points(dTdy, 'x')
-            dSdx_f = self.shift_points(dTdx, 'y')
-            dSdy_f = self.shift_points(dTdy, 'x')
+            dSdx_f = self.shift_points(dSdx, 'y')
+            dSdy_f = self.shift_points(dSdy, 'x')
 
-            # restore indexes
-            dTdx_f['x'] = rhoT.x.isel(x=slice(None,-1))
-            dTdy_f['y'] = rhoT.y.isel(y=slice(None,-1))
-            dSdx_f['x'] = rhoS.x.isel(x=slice(None,-1))
-            dSdy_f['y'] = rhoS.y.isel(y=slice(None,-1))
+            ## restore indexes
+            ###dTdx_f['x'] = rhoT.x.isel(x=slice(None,-1))
+            #dTdy_f['y'] = rhoT.y.isel(y=slice(None,-1))
+            #dSdx_f['x'] = rhoS.x.isel(x=slice(None,-1))
+            #dSdy_f['y'] = rhoS.y.isel(y=slice(None,-1))
 
-            # lat lon on f points
-            nav_lon_u = self.shift_points(self.T.nav_lon, 'x')
+            # lat lon on f-points
+            nav_lon_u = self.shift_points(self.cfg.nav_lon, 'x')
             nav_lon_f = self.shift_points(nav_lon_u, 'y')
-            nav_lat_u = self.shift_points(self.T.nav_lat, 'x')
+            nav_lat_u = self.shift_points(self.cfg.nav_lat, 'x')
             nav_lat_f = self.shift_points(nav_lat_u, 'y')
             nav_lon_f = nav_lon_f.isel(x=slice(1,-1),y=slice(1,-1))
             nav_lat_f = nav_lat_f.isel(x=slice(1,-1),y=slice(1,-1))
 
-            # restore lat lon
+            # use f-point lat lons
             dTdx_f['nav_lon'] = nav_lon_f
             dTdx_f['nav_lat'] = nav_lat_f
             dTdy_f['nav_lon'] = nav_lon_f
@@ -405,45 +424,43 @@ class plot_buoyancy_ratio(object):
         # get area and regrid to vorticity points
         area = xr.open_dataset(self.f_path + 'grid_T.nc').area
         area = self.assign_x_y_index(area)
+        if self.subset:
+            area = self.subset_n_s(area, loc=self.subset)
         area_u = self.shift_points(area,   'x')
         area_f = self.shift_points(area_u, 'y')
         area_f = area_f.isel(x=slice(1,-1),y=slice(1,-1)) # match with alpha
         
-        # lat lon on f points
+        # lat lon on f-points
         nav_lon_u = self.shift_points(area.nav_lon, 'x')
         nav_lon_f = self.shift_points(nav_lon_u, 'y')
         nav_lat_u = self.shift_points(area.nav_lat, 'x')
         nav_lat_f = self.shift_points(nav_lat_u, 'y')
+
         nav_lon_f = nav_lon_f.isel(x=slice(1,-1),y=slice(1,-1))
         nav_lat_f = nav_lat_f.isel(x=slice(1,-1),y=slice(1,-1))
 
         # restore lat lon
         area_f['nav_lon'] = nav_lon_f
         area_f['nav_lat'] = nav_lat_f
-        
+
         Tu_phi = self.density_ratio.density_ratio_2d_phi#.drop(['x','y'])
         Tu_mod = self.density_ratio.density_ratio_2d_mod#.drop(['x','y'])
 
         # subset north south
         if self.subset:
+        #    print ('')
+        #    print ('Tu_phi')
             Tu_phi = self.subset_n_s(Tu_phi, loc=self.subset)
+        #    print ('')
+        #    print ('Tu_mod')
             Tu_mod = self.subset_n_s(Tu_mod, loc=self.subset)
-            area_f   = self.subset_n_s(area_f,   loc=self.subset)
+        #    print ('')
+        #    print ('area_f')
 
         # total area
         area_sum = area_f.sum(['x','y'])
 
         # Tu_phi
-        print (' ')
-        print (' ')
-        print (np.unique(area_f.nav_lat))
-        #print (area_f)
-        print (' ')
-        print (' ')
-        print (np.unique(Tu_phi.nav_lat))
-        #print (Tu_phi)
-        print (' ')
-        print (' ')
         Tu_compen = xr.where(Tu_phi<np.pi/4, area_f,0).sum(['x','y']) / area_sum
         Tu_constr = xr.where(Tu_phi>np.pi/4, area_f,0).sum(['x','y']) / area_sum
 
@@ -826,13 +843,13 @@ def prep_data():
     for subset in [None, 'north', 'south']:
         m = plot_buoyancy_ratio('EXP10', subset=subset)
         m.load_basics()
-        #m.get_grad_T_and_S(save=True)  # first round
+#        m.get_grad_T_and_S(save=True)  # first round
     #    m.load_surface_fluxes()
     #    m.get_bg_and_surface_flux_stats(save=True)
         m.get_grad_T_and_S(load=True)
         m.get_density_ratio(save=True)
         #m.get_T_S_bg_stats(save=True) # second round
-prep_data()
+#prep_data()
 
 def plot():
     m = plot_buoyancy_ratio('EXP10')
@@ -842,4 +859,4 @@ def plot():
 #m = plot_buoyancy_ratio('EXP10')
 #m.load_basics()
 #m.get_grad_T_and_S()
-#plot()
+plot()
