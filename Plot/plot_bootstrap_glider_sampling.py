@@ -13,6 +13,9 @@ import scipy.stats as stats
 from get_transects import get_transects
 
 matplotlib.rcParams.update({'font.size': 8})
+matplotlib.rc('text', usetex=True)
+#matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']
+matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
 class bootstrap_glider_samples(object):
     '''
@@ -949,7 +952,7 @@ class bootstrap_glider_samples(object):
                      label='model mean')
 
         # legend
-        plt.legend(title='ensemble size')
+        plt.legend(title='ensemble size', fontsize=6)
  
         # axis limits
         self.ax.set_xlim(e.time_counter.min(skipna=True),
@@ -983,14 +986,12 @@ class bootstrap_glider_samples(object):
                      '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
                           self.append + '.nc')
 
-        # define fig
-        fig, axs = plt.subplots(2,2, figsize=(6.5,4.0))
-        # initialised figure
+        # initialise figure
         fig = plt.figure(figsize=(6.5, 4), dpi=300)
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=2, nrows=1)
         gs0.update(top=0.97, bottom=0.45, left=0.13, right=0.97)
-        gs1.update(top=0.4, bottom=0.15, left=0.13, right=0.97)
+        gs1.update(top=0.35, bottom=0.10, left=0.13, right=0.97, wspace=0.2)
 
         axs0 = fig.add_subplot(gs0[0])
         axs1 = []
@@ -998,7 +999,9 @@ class bootstrap_glider_samples(object):
             axs1.append(fig.add_subplot(gs1[i]))
 
         ensemble_list = [1,4,30]
-        colours = ['green', 'red', 'navy', 'orange']
+        #colours = ['lightgrey', 'gray', 'black', 'orange']
+        #colours = ['lightsalmon', 'cadetblue', 'black', 'orange']
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
         for i, l in enumerate(ensemble_list):
             e = ensembles.sel(ensemble_size=l)
             e = e.reset_coords('time_counter').mean('sets')
@@ -1017,13 +1020,15 @@ class bootstrap_glider_samples(object):
         
 
         # reneder model time series
+        c = '#fd0000'
+        c = '#dd175f'
         m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
         axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
-                      c='cyan', lw=0.8, label='model mean')
+                      c=c, lw=0.8, ls='--', label='model - 2nd/8th decile')
         axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.5),
-                      c='cyan', lw=0.8, label='model mean')
+                      c=c, lw=0.8, ls='-', label='model - median')
         axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.8),
-                      c='cyan', lw=0.8, label='model mean')
+                      c=c, lw=0.8, ls='--', label='__nolegend__')
 
         # diff data
         g = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
@@ -1047,7 +1052,6 @@ class bootstrap_glider_samples(object):
         diff_mean = diff_mean.assign_coords(
                            {'x':np.arange(diff_mean.sizes['x']),
                             'y':np.arange(diff_mean.sizes['y'])})
-        print ((diff_mean - deltaM_mean_stats.sel(quantile=0.5)))
         ind0 = (np.abs(diff_mean - deltaM_mean_stats.sel(quantile=0.5))
                ).argmin(dim='x')
         diff_mean_1d = diff_mean.isel(x=ind0)
@@ -1056,8 +1060,42 @@ class bootstrap_glider_samples(object):
         dm = diff_mean_1d.isel(y=ind1) # median difference (x,y) in week-mean
         m0_median = m0.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
         m1_median = m1.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
-        axs0.axhline(m0_median)
-        axs0.axhline(m1_median)
+        c_mm = '#17dd95' # model mean colour
+        axs0.hlines(m0_median, m0_median.day, 
+                   m0_median.day + np.timedelta64(7, 'D'),
+                   transform=axs0.transData, colors=c_mm)
+        axs0.hlines(m1_median, m1_median.day, 
+                    m1_median.day + np.timedelta64(7, 'D'),
+                    transform=axs0.transData, colors=c_mm)
+        axs0.hlines(m1_median, m0_median.day + np.timedelta64(12, 'D'),
+                               m0_median.day + np.timedelta64(1, 'D'),
+                    transform=axs0.transData, colors=c_mm, lw=0.5)
+        #axs0.vlines(m0_median.day + np.timedelta64(3.5, 'D'),
+        #            m1_median, m0_median,
+        #            transform=axs0.transData, colors=c0, lw=0.5)
+
+        from matplotlib.patches import FancyArrowPatch
+
+        x = m0_median.day + np.timedelta64(84, 'h')
+        y0 = m1_median
+        y1 = m0_median
+        myArrow = FancyArrowPatch(posA=(x, y0), posB=(x, y1),
+                                  arrowstyle='<|-|>', color=c_mm,
+                                  mutation_scale=5, shrinkA=0, shrinkB=0)
+        axs0.add_artist(myArrow)
+
+        # legend
+        axs0.legend(title='ensemble size')
+ 
+        # axis limits
+        axs0.set_xlim(e.time_counter.min(skipna=True),
+                         e.time_counter.max(skipna=True))
+        axs0.set_ylim(-1e-8,1.3e-7)
+
+        # add labels
+        axs0.set_xlabel('time')
+        axs0.set_ylabel('buoyancy gradients')
+
 
         # change in bg - glider differences
         g0 = g.sel(day=t0, method='nearest')  
@@ -1070,39 +1108,37 @@ class bootstrap_glider_samples(object):
 
         # plot
         def render(ax, g, m):
+            cg_0='grey'
+            cg_1='black'
+            cg_2='lightgrey'
             ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.01),
-                            g.sel(quantile=0.99), facecolor='purple',
+                            g.sel(quantile=0.99), facecolor=cg_0,
                             edgecolor=None)
             ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.05),
-                            g.sel(quantile=0.95), facecolor='green',
+                            g.sel(quantile=0.95), facecolor=cg_1,
                             edgecolor=None)
             ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.10),
-                            g.sel(quantile=0.90), facecolor='orange',
+                            g.sel(quantile=0.90), facecolor=cg_2,
                             edgecolor=None)
-            ax.axhline(m.sel(quantile=0.20))
-            ax.axhline(m.sel(quantile=0.5))
-            ax.axhline(m.sel(quantile=0.80))
+            ax.axhline(m.sel(quantile=0.20), c=c_mm, lw=1.0)
+            ax.axhline(m.sel(quantile=0.5), c=c_mm, lw=1.0)
+            ax.axhline(m.sel(quantile=0.80), c=c_mm, lw=1.0)
 
         render(axs1[0], deltaG_mean_stats, deltaM_mean_stats)
         render(axs1[1], deltaG_std_stats, deltaM_std_stats)
 
 
         # labels 
-        axs1[1].set_xlabel('Ensemble size')
-        axs1[0].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
-                               t0.lstrip('2013')[1:] + ' :: ' +
-                               t1.lstrip('2013')[1:]+
-                               '\n [mean]')
-        axs1[1].set_ylabel(r'$\Delta b_{x,y}$' + '\n' +
-                               t0.lstrip('2013')[1:] + ' :: ' +
-                               t1.lstrip('2013')[1:]+
-                               '\n [standard deviation]')
+        axs1[0].set_ylabel(r'$\Delta (\overline{|\nabla \boldsymbol{b}|}$' +
+                               '\n []')
+        axs1[1].set_ylabel(r'$\Delta (\sigma(|\nabla \boldsymbol{b}|)$' + 
+                               '\n []')
 
         axs1[0].set_ylim(-2e-8,8.0e-8)
         axs1[1].set_ylim(-2e-8,8.0e-8)
-        axs1[0].set_xticks([])
         for ax in axs1:
             ax.set_xlim(1,30)
+            ax.set_xlabel('ensemble size')
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '_'+ t0 + '_' + t1 + '.png', dpi=600)
@@ -1947,7 +1983,7 @@ def plot_quantify_delta_bg(subset=''):
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 #plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
-#plot_quantify_delta_bg(subset='south')
+plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
@@ -1964,9 +2000,9 @@ def plot_quantify_delta_bg(subset=''):
 #    m.get_glider_timeseries(ensemble_range=range(1,31), save=True)
 #    m.get_full_model_day_week_std(save=True)
 
-m = bootstrap_glider_samples('EXP10', load_samples=False, subset='south')
-m.get_full_model_day_week_sdt_and_mean_bg(save=True)
-m.get_full_model_timeseries(save=True)
+#m = bootstrap_glider_samples('EXP10', load_samples=False, subset='south')
+#m.get_full_model_day_week_sdt_and_mean_bg(save=True)
+#m.get_full_model_timeseries(save=True)
 
 #prep_hist(by_time='3W_rolling')
 #plot_hist(by_time='1W_rolling')
