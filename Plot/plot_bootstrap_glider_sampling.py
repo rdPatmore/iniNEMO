@@ -12,10 +12,10 @@ import scipy.stats as stats
 #import itertools
 from get_transects import get_transects
 
+matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
 matplotlib.rc('text', usetex=True)
-#matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']
-matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
+#matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
 class bootstrap_glider_samples(object):
     '''

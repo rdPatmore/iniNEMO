@@ -645,9 +645,9 @@ class plot_buoyancy_ratio(object):
 
 
         gs0 = gridspec.GridSpec(ncols=2, nrows=1)
-        gs1 = gridspec.GridSpec(ncols=1, nrows=5)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=4)
         gs0.update(top=0.99, bottom=0.65, left=0.15, right=0.98, wspace=0.05)
-        gs1.update(top=0.49, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
+        gs1.update(top=0.45, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
 
         axs0, axs1 = [], []
         for i in range(2):
@@ -655,11 +655,12 @@ class plot_buoyancy_ratio(object):
 #                     projection=ccrs.AlbersEqualArea(central_latitude=60,
 #                      standard_parallels=(-62,-58))))
             axs0.append(fig.add_subplot(gs0[i]))
-        for i in range(5):
+        for i in range(4):
             axs1.append(fig.add_subplot(gs1[i]))
 
-        def render(ax, var):
-            ax.plot(self.stats.time_counter, self.stats[var + self.subset_var])
+        def render(ax, var, c='k', ls='-'):
+            ax.plot(self.stats.time_counter, self.stats[var + self.subset_var],
+                    c=c, ls=ls, lw=0.8)
 
         def render_density_ratio(ax, var):
             var_mean = var + '_ts_mean'
@@ -701,7 +702,13 @@ class plot_buoyancy_ratio(object):
                               cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45)
         axs0[1].set_aspect('equal')
 
-        for subset in [None, 'north', 'south']:
+        l = []
+        colours = ['orange', 'purple', 'green']
+        ls = ['-', '-', '-']
+        for i, subset in enumerate([None, 'north', 'south']):
+            lab_str = subset
+            if lab_str == None: lab_str = 'all'
+            
             # update region
             self.subset = subset
             if subset:
@@ -718,13 +725,19 @@ class plot_buoyancy_ratio(object):
             #self.get_grad_T_and_S(load=True)
 
             # render Temperature contirbution
-            render(axs1[0], 'norm_grad_b_ts_mean')
-            render(axs1[1], 'qt_oce_ts_mean')
-            render(axs1[2], 'wfo_ts_mean')
+            render(axs1[0], 'norm_grad_b_ts_mean', c=colours[i], ls=ls[i])
+            render(axs1[1], 'wfo_ts_mean', c=colours[i], ls=ls[i])
 
             # plot Tu angle
-            axs1[3].plot(Tu_constr.time_counter, Tu_constr*100)
-            axs1[4].plot(Tu_sal.time_counter, Tu_sal*100)
+            axs1[2].plot(Tu_constr.time_counter, Tu_constr*100, c=colours[i],
+                         ls=ls[i], lw=0.8)
+            p, = axs1[3].plot(Tu_sal.time_counter, Tu_sal*100,
+                     label=lab_str, c=colours[i], ls=ls[i], lw=0.8)
+            l.append(p)
+          
+
+        axs1[0].legend(l, ['all', 'north', 'south'], loc='upper center',
+                       bbox_to_anchor=(0.25, 1.2, 0.5, 0.3), ncol=3)
 
 
         # axes formatting
@@ -739,13 +752,13 @@ class plot_buoyancy_ratio(object):
         pos = axs0[0].get_position()
         cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
         cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
-        cbar.ax.text(0.5, -2.0, r'Sea Ice Concentration', fontsize=8,
+        cbar.ax.text(0.5, -2.0, r'Sea Ice Concentration [-]', fontsize=8,
                 rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
    
         pos = axs0[1].get_position()
         cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
         cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
-        cbar.ax.text(0.5, -2.0, r'$\zeta / f$', fontsize=8,
+        cbar.ax.text(0.5, -2.0, r'$\zeta / f$ [-]', fontsize=8,
                 rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
 
         axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
@@ -758,27 +771,25 @@ class plot_buoyancy_ratio(object):
         for ax in axs1[:-1]:
             ax.set_xticklabels([])
 
-        # date labels
-        axs1[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
-        axs1[-1].set_xlabel('date')
 
-        axs1[0].set_ylabel(r'$|\nabla \mathbf{b}|$')
-        axs1[1].set_ylabel(r'$Q_{surf}^{\theta}$')
-        axs1[2].set_ylabel(r'$Q_{surf}^{fw}$')
-        axs1[3].set_ylabel(r'$\phi$' + '\nfrac')
-        axs1[4].set_ylabel(r'$|R|$' + '\nfrac')
+        axs1[0].set_ylabel(r'$|\nabla \mathbf{b}|$' + '\n' + r'[s$^{-2}]$')
+        axs1[1].set_ylabel(r'$Q^{fw}$' + '\n' +r'[kg m$^{-2}$ s$^{-1}$]')
+        axs1[2].set_ylabel(r'$\phi^{comp}$' + '\narea [%]')
+        axs1[3].set_ylabel(r'$Tu^{beta}$' + '\narea [%]')
 
         # align labels
         xpos = -0.11  # axes coords
         for ax in axs1:
             ax.yaxis.set_label_coords(xpos, 0.5)
-        #axs1[0].yaxis.set_label_coords(xpos, 0.5)
+
+        # date labels
+        for ax in axs1:
+            axs1[-1].xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        axs1[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs1[-1].set_xlabel('date')
 
         plt.savefig('density_ratio_with_SI_Ro_and_bg_time_series_with_flxs.png',
                     dpi=600)
-
-
-       #### make files ####
 
     def plot_density_ratio_slice(self):
         '''
