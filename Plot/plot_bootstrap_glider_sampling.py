@@ -2,7 +2,9 @@ import xarray as xr
 import config
 import iniNEMO.Process.model_object as mo
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import matplotlib.animation as animation
+import matplotlib.dates as mdates
 import numpy as np
 import dask
 import matplotlib
@@ -14,7 +16,7 @@ from get_transects import get_transects
 
 matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
-matplotlib.rc('text', usetex=True)
+#matplotlib.rc('text', usetex=True)
 #matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
 class bootstrap_glider_samples(object):
@@ -990,17 +992,19 @@ class bootstrap_glider_samples(object):
         fig = plt.figure(figsize=(6.5, 4), dpi=300)
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=2, nrows=1)
-        gs0.update(top=0.97, bottom=0.45, left=0.13, right=0.97)
-        gs1.update(top=0.35, bottom=0.10, left=0.13, right=0.97, wspace=0.2)
+        gs0.update(top=0.99, bottom=0.46, left=0.10, right=0.80)
+        gs1.update(top=0.35, bottom=0.10, left=0.10, right=0.80, wspace=0.3)
 
         axs0 = fig.add_subplot(gs0[0])
         axs1 = []
         for i in range(2):
             axs1.append(fig.add_subplot(gs1[i]))
 
+        # plot interdecile range of glider samples
         ensemble_list = [1,4,30]
         #colours = ['lightgrey', 'gray', 'black', 'orange']
         #colours = ['lightsalmon', 'cadetblue', 'black', 'orange']
+        fill = []
         colours = ['#dad1d1', '#7e9aa5', '#55475a']
         for i, l in enumerate(ensemble_list):
             e = ensembles.sel(ensemble_size=l)
@@ -1012,11 +1016,11 @@ class bootstrap_glider_samples(object):
             e = e.where((e.time_counter>np.datetime64('2012-12-15')) &
                         (e.time_counter<np.datetime64('2013-03-15')))
             #e = e.sel(time_counter=slice('2012-12-15','2013-03-15'))
-            axs0.fill_between(e.time_counter, 
-                              e.bg_ts_dec.sel(quantile=0.1),
-                              e.bg_ts_dec.sel(quantile=0.9),
-                              color=colours[i], edgecolor=None, alpha=1.0,
-                              label=str(l))
+            fill.append(axs0.fill_between(e.time_counter, 
+                                  e.bg_ts_dec.sel(quantile=0.1),
+                                  e.bg_ts_dec.sel(quantile=0.9),
+                                  color=colours[i], edgecolor=None, alpha=1.0,
+                                  label=str(l)))
         
 
         # reneder model time series
@@ -1024,11 +1028,26 @@ class bootstrap_glider_samples(object):
         c = '#dd175f'
         m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
         axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
-                      c=c, lw=0.8, ls='--', label='model - 2nd/8th decile')
-        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.5),
-                      c=c, lw=0.8, ls='-', label='model - median')
+                      c=c, lw=0.8, ls='--', label='__nolegend__')
+        p = axs0.plot(m_ts.time_counter,
+                      m_ts.bg_norm_ts_quant.sel(quantile=0.5),
+                      c=c, lw=0.8, ls='-', label='full model')
         axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.8),
                       c=c, lw=0.8, ls='--', label='__nolegend__')
+
+        end = m_ts.isel(time_counter=-1)
+
+        # add model labels
+        axs0.text(end.time_counter + np.timedelta64(12, 'h'),
+                 end.bg_norm_ts_quant.sel(quantile=0.2),
+                 r'$2^{nd}$ decile', ha='left',va='center', fontsize=6, c=c)
+        axs0.text(end.time_counter + np.timedelta64(12, 'h'),
+                  end.bg_norm_ts_quant.sel(quantile=0.5),
+                 'median', ha='left',va='center', fontsize=6, c=c)
+        axs0.text(end.time_counter + np.timedelta64(12, 'h'),
+                  end.bg_norm_ts_quant.sel(quantile=0.8),
+                 r'$8^{th}$ decile', ha='left',va='center', fontsize=6, c=c)
+
 
         # diff data
         g = xr.open_dataset(self.data_path + 'BgGliderSamples' + 
@@ -1046,9 +1065,9 @@ class bootstrap_glider_samples(object):
         deltaM_mean_stats = m_diff.bg_norm_ts_week_mean.quantile(qs,('x','y'))
         deltaM_std_stats  = m_diff.bg_norm_ts_week_std.quantile(qs,('x','y'))
 
-        # add median to time series
+        ### --- add median delta(bg) to time series --- ###
+        # find t0 and t1 of median delta(bg) 
         diff_mean = m_diff.bg_norm_ts_week_mean
-
         diff_mean = diff_mean.assign_coords(
                            {'x':np.arange(diff_mean.sizes['x']),
                             'y':np.arange(diff_mean.sizes['y'])})
@@ -1060,23 +1079,24 @@ class bootstrap_glider_samples(object):
         dm = diff_mean_1d.isel(y=ind1) # median difference (x,y) in week-mean
         m0_median = m0.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
         m1_median = m1.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+
+        # plot t0 and t1 weeks
         c_mm = '#17dd95' # model mean colour
+        c_mm = '#00ffa2' # model mean colour
         axs0.hlines(m0_median, m0_median.day, 
                    m0_median.day + np.timedelta64(7, 'D'),
                    transform=axs0.transData, colors=c_mm)
         axs0.hlines(m1_median, m1_median.day, 
                     m1_median.day + np.timedelta64(7, 'D'),
                     transform=axs0.transData, colors=c_mm)
-        axs0.hlines(m1_median, m0_median.day + np.timedelta64(12, 'D'),
-                               m0_median.day + np.timedelta64(1, 'D'),
-                    transform=axs0.transData, colors=c_mm, lw=0.5)
-        #axs0.vlines(m0_median.day + np.timedelta64(3.5, 'D'),
-        #            m1_median, m0_median,
-        #            transform=axs0.transData, colors=c0, lw=0.5)
+        axs0.hlines(m0_median, m0_median.day + np.timedelta64(7, 'D'),
+                               m1_median.day + np.timedelta64(7, 'D'),
+                    transform=axs0.transData, colors=c_mm, lw=0.5,
+                    zorder=0)
 
         from matplotlib.patches import FancyArrowPatch
 
-        x = m0_median.day + np.timedelta64(84, 'h')
+        x = m1_median.day + np.timedelta64(84, 'h')
         y0 = m1_median
         y1 = m0_median
         myArrow = FancyArrowPatch(posA=(x, y0), posB=(x, y1),
@@ -1084,17 +1104,44 @@ class bootstrap_glider_samples(object):
                                   mutation_scale=5, shrinkA=0, shrinkB=0)
         axs0.add_artist(myArrow)
 
+        # add bounding box for labels
+        x0 = m0_median.day
+        y0 = m0_median
+        w = np.timedelta64(96, 'h')
+        h = 1e-8
+        rect = patches.Rectangle((x0, y0), w, h,
+                                 linewidth=1, edgecolor=None,
+                                 facecolor='w', alpha=1.0)
+        # Add the patch to the Axes
+        #axs0.add_patch(rect)
+
+        # median delta(bg) labels
+        #axs0.text(m0_median.day, m0_median + 1e-9,
+        #         r'$\overline{\nabla \mathbf{b}|_{t_0}}$',
+        #          ha='left',va='bottom', fontsize=6, c=c_mm)
+        #axs0.text(m1_median.day, m1_median + 1e-9,
+        #         r'$\overline{\nabla \mathbf{b}|_{t_1}}$',
+        #         ha='left',va='bottom', fontsize=6, c=c_mm)
+        #axs0.text(m1_median.day + np.timedelta64(7, 'D'),
+        axs0.text(x - np.timedelta64(5,'h'),
+                  m0_median - 3e-9,
+        r'median $\delta_t \langle|\nabla \mathbf{b}|\rangle_{t_w}$',
+                 ha='right',va='top', fontsize=6, c=c_mm)
+
+
         # legend
-        axs0.legend(title='ensemble size')
+        legend1 =  axs0.legend(fill + p, ensemble_list + ['full model'], 
+                    title='ensemble size\ninter-decile range')
  
         # axis limits
         axs0.set_xlim(e.time_counter.min(skipna=True),
                          e.time_counter.max(skipna=True))
-        axs0.set_ylim(-1e-8,1.3e-7)
+        axs0.set_ylim(0,1.3e-7)
 
         # add labels
-        axs0.set_xlabel('time')
-        axs0.set_ylabel('buoyancy gradients')
+        axs0.set_ylabel(r'$|\nabla \mathbf{b}|$' + '\n' + 
+                        r' [$\times 10^{-7}$ s$^{-2}$]')
+        axs0.yaxis.get_offset_text().set_visible(False)
 
 
         # change in bg - glider differences
@@ -1111,34 +1158,62 @@ class bootstrap_glider_samples(object):
             cg_0='grey'
             cg_1='black'
             cg_2='lightgrey'
-            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.01),
+            p0 = ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.01),
                             g.sel(quantile=0.99), facecolor=cg_0,
                             edgecolor=None)
-            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.05),
+            p1 = ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.05),
                             g.sel(quantile=0.95), facecolor=cg_1,
                             edgecolor=None)
-            ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.10),
+            p2 = ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.10),
                             g.sel(quantile=0.90), facecolor=cg_2,
                             edgecolor=None)
-            ax.axhline(m.sel(quantile=0.20), c=c_mm, lw=1.0)
+            p3 = ax.axhline(m.sel(quantile=0.20), c=c_mm, lw=1.0)
             ax.axhline(m.sel(quantile=0.5), c=c_mm, lw=1.0)
             ax.axhline(m.sel(quantile=0.80), c=c_mm, lw=1.0)
 
+            # add model labels
+            ax.text(29.5, m.sel(quantile=0.2)-3e-9, r'$2^{nd}$ decile',
+                    ha='right',va='top', fontsize=6, c=c_mm)
+            ax.text(1.5, m.sel(quantile=0.5)-3e-9, 'median',
+                    ha='left',va='top', fontsize=6, c=c_mm)
+            ax.text(29.5, m.sel(quantile=0.8)-3e-9, r'$8^{th}$ decile',
+                    ha='right',va='top', fontsize=6, c=c_mm)
+            return [p0,p1,p2,p3]
+
         render(axs1[0], deltaG_mean_stats, deltaM_mean_stats)
-        render(axs1[1], deltaG_std_stats, deltaM_std_stats)
+        leg = render(axs1[1], deltaG_std_stats, deltaM_std_stats)
+
+        # add legend
+        axs1[1].legend(leg, ['gliders (98%)', 'gliders (95%)',
+                             'gliders (80%)', 'model'],
+                       loc='upper left', bbox_to_anchor=(1.00,1.01))
 
 
         # labels 
-        axs1[0].set_ylabel(r'$\Delta (\overline{|\nabla \boldsymbol{b}|}$' +
-                               '\n []')
-        axs1[1].set_ylabel(r'$\Delta (\sigma(|\nabla \boldsymbol{b}|)$' + 
-                               '\n []')
+        axs1[0].set_ylabel(
+        r'$\delta_t \langle|\nabla \mathbf{b}|\rangle_{t_w}$' + '\n' +
+                               r' [$\times 10^{-8}$ s$^{-2}$]')
+        axs1[1].set_ylabel(
+              r'$\delta_t (\sigma_{t_w}|\nabla \mathbf{b}|)$' + '\n' +
+                               r' [$\times 10^{-8}$ s$^{-2}$]')
+
+        # set ax1 titles
+        axs1[0].text(0.01, 1.01, 'change in temporal mean',
+                  transform=axs1[0].transAxes, ha='left', va='bottom')
+        axs1[1].text(0.01, 1.01, 'change in temporal standard deviation',
+                  transform=axs1[1].transAxes, ha='left', va='bottom')
 
         axs1[0].set_ylim(-2e-8,8.0e-8)
         axs1[1].set_ylim(-2e-8,8.0e-8)
         for ax in axs1:
             ax.set_xlim(1,30)
             ax.set_xlabel('ensemble size')
+            ax.yaxis.get_offset_text().set_visible(False)
+
+        # date labels
+        axs0.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        axs0.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs0.set_xlabel('date')
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '_'+ t0 + '_' + t1 + '.png', dpi=600)

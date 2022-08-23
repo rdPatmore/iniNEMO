@@ -7,7 +7,7 @@ import numpy as np
 import iniNEMO.Process.calc_power_spectrum as spec
 from scipy import ndimage
 import matplotlib
-from skimage.filters import window
+#from skimage.filters import window
 import scipy.signal as sig
 import matplotlib.gridspec as gridspec
 from plot_interpolated_tracks import get_sampled_path, get_raw_path
@@ -546,13 +546,43 @@ class plot_power_spectrum(object):
                                     simple_calc=False)
 
         # remove climbs
+        #spec.add_glider_spectra('EXP10', axs[1,0], var='votemper',
+        # append='_climb_multi_taper_transect_clean_pfit1',
+        #                            c='orange',
+        #                            label='', old=False, ls='-', 
+        #                            old_spec_calc=False,
+        #                            simple_calc=False)
+
+        # remove every 2 and climb
         spec.add_glider_spectra('EXP10', axs[1,0], var='votemper',
-         append='_climb_multi_taper_transect_clean_pfit1',
+       append='_interp_1000_every_2_and_climb_multi_taper_transect_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+        # remove every 3 and climb
+        spec.add_glider_spectra('EXP10', axs[1,1], var='votemper',
+       append='_interp_1000_every_3_and_climb_multi_taper_transect_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
                                     simple_calc=False)
 
+        # remove every 2 and climb
+        spec.add_glider_spectra('EXP10', axs[1,2], var='votemper',
+   append='_interp_1000_every_4_and_climb_pre_transect_multi_taper_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
+
+        # remove every 8 and climb
+        spec.add_glider_spectra('EXP10', axs[1,3], var='votemper',
+   append='_interp_1000_every_8_and_climb_pre_transect_multi_taper_clean_pfit1',
+                                    c='orange',
+                                    label='', old=False, ls='-', 
+                                    old_spec_calc=False,
+                                    simple_calc=False)
         for ax in axs.flatten():
             ax.set_xlim(5e-2,5e-1)
         for ax in axs[:,0]:
@@ -624,6 +654,6 @@ def model_res_compare():
     plt.savefig('temperature_spectra_method2_completeness.png', dpi=600)
 
 m = plot_power_spectrum()
-m.plot_pre_post_transect()
-#m.compare_climb_dive_pair_reduction()
+#m.plot_pre_post_transect()
+m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()

@@ -78,6 +78,9 @@ class glider_path_geometry(object):
                              #chunks={'time_counter':1})
         bg = np.abs(bg.sel(deptht=10, method='nearest'))
 
+        # get norm
+        bg['bg_norm'] = (bg.bx ** 2 + bg.by ** 2) ** 0.5
+
         # add lat-lon to dimensions
         bg = bg.assign_coords({'lon':(['x'], bg.nav_lon.isel(y=0)),
                                'lat':(['y'], bg.nav_lat.isel(x=0))})
@@ -104,6 +107,8 @@ class glider_path_geometry(object):
             dims = ['lon','lat','time_counter']
             if rolling:
                 # contstruct allows for mean/std over multiple dims
+                #patch = patch.dropna('time_counter')#.sortby('time_counter')
+                patch = patch.sortby('time_counter')
                 patch = patch.resample(time_counter='1H').interpolate()
                 patch = patch.rolling(time_counter=168, center=True).construct(
                                                                'weekly_rolling')
@@ -163,26 +168,33 @@ class glider_path_geometry(object):
             #m_std  = self.model_patches.std(stat_dims).load()
 
             if percentage:
-                denom_m_bx = np.abs(m_mean.bx) / 100.0
-                denom_m_by = np.abs(m_mean.by) / 100.0
-                denom_s_bx = np.abs(m_std.bx) / 100.0
-                denom_s_by = np.abs(m_std.by) / 100.0
+                denom_m_bx      = np.abs(m_mean.bx)      / 100.0
+                denom_m_by      = np.abs(m_mean.by)      / 100.0
+                denom_m_bg_norm = np.abs(m_mean.bg_norm) / 100.0
+                denom_s_bx      = np.abs(m_std.bx)       / 100.0
+                denom_s_by      = np.abs(m_std.by)       / 100.0
+                denom_s_bg_norm = np.abs(m_std.bg_norm)  / 100.0
             else: 
                 denom = 1.0
 
             diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
             diff_y_mean = (m_mean.by - g_mean) / denom_m_by
+            diff_norm_mean = (m_mean.bg_norm - g_mean) / denom_m_bg_norm
             diff_x_std = (m_std.bx - g_std) / denom_s_bx
             diff_y_std = (m_std.by - g_std) / denom_s_by
+            diff_norm_std = (m_std.bg_norm - g_std) / denom_s_bg_norm
 
             if rotation != '':
                 label = '_rotate'
             diff_x_mean.name = 'diff_bx_mean' + label
             diff_y_mean.name = 'diff_by_mean' + label
+            diff_norm_mean.name = 'diff_bg_norm_mean' + label
             diff_x_std.name = 'diff_bx_std' + label
             diff_y_std.name = 'diff_by_std' + label
+            diff_norm_std.name = 'diff_bg_norm_std' + label
 
-            diff = xr.merge([diff_x_mean, diff_y_mean, diff_x_std, diff_y_std])
+            diff = xr.merge([diff_x_mean, diff_y_mean, diff_x_std, diff_y_std,
+                             diff_norm_mean, diff_norm_std])
             return diff
 
         non_rot = get_diff(samples)
@@ -261,8 +273,10 @@ class glider_path_geometry(object):
         if percentage:
             denom_m_bx = np.abs(m_mean.bx) / 100.0
             denom_m_by = np.abs(m_mean.by) / 100.0
+            denom_m_bg_norm = np.abs(m_mean.bg_norm) / 100.0
             denom_s_bx = np.abs(m_std.bx) / 100.0
             denom_s_by = np.abs(m_std.by) / 100.0
+            denom_s_bg_norm = np.abs(m_std.bg_norm) / 100.0
             f_append = '_percent'
         else: 
             denom = 1.0
@@ -272,16 +286,21 @@ class glider_path_geometry(object):
 
         diff_x_mean = (m_mean.bx - g_mean) / denom_m_bx
         diff_y_mean = (m_mean.by - g_mean) / denom_m_by
+        diff_norm_mean = (m_mean.bg_norm - g_mean) / denom_m_bg_norm
         diff_x_std = (m_std.bx - g_std) / denom_s_bx
         diff_y_std = (m_std.by - g_std) / denom_s_by
+        diff_norm_std = (m_std.bg_norm - g_std) / denom_s_bg_norm
 
         diff_x_mean.name = 'diff_bx_mean'
         diff_y_mean.name = 'diff_by_mean'
+        diff_norm_mean.name = 'diff_bg_norm_mean'
         diff_x_std.name = 'diff_bx_std'
         diff_y_std.name = 'diff_by_std'
+        diff_norm_std.name = 'diff_bg_norm_std'
 
         diff_ds = xr.merge([diff_x_mean,diff_y_mean,
-                            diff_x_std,diff_y_std])
+                            diff_x_std,diff_y_std,
+                            diff_norm_mean,diff_norm_std])
 
         diff_ds.to_netcdf(self.data_path +  '/BgGliderSamples' + 
                   '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_vertex_diff' +
@@ -1024,12 +1043,12 @@ class glider_path_geometry_plotting(object):
 #        plt.legend()
 #        plt.savefig('EXP02_bg_glider_rotation.png', dpi=300)
 
-cases = ['EXP10']
+#cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
 #m.plot_model_and_glider_diff_bar(cases, samples=50)
 #m.plot_model_and_glider_diff_bar(cases, samples=200)
-m = glider_path_geometry_plotting()
-m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
+#m = glider_path_geometry_plotting()
+#m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
 #m.plot_model_and_glider_diff_rotate_timeseries('EXP10', samples=100)
 #m.plot_model_and_glider_diff_vertex_timeseries('EXP10', samples=100)
 #m.plot_model_and_glider_diff_vertex_bar(cases, samples=100)
@@ -1037,13 +1056,13 @@ m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
 
 # save file of vertex percentage error
 #cases = ['EXP13','EXP08','EXP10']
-#cases = ['EXP10']
-#for  case in cases:
-#    m = glider_path_geometry(case)
-#    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100,
-#                                             rolling=True)
-#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100,
-#                                          rolling=True)
+cases = ['EXP10']
+for  case in cases:
+    m = glider_path_geometry(case)
+    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100,
+                                             rolling=True)
+    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100,
+                                          rolling=True)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=200)
 

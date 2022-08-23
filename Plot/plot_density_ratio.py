@@ -651,10 +651,10 @@ class plot_buoyancy_ratio(object):
 
         axs0, axs1 = [], []
         for i in range(2):
-#            axs0.append(fig.add_subplot(gs0[i],
-#                     projection=ccrs.AlbersEqualArea(central_latitude=60,
-#                      standard_parallels=(-62,-58))))
-            axs0.append(fig.add_subplot(gs0[i]))
+            axs0.append(fig.add_subplot(gs0[i],
+                     projection=ccrs.AlbersEqualArea(central_latitude=-60,
+                      standard_parallels=(-62,-58))))
+#            axs0.append(fig.add_subplot(gs0[i]))
         for i in range(4):
             axs1.append(fig.add_subplot(gs1[i]))
 
@@ -686,8 +686,9 @@ class plot_buoyancy_ratio(object):
 #                              cmap=cmocean.cm.ice, vmin=0, vmax=1,
 #                              transform=ccrs.PlateCarree())
         p0 = axs0[0].pcolor(si.nav_lon, si.nav_lat, si, shading='nearest',
-                            cmap=cmocean.cm.ice, vmin=0, vmax=1)
-        axs0[0].set_aspect('equal')
+                            cmap=cmocean.cm.ice, vmin=0, vmax=1,
+                              transform=ccrs.PlateCarree())
+        #axs0[0].set_aspect('equal')
     
         # plot Ro
         Ro = Ro.sel(time_counter='2012-12-30 00:00:00', method='nearest')
@@ -699,8 +700,9 @@ class plot_buoyancy_ratio(object):
 #                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45,
 #                              transform=ccrs.PlateCarree())
         p1 = axs0[1].pcolor(Ro.nav_lon, Ro.nav_lat, Ro, shading='nearest',
-                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45)
-        axs0[1].set_aspect('equal')
+                              cmap=plt.cm.RdBu, vmin=-0.45, vmax=0.45,
+                              transform=ccrs.PlateCarree())
+        #axs0[1].set_aspect('equal')
 
         l = []
         colours = ['orange', 'purple', 'green']
@@ -761,7 +763,7 @@ class plot_buoyancy_ratio(object):
         cbar.ax.text(0.5, -2.0, r'$\zeta / f$ [-]', fontsize=8,
                 rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
 
-        axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
+        #axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
 
         date_lims = (self.stats.time_counter.min(), 
                      self.stats.time_counter.max())
@@ -784,7 +786,7 @@ class plot_buoyancy_ratio(object):
 
         # date labels
         for ax in axs1:
-            axs1[-1].xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         axs1[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
         axs1[-1].set_xlabel('date')
 

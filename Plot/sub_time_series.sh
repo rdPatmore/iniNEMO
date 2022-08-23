@@ -21,4 +21,4 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
  
-python -u plot_density_ratio.py
+python -u plot_compare_glider_path_geometry.py
