@@ -107,8 +107,7 @@ class glider_path_geometry(object):
             dims = ['lon','lat','time_counter']
             if rolling:
                 # contstruct allows for mean/std over multiple dims
-                #patch = patch.dropna('time_counter')#.sortby('time_counter')
-                patch = patch.sortby('time_counter')
+                patch = patch.dropna('time_counter').sortby('time_counter')
                 patch = patch.resample(time_counter='1H').interpolate()
                 patch = patch.rolling(time_counter=168, center=True).construct(
                                                                'weekly_rolling')
@@ -250,7 +249,7 @@ class glider_path_geometry(object):
                 mean_time = mean_time.astype('datetime64[ns]')
                 g = ver_sampled.assign_coords({'time_counter':mean_time})
                 g = g.swap_dims({'distance':'time_counter'})
-                g = g.sortby('time_counter')
+                g = g.dropna('time_counter').sortby('time_counter')
                 g = g.resample(time_counter='1H').interpolate()
                 g = g.rolling(time_counter=168,
                                         center=True).construct('weekly_rolling')

@@ -480,6 +480,7 @@ class power_spectrum_glider(object):
                     continue
                 self.detrend(transect, remove_mean=False)
 
+                print (self.h_detrended)
                 # remove tansects with uniform distribution
                 if np.abs(self.h_detrended).mean() < 1e-8:
                     continue
@@ -590,13 +591,17 @@ if __name__ == '__main__':
     #m.get_glider()
     #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
-    # every 4 and climb
     m = power_spectrum_glider('EXP10', 'votemper', 
-                          append='interp_1000_every_4_and_climb_pre_transect_',
+                          append='interp_1000_every_8_and_climb_pre_transect_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                          append='interp_1000_every_8_and_dive_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
     # post transect
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='interp_1000_',

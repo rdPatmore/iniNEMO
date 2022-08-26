@@ -12,6 +12,9 @@ import scipy.signal as sig
 import matplotlib.gridspec as gridspec
 from plot_interpolated_tracks import get_sampled_path, get_raw_path
 import cartopy.crs as ccrs
+import cartopy
+import cartopy.mpl.geoaxes
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -333,6 +336,118 @@ class plot_power_spectrum(object):
                                glider_raw.dives,concat_dim='ctd_data_point',
                                    shrink=100, offset=False)
 
+    def plot_pre_post_transect_and_climb_dive_reduction(self):
+        '''
+        plot paths and associated spectra when retriving transects
+        pre/post interpolation
+        also additional row of removing climbs
+
+        pt = post_transect for path
+        '''
+        # initialised figure
+        fig, axs = plt.subplots(3, 4, figsize=(5.5, 5.5), dpi=300)
+
+        # initialise class
+        self.spec = plot_power_spectrum()
+
+        def add_path(ax, glider_data, post_transect):
+            # domain projection
+            inset_proj=ccrs.AlbersEqualArea(central_latitude=-60,
+                                        standard_parallels=(-62,-58))
+
+            # set inset
+            axins = inset_axes(axs[0,0], width='40%', height='40%',
+                           loc='upper right',
+                           axes_class=cartopy.mpl.geoaxes.GeoAxes, 
+                           axes_kwargs=dict(map_projection=inset_proj))
+                           #bbox_to_anchor=[0.5, 0.5, 0.47, 0.47],
+
+            # plot path
+            proj = ccrs.PlateCarree() # lon lat projection
+            glider_data = get_sampled_path('EXP10', glider_data,
+                                    post_transect=post_transect, drop_meso=True) 
+            for (l,trans) in glider_data.groupby('transect'):
+                axins.plot(trans.lon, trans.lat, transform=proj)
+
+        # add full path spectrum to all panels
+        for ax in axs.flatten():
+            spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
+            self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
+                                         c='green')
+
+        # ~~~ pre transect pairs ~~~ #
+
+        # every 2
+        spec_append='_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[1,0], append=spec_append)
+        name = 'interp_1000_every_2_pre_transect'
+        add_path(axs[1,0], name, post_transect=False)
+
+        # every 3
+        spec_append='_interp_1000_every_3_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[1,1], append=spec_append)
+        name = 'interp_1000_every_3_pre_transect'
+        add_path(axs[1,1], name, post_transect=False)
+
+        # every 4
+        spec_append='_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[1,2], append=spec_append)
+        name = 'interp_1000_every_4_pre_transect'
+        add_path(axs[1,2], name, post_transect=False)
+
+        # every 8
+        spec_append='_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[1,3], append=spec_append)
+        name = 'interp_1000_every_8_pre_transect'
+        add_path(axs[1,3], name, post_transect=False)
+
+        # ~~~ post transect pairs ~~~ #
+
+        # every 2
+        spec_append='_every_2_post_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[0,0], append=spec_append)
+        name = 'every_2'
+        add_path(axs[0,0], name, post_transect=True)
+
+        # every 3
+        spec_append='_every_3_post_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[0,1], append=spec_append)
+        name = 'every_3'
+        add_path(axs[0,1], name, post_transect=True)
+
+        # every 4
+        spec_append='_every_4_post_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[0,2], append=spec_append)
+        name = 'every_4'
+        add_path(axs[0,2], name, post_transect=True)
+
+        # every 8
+        spec_append='_every_8_post_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[0,3], append=spec_append)
+        name = 'every_8'
+        add_path(axs[0,3], name, post_transect=True)
+
+        # ~~~ climb removal ~~~ #
+
+        # every 2 and climb
+        spec_append='_interp_1000_every_2_and_climb_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[2,0], append=spec_append)
+
+        # every 3 and climb
+        spec_append='_interp_1000_every_3_and_climb_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[2,1], append=spec_append)
+
+        # every 4 and climb
+        spec_append='_interp_1000_every_4_and_climb_pre_transect_multi_taper_clean_pfit1'
+        self.spec.add_glider_spectra('EXP10', axs[2,2], append=spec_append)
+
+        # every 8 and climb
+        #spec_append='_interp_1000_every_8_and_climb_pre_transect_multi_taper_clean_pfit1'
+        #self.spec.add_glider_spectra('EXP10', axs[2,3], append=spec_append)
+
+        # save
+        plt.savefig('testing_proj.png')
+        
     def plot_pre_post_transect(self):
         '''
         plot paths and associated spectra when retriving transects
@@ -368,60 +483,47 @@ class plot_power_spectrum(object):
         # full path
         full_path = get_sampled_path('EXP10', 'interp_1000_pre_transect',
                                      post_transect=False, drop_meso=True) 
-        cmap = plt.cm.inferno(np.linspace(0,1,
-                                        int(full_path.transect.max().values)+1))
         for (l,trans) in full_path.groupby('transect'):
             axs0[0].plot(trans.lon, trans.lat, transform=proj)
 
         # every other pair removed
         every_2 = get_sampled_path('EXP10', 'interp_1000_every_2_pre_transect',
                                      post_transect=False, drop_meso=True) 
-        cmap = plt.cm.inferno(
-                          np.linspace(0,1,int(every_2.transect.max().values)+1))
         for (l,trans) in every_2.groupby('transect'):
             axs0[1].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
         every_4 = get_sampled_path('EXP10', 'interp_1000_every_4_pre_transect',
                                      post_transect=False, drop_meso=True) 
-        cmap = plt.cm.inferno(
-                         np.linspace(0,1,int(every_4.transect.max().values)+1))
         for (l,trans) in every_4.groupby('transect'):
             axs0[2].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
         every_8 = get_sampled_path('EXP10', 'interp_1000_every_8_pre_transect',
                                      post_transect=False, drop_meso=True) 
-        cmap = plt.cm.inferno(
-                         np.linspace(0,1,int(every_8.transect.max().values)+1))
         for (l,trans) in every_8.groupby('transect'):
             axs0[3].plot(trans.lon, trans.lat, transform=proj)
 
         # plot post transect
         # full path
         full_path = get_sampled_path('EXP10', 'interp_1000', drop_meso=True) 
-        cmap =plt.cm.inferno(np.linspace(0,1,full_path.transect.max().values+1))
         for (l,trans) in full_path.groupby('transect'):
             axs0[4].plot(trans.lon, trans.lat, transform=proj)
 
         # every other pair removed
         every_2 = get_sampled_path('EXP10', 'every_2', drop_meso=True) 
-        cmap = plt.cm.inferno(np.linspace(0,1,every_2.transect.max().values+1))
         for (l,trans) in every_2.groupby('transect'):
             axs0[5].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 4 pairs
         every_4 = get_sampled_path('EXP10', 'every_4', drop_meso=True) 
-        cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
         for (l,trans) in every_4.groupby('transect'):
             axs0[6].plot(trans.lon, trans.lat, transform=proj)
 
         # sample every 8 pairs
         every_4 = get_sampled_path('EXP10', 'every_8', drop_meso=True) 
-        cmap = plt.cm.inferno(np.linspace(0,1,every_4.transect.max().values+1))
         for (l,trans) in every_4.groupby('transect'):
             axs0[7].plot(trans.lon, trans.lat, transform=proj)
-
 
         # plot spectra
         spec = plot_power_spectrum()
@@ -655,5 +757,6 @@ def model_res_compare():
 
 m = plot_power_spectrum()
 #m.plot_pre_post_transect()
-m.compare_climb_dive_pair_reduction()
+m.plot_pre_post_transect_and_climb_dive_reduction()
+#m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()
