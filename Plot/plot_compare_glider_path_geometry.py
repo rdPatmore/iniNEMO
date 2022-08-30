@@ -227,13 +227,13 @@ class glider_path_geometry(object):
         '''
 
         # glider samples
-        self.get_glider_samples(n=samples)
+        self.get_glider_samples(n=100)
 
         # model patches
-        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
-                                                            rolling=rolling)
-        m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
-                                                            rolling=rolling)
+#        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
+#                                                            rolling=rolling)
+#        m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
+#                                                            rolling=rolling)
 
         # glider stats
         vertex_list = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
@@ -245,11 +245,17 @@ class glider_path_geometry(object):
             ver_sampled = self.samples.where(self.samples.vertex.isin(choice),
                                              drop=True)
             if rolling:
+                #ver_sampled = ver_sampled.dropna('distance')#.sortby('time_counter')
+                #print (ver_sampled)
                 mean_time = ver_sampled.time_counter.mean('sample')
                 mean_time = mean_time.astype('datetime64[ns]')
                 g = ver_sampled.assign_coords({'time_counter':mean_time})
                 g = g.swap_dims({'distance':'time_counter'})
-                g = g.dropna('time_counter').sortby('time_counter')
+                print (g)
+                _, index = np.unique(g['time_counter'], return_index=True)
+                print (len(index))
+                #g = g.dropna('time_counter')#.sortby('time_counter')
+                #print (g)
                 g = g.resample(time_counter='1H').interpolate()
                 g = g.rolling(time_counter=168,
                                         center=True).construct('weekly_rolling')
@@ -305,52 +311,57 @@ class glider_path_geometry(object):
                   '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_vertex_diff' +
                   f_append + '_' + str(samples) + '_samples.nc')
 
-    def get_glider_samples(self, n=100, rotation=None):
+    def get_glider_samples(self, n=100, block=False, rotation=None):
         ''' get set of 100 glider samples '''
-        def expand_sample_dim(ds):
-            ds['lon_offset'] = ds.attrs['lon_offset']
-            ds['lat_offset'] = ds.attrs['lat_offset']
-            ds = ds.set_coords(['lon_offset','lat_offset','time_counter'])
-            da = ds['b_x_ml']
-            return da
 
-        # load samples
-        prep = 'GliderRandomSampling/glider_uniform_interp_1000_'
+        # files definitions
+        prep = 'GliderRandomSampling/glider_uniform_interp_1000'
         if rotation:
             rotation_label = 'rotate_' + str(rotation) + '_' 
             rotation_rad = np.radians(rotation)
         else:
             rotation_label = ''
             rotation_rad = rotation # None type 
-        print ([str(i).zfill(2) for i in range(n)])
-        sample_list = [self.data_path + prep + rotation_label +
-                       str(i).zfill(2) + '.nc' for i in range(n)]
-        self.samples = xr.open_mfdataset(sample_list, 
-                                     combine='nested', concat_dim='sample',
-                                     preprocess=expand_sample_dim).load()
 
-        # select depth
-        self.samples = self.samples.sel(ctd_depth=10, method='nearest')
-        print (self.samples)
+        if block:
+            self.samples = xr.open_dataset(self.data_path + prep + 
+                                           rotation_label + '.nc')
 
-        # get transects
-        sample_list = []
-        for i in range(self.samples.sample.size):
-            print ('sample: ', i)
-            var10 = self.samples.isel(sample=i)
-            sample_transect = get_transects(var10, offset=True,
-                              rotation=rotation_rad)
-            sample_list.append(sample_transect)
-        self.samples=xr.concat(sample_list, dim='sample')
+        else:
+            def expand_sample_dim(ds):
+                ds['lon_offset'] = ds.attrs['lon_offset']
+                ds['lat_offset'] = ds.attrs['lat_offset']
+                ds = ds.set_coords(['lon_offset','lat_offset','time_counter'])
+                da = ds['b_x_ml']
+                return da
 
-        # set time to float for averaging
-        float_time = self.samples.time_counter.astype('float64')
-        clean_float_time = float_time.where(float_time > 0, np.nan)
-        self.samples['time_counter'] = clean_float_time
+            print ([str(i).zfill(2) for i in range(n)])
+            sample_list = [self.data_path + prep + '_' + rotation_label +
+                           str(i).zfill(2) + '.nc' for i in range(n)]
+            self.samples = xr.open_mfdataset(sample_list, 
+                                         combine='nested', concat_dim='sample',
+                                         preprocess=expand_sample_dim).load()
+
+            # select depth
+            self.samples = self.samples.sel(ctd_depth=10, method='nearest')
+
+            # get transects and cut meso
+            sample_list = []
+            for i in range(self.samples.sample.size):
+                print ('sample: ', i)
+                var10 = self.samples.isel(sample=i)
+                sample_transect = get_transects(var10, offset=True,
+                                  rotation=rotation_rad, cut_meso=True)
+                sample_list.append(sample_transect)
+            self.samples=xr.concat(sample_list, dim='sample')
+
+            # set time to float for averaging
+            float_time = self.samples.time_counter.astype('float64')
+            clean_float_time = float_time.where(float_time > 0, np.nan)
+            self.samples['time_counter'] = clean_float_time
  
-        # absolute value of buoyancy gradients
-        self.samples = np.abs(self.samples)
-
+            # absolute value of buoyancy gradients
+            self.samples = np.abs(self.samples)
 
     def get_hist_stats(self, hist_set, bins):    
         ''' get mean, lower and upper deciles of group of histograms '''

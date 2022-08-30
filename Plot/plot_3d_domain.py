@@ -13,6 +13,7 @@ class plot_3d_box_and_2d_isopycnals(object):
     def __init__(self):
 
         self.data_path = config.data_path() + 'EXP10/'
+        self.data_path_old = config.data_path_old() + 'EXP10/'
 
         # plot
         self.fig = plt.figure(figsize=(6.5, 3.5), dpi=1200)
@@ -22,15 +23,16 @@ class plot_3d_box_and_2d_isopycnals(object):
         plt.subplots_adjust(left=0.00, right=0.78, top=1.05, bottom=0.05)
         cmap = cmocean.cm.solar
 
-        t48_Ro = xr.open_dataarray(self.data_path + 'rossby_number.nc')
+        t48_Ro = xr.open_dataarray(self.data_path_old + 'rossby_number.nc')
         t48_snap = xr.open_dataset(self.data_path + 
                         'SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc').votemper
         t48_domain = xr.open_dataset(self.data_path + 'domain_cfg.nc')
         halo=(1%3) + 1
+        halo=10
         t = t48_snap.sel(time_counter='2013-02-20 00:00:00', method='nearest')
         t = t.isel(x=slice(1*halo, -1*halo), y=slice(1*halo, -1*halo))
         Ro = t48_Ro.sel(time_counter='2013-02-20 00:00:00', method='nearest')
-        #Ro = Ro.isel(x=slice(1*halo, -1*halo), y=slice(1*halo, -1*halo))
+        Ro = Ro.isel(x=slice(1*halo, -1*halo), y=slice(1*halo, -1*halo))
 
         vmin = t.min()
         vmax = t.max()
@@ -59,7 +61,7 @@ class plot_3d_box_and_2d_isopycnals(object):
         pRo = self.ax.contourf(Ro.nav_lon.values, Ro.nav_lat.values,
                                Ro.isel(depth=0).values,
                                levels=up_levs,
-                               cmap=plt.cm.bwr, zdir='z',
+                               cmap=cmocean.cm.balance, zdir='z',
                                offset=dep[0])
         # extend matplotlib bug, fixed oct 21, extend='both')
 
@@ -124,7 +126,7 @@ class plot_3d_box_and_2d_isopycnals(object):
         cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
         #cbar.set_ticks([-0.04,-0.02,0, 0.02, 0.04])
 
-        plt.text(0.45, 0.23, 'Maud Rise', transform=self.ax.transAxes,
+        plt.text(0.43, 0.20, 'Maud Rise', transform=self.ax.transAxes,
                      va='center', ha='left', rotation=-30)
 
 

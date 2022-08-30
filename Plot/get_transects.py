@@ -37,7 +37,7 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
     glider = glider.set_coords(['lon_offset','lat_offset','time_counter'])
     #glider = rotate(glider, np.radians(-90))
 
-def cut_meso(da, rotation=None):
+def remove_meso(da, rotation=None):
         ''' removes the mesoscale north-south transects '''
 
         # some paths are saved rotated
@@ -196,7 +196,7 @@ def get_transects(da, concat_dim='distance', method='cycle',
     # remove initial and mid-path mesoscale excursions
     # defunct due to next naming lines
     if cut_meso:
-        da = cut_meso(da)
+        da = remove_meso(da)
 
     # name mesoscale transects
     # 1 for bow tie, 0 for n-s transects
