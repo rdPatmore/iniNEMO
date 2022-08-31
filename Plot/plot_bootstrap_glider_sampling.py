@@ -25,7 +25,7 @@ class bootstrap_glider_samples(object):
     '''
 
     def __init__(self, case, offset=False, var='b_x_ml', load_samples=True,
-                 subset='', transect=False):
+                 subset='', transect=False, interp='1000'):
         self.root = config.root()
         self.case = case
         self.data_path = config.data_path() + self.case + '/'
@@ -56,9 +56,12 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.append='_s'
             patch = '_south_patch'
+        
+        self.append = self.append + 'interp_' + interp
 
         # load samples
-        prep = 'GliderRandomSampling/glider_uniform_interp_1000' + patch + '.nc'
+        prep = 'GliderRandomSampling/glider_uniform_interp_'+ interp + \
+               patch + '.nc'
         #sample_list = [self.data_path + prep + 
         #               str(i).zfill(2) + '.nc' for i in range(sample_size)]
         #self.samples = xr.open_mfdataset(sample_list, 
@@ -1219,12 +1222,14 @@ class bootstrap_glider_samples(object):
                    '_'+ t0 + '_' + t1 + '.png', dpi=600)
 
 class bootstrap_plotting(object):
-    def __init__(self, append='', bg_method='norm'):
+    def __init__(self, append='', bg_method='norm', interp='1000'):
         self.data_path = config.data_path()
         if append == '':
             self.append = ''
         else:
             self.append='_' + append
+
+        self.interp = '_interp_' + interp
 
         self.hist_range = (0,2e-8)
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
@@ -1300,14 +1305,18 @@ class bootstrap_plotting(object):
 
     def render_glider_sample_set_v(self, n=1, c='green', style='plot',
                                    by_time=None):
+        # weekly glider time series
         ds = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                            str(n).zfill(2) + '_hist' + self.append 
-                          + '_' + by_time + '.nc')
+                          + '_' + by_time + self.interp + '.nc')
 
+        # entier glider time series
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
                           str(n).zfill(2) + '_hist' + self.append + '.nc')
+
+        # regular weeks
         date_list = np.array([(np.datetime64('2012-12-13')
                               + np.timedelta64(i, 'W')).astype('datetime64[D]')
                                for i in range(16)])
@@ -1318,7 +1327,7 @@ class bootstrap_plotting(object):
                                  week.hist_u_dec - week.hist_l_dec, 
                                  height=week.bin_right - week.bin_left,
                                  color=c,
-                                 alpha=0.2,
+                                 alpha=1.0,
                                  left=week.hist_l_dec, 
                                  align='edge',
                                  label='gliders: ' + str(n))
@@ -1335,7 +1344,7 @@ class bootstrap_plotting(object):
                              ds_all.hist_u_dec - ds_all.hist_l_dec, 
                              height=ds_all.bin_right - ds_all.bin_left,
                              color=c,
-                             alpha=0.2,
+                             alpha=1.0,
                              left=ds_all.hist_l_dec, 
                              align='edge',
                              label='gliders: ' + str(n))
@@ -1358,7 +1367,6 @@ class bootstrap_plotting(object):
         ds_all = xr.open_dataset(self.path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
                         self.append + '.nc')
-       
         # mean direction
         if self.bg_method == 'mean':
             ds['hist'] = (ds.hist_x + ds.hist_y) / 2
@@ -1367,7 +1375,7 @@ class bootstrap_plotting(object):
         # vector norm
         if self.bg_method == 'norm':
             ds['hist'] = ds.hist_norm
-            ds_all['hist'] = ds.hist_norm
+            ds_all['hist'] = ds_all.hist_norm
 
         date_list = np.array([(np.datetime64('2012-12-13')
                               + np.timedelta64(i, 'W')).astype('datetime64[D]')
@@ -1375,18 +1383,90 @@ class bootstrap_plotting(object):
         if style=='bar':
             for (l, week) in ds.groupby('time_counter'):
                 i = int(np.argwhere(date_list==l.astype('datetime64[D]')))
-                print (week.time_counter)
                 self.axs.flatten()[i].vlines(week.hist,
                         week.bin_left, week.bin_right,
                        transform=self.axs.flatten()[i].transData,
-                       colors='black', lw=0.8, label='model bgx')
+                       colors='k', lw=0.8, label='model bgx')
             self.axs[1,-1].vlines(ds_all.hist,
                        ds_all.bin_left, ds_all.bin_right,
                        transform=self.axs[1,-1].transData,
-                       colors='black', lw=0.8, label='model bgx')
+                       colors='k', lw=0.8, label='model bgx')
         if style=='plot':
             self.ax.plot(ds.bin_centers, ds.hist, c='black', lw=0.8,
                          label='model bg')
+
+    def add_model_means_averaged_over_weeks(self, c='k'):
+        ''' 
+        add model means of normed buoyancy gradients of model averaged over
+        time slots
+        '''
+        ds_all = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                        self.append + '.nc')
+        # mean direction
+        if self.bg_method == 'mean':
+            ds_all['hist'] = (ds_all.hist_x + ds_all.hist_y) / 2
+
+        # vector norm
+        if self.bg_method == 'norm':
+            ds_all['hist'] = ds_all.hist_norm
+
+        rolls = ['1W_rolling','2W_rolling','3W_rolling']
+        for i, roll_freq in enumerate(rolls):
+            ds = xr.open_dataset(self.path + 
+                           '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
+                           self.append + '_' + roll_freq + '.nc')
+            ds = ds.mean('time_counter')
+
+            # mean direction
+            if self.bg_method == 'mean':
+                ds['hist'] = (ds.hist_x + ds.hist_y) / 2
+      
+            # vector norm
+            if self.bg_method == 'norm':
+                ds['hist'] = ds.hist_norm
+
+            self.axs.flatten()[i].vlines(ds.hist,
+                   ds.bin_left, ds.bin_right,
+                   transform=self.axs.flatten()[i].transData,
+                   colors=c, lw=0.8, label='model bg')
+        self.axs[-1].vlines(ds_all.hist,
+                   ds_all.bin_left, ds_all.bin_right,
+                   transform=self.axs[-1].transData,
+                       colors=c, lw=0.8, label='model bg')
+
+    def render_glider_sample_set_averaged_over_weeks(self, n=1, c='green'):
+
+        # entier glider time series
+        ds_all = xr.open_dataset(self.path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                          str(n).zfill(2) + '_hist' + self.append + '.nc')
+
+        rolls = ['1W_rolling','2W_rolling','3W_rolling']
+        for i, roll_freq in enumerate(rolls):
+        # weekly glider time series
+            ds = xr.open_dataset(self.path + 
+                              '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                               str(n).zfill(2) + '_hist' + self.append 
+                              + '_' + roll_freq + self.interp + '.nc')
+            ds = ds.mean('time_counter')
+            self.axs.flatten()[i].barh(ds.bin_left, 
+                             ds.hist_u_dec - ds.hist_l_dec, 
+                             height=ds.bin_right - ds.bin_left,
+                             color=c,
+                             alpha=1.0,
+                             left=ds.hist_l_dec, 
+                             align='edge',
+                             label='gliders: ' + str(n))
+
+        self.axs[-1].barh(ds_all.bin_left, 
+                         ds_all.hist_u_dec - ds_all.hist_l_dec, 
+                         height=ds_all.bin_right - ds_all.bin_left,
+                         color=c,
+                         alpha=1.0,
+                         left=ds_all.hist_l_dec, 
+                         align='edge',
+                         label='gliders: ' + str(n))
 
     def add_giddy(self, by_time=None):
         ''' add giddy buoyancy gradient distribution '''
@@ -1497,7 +1577,8 @@ class bootstrap_plotting(object):
         self.add_giddy(by_time=by_time)
 
         sample_sizes = [1, 4, 20]
-        colours = ['g', 'b', 'r', 'y', 'c']
+        #colours = ['g', 'b', 'r', 'y', 'c']
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
 
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
@@ -1523,8 +1604,81 @@ class bootstrap_plotting(object):
         for ax in self.axs[0]:
             ax.set_xticklabels([])
         
+        if self.bg_method == 'norm':
+            norm_str = '_pre_norm'
+        else:
+            norm_str = '_vector_mean'
+
+        interp_str = self.interp
+
         plt.savefig(case + '_bg_sampling_skill' + self.append + '_'
-                    + by_time + '_pre_norm.png',dpi=600)
+                    + by_time + norm_str + interp_str + '.png', dpi=600)
+
+    def plot_histogram_bg_pdf_averaged_weekly_samples(self, case):
+        '''
+        Plot buoyancy gradients over rolling frequency averaged over
+        all rolling objects. Plots different ensemble sizes and different
+        sampling lengths
+        '''
+
+        self.path = self.data_path + case
+        self.figure, self.axs = plt.subplots(1,4, figsize=(6.5,3.0))
+        plt.subplots_adjust(wspace=0.3, bottom=0.14, left=0.1, right=0.91,
+                            top=0.95)
+        #self.add_giddy(self.axs[0,0])
+        #self.add_giddy(by_time=by_time)
+
+        sample_sizes = [1, 4, 20]
+        #colours = ['g', 'b', 'r', 'y', 'c']
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
+
+        for i, n in enumerate(sample_sizes):
+            print ('sample', i)
+            self.render_glider_sample_set_averaged_over_weeks(n=n, c=colours[i])
+        self.add_model_means_averaged_over_weeks(c='#00ffa2')
+        #self.add_giddy(by_time=by_time)
+
+        self.axs[0].set_ylabel(r'buoyancy gradient [$\times 10^{-8}$ s$^{-1}$]')
+        for ax in self.axs:
+            ax.set_xlabel(r'PDF [$\times 10 ^{-8}$]', labelpad=12)
+
+        # legend
+        self.axs[-1].legend(loc='upper left', bbox_to_anchor=(0.80,1.0),
+                            fontsize=6, borderaxespad=0)
+
+        for ax in self.axs:
+            ax.set_ylim(self.hist_range[0], self.hist_range[1])
+            ax.set_xlim(0, 3e8)
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            #ax.spines['left'].set_visible(False)
+            ax.xaxis.get_offset_text().set_visible(False)
+        self.axs[0].yaxis.get_offset_text().set_visible(False)
+
+        # align labels
+        ypos = -0.1  # axes coords
+        for ax in self.axs:
+            ax.xaxis.set_label_coords(0.5, ypos)
+
+        for ax in self.axs[1:]:
+            ax.set_yticklabels([])
+
+        # add time span info
+        time_txt = ['1 week', '2 week', '3 week', '3.5 month']
+        for i, txt in enumerate(time_txt):
+            self.axs[i].text(0.3, 0.95, txt,
+                          transform=self.axs[i].transAxes,
+                          fontsize=6)
+
+        if self.bg_method == 'norm':
+            norm_str = '_pre_norm'
+        else:
+            norm_str = '_vector_mean'
+
+        interp_str = self.interp
+
+        plt.savefig(case + '_bg_sampling_skill_time_mean' + self.append + '_'
+                    + norm_str + interp_str + '.png', dpi=600)
 
     def get_ensembles(self, case, by_time):
         '''
@@ -1999,11 +2153,12 @@ def plot_hist(by_time=None):
     cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     if by_time:
-        boot = bootstrap_plotting(bg_method='norm')
+        boot = bootstrap_plotting(bg_method='norm', interp='1000')
         boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
                                                               'EXP10', by_time)
         #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
         #boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
+        boot.plot_histogram_bg_pdf_averaged_weekly_samples('EXP10')
     
     else:
         for case in cases:
@@ -2015,25 +2170,24 @@ def plot_hist(by_time=None):
 
 
 def prep_hist(by_time=None):
-    cases = ['EXP10', 'EXP08', 'EXP13']
     cases = ['EXP10']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
                                      subset='', transect=False)
         if by_time:
              m.append =  m.append + '_' + by_time
-        m.get_full_model_hist(save=True, by_time=by_time)
+        #m.get_full_model_hist(save=True, by_time=by_time)
         #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
-        #for n in range(1,31):
-        #    print (n)
-        #    m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
+        for n in range(1,31):
+            print (n)
+            m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
 
-def prep_timeseries(subset=''):
+def prep_timeseries(subset='', interp='1000'):
     cases = ['EXP10']
     #cases = ['EXP10', 'EXP08', 'EXP13']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset=subset)
+                                     subset=subset, interp=interp)
         m.get_full_model_timeseries(save=True)
         for n in range(1,31):
             print ('n :', n)
@@ -2058,7 +2212,7 @@ def plot_quantify_delta_bg(subset=''):
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 #plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
-plot_quantify_delta_bg(subset='south')
+#plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
@@ -2079,11 +2233,12 @@ plot_quantify_delta_bg(subset='south')
 #m.get_full_model_day_week_sdt_and_mean_bg(save=True)
 #m.get_full_model_timeseries(save=True)
 
-#prep_hist(by_time='3W_rolling')
+prep_hist(by_time='1W_rolling', interp=500)
+prep_hist(by_time='2W_rolling', interp=500)
+prep_hist(by_time='3W_rolling', interp=500)
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')
-#prep_hist()
 #prep_hist(by_time='1W_rolling')
 #plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='2W_rolling')

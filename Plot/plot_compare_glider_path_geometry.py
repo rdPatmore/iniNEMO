@@ -227,13 +227,13 @@ class glider_path_geometry(object):
         '''
 
         # glider samples
-        self.get_glider_samples(n=100)
+        self.get_glider_samples(n=samples)
 
         # model patches
-#        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
-#                                                            rolling=rolling)
-#        m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
-#                                                            rolling=rolling)
+        m_mean = self.get_model_buoyancy_gradients_patch_set(stats='mean',
+                                                            rolling=rolling)
+        m_std  = self.get_model_buoyancy_gradients_patch_set(stats='std',
+                                                            rolling=rolling)
 
         # glider stats
         vertex_list = [[3],[1],[2],[0],[1,3],[0,2],[0,1,2,3]]
@@ -245,20 +245,28 @@ class glider_path_geometry(object):
             ver_sampled = self.samples.where(self.samples.vertex.isin(choice),
                                              drop=True)
             if rolling:
-                #ver_sampled = ver_sampled.dropna('distance')#.sortby('time_counter')
-                #print (ver_sampled)
+                # conform time_counter to 1d
                 mean_time = ver_sampled.time_counter.mean('sample')
                 mean_time = mean_time.astype('datetime64[ns]')
                 g = ver_sampled.assign_coords({'time_counter':mean_time})
+
+                # set time_counter as index
                 g = g.swap_dims({'distance':'time_counter'})
-                print (g)
-                _, index = np.unique(g['time_counter'], return_index=True)
-                print (len(index))
-                #g = g.dropna('time_counter')#.sortby('time_counter')
-                #print (g)
-                g = g.resample(time_counter='1H').interpolate()
+
+                # get 1h uniform time (required for rolling)
+                uniform_time = np.arange('2012-12-01','2013-04-01', 
+                            dtype='datetime64[h]')[:len(ver_sampled.distance)]
+                uniform_time_arr = xr.DataArray(uniform_time,
+                                         dims='time_counter')
+
+                # interpolate to uniform time
+                g = g.interp(time_counter=uniform_time_arr)
+
+                # calcualte rolling object
                 g = g.rolling(time_counter=168,
                                         center=True).construct('weekly_rolling')
+
+                # get weekly rolling mean and std
                 g_mean = g.mean('weekly_rolling').load()
                 g_std = g.std('weekly_rolling').load()
 
@@ -596,9 +604,9 @@ class glider_path_geometry_plotting(object):
         #u_quant = ds.quantile(0.90, dims)
 
         if rotate:
-            var = 'diff_bx_' + stat + '_rotate' 
+            var = 'diff_bg_norm_' + stat + '_rotate' 
         else:
-            var = 'diff_bx_' + stat
+            var = 'diff_bg_norm_' + stat
         ax.bar(x_pos, u_quant[var] - l_quant[var],
                width=0.25, alpha=0.2, bottom=l_quant[var],
                color='navy', tick_label=ds[label_var], align='edge')
@@ -621,6 +629,9 @@ class glider_path_geometry_plotting(object):
         ''' 
         bar chart of difference between model patches and gliders
         mean and std across samples
+
+        NB: 31/08/22 introduced bg_norm to render()
+        Path now included meso transect. Need to remove.
         '''
 
         import matplotlib.colors as mcolors
@@ -1053,26 +1064,26 @@ class glider_path_geometry_plotting(object):
 #        plt.legend()
 #        plt.savefig('EXP02_bg_glider_rotation.png', dpi=300)
 
-#cases = ['EXP10']
+cases = ['EXP10']
 #cases = ['EXP13','EXP08','EXP10']
 #m.plot_model_and_glider_diff_bar(cases, samples=50)
 #m.plot_model_and_glider_diff_bar(cases, samples=200)
-#m = glider_path_geometry_plotting()
+m = glider_path_geometry_plotting()
 #m.plot_model_and_glider_diff_rotate_bar('EXP10', samples=100)
 #m.plot_model_and_glider_diff_rotate_timeseries('EXP10', samples=100)
 #m.plot_model_and_glider_diff_vertex_timeseries('EXP10', samples=100)
-#m.plot_model_and_glider_diff_vertex_bar(cases, samples=100)
+m.plot_model_and_glider_diff_vertex_bar(cases, samples=100)
 
 
 # save file of vertex percentage error
 #cases = ['EXP13','EXP08','EXP10']
-cases = ['EXP10']
-for  case in cases:
-    m = glider_path_geometry(case)
-    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100,
-                                             rolling=True)
-    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100,
-                                          rolling=True)
+#cases = ['EXP10']
+#for  case in cases:
+#    m = glider_path_geometry(case)
+#    m.get_sample_and_glider_diff_vertex_set(percentage=True, samples=100,
+#                                             rolling=True)
+#    m.get_sample_and_glider_diff_rotation(percentage=True, samples=100,
+#                                          rolling=True)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=50)
 #    m.get_sample_and_glider_diff_rotation(percentage=True, samples=200)
 

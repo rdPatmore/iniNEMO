@@ -468,11 +468,15 @@ class plot_power_spectrum(object):
         # initialise class
         self.spec = plot_power_spectrum()
 
+        # set colours
+        c0 = '#0083b6'
+        c1 = '#b60083'
+
         # add full path spectrum to all panels
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
-                                               c='green')
+                                               c=c0)
 
         # ~~~ pre transect pairs ~~~ #
 
@@ -485,7 +489,7 @@ class plot_power_spectrum(object):
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
-                        append=spec_append[i], panel_label=pl[i])
+                        append=spec_append[i], panel_label=pl[i], c=c1)
 
         # ~~~ climb removal ~~~ #
 
@@ -497,7 +501,7 @@ class plot_power_spectrum(object):
 
         for i in range(3):
             p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], 
-                        append=spec_append[i], panel_label=pl[i])
+                        append=spec_append[i], panel_label=pl[i], c=c1)
 
         # set lims
         for ax in axs.flatten():
