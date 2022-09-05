@@ -2169,11 +2169,11 @@ def plot_hist(by_time=None):
             #m.plot_rmse_over_ensemble_sizes()
 
 
-def prep_hist(by_time=None):
+def prep_hist(by_time=None, interp='1000'):
     cases = ['EXP10']
     for case in cases:
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset='', transect=False)
+                                     subset='', transect=False, interp=interp)
         if by_time:
              m.append =  m.append + '_' + by_time
         #m.get_full_model_hist(save=True, by_time=by_time)

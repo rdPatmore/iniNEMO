@@ -27,7 +27,9 @@ def rotate_path(data, theta):
 
     return data
 
-def get_sampled_path(model, append, post_transect=True, rotation=None):
+def get_sampled_path(model, append, post_transect=True, rotation=None,
+                     cut_meso=True):
+    ''' load single gilder path sampled from model '''
     path = config.data_path() + model + '/'
     file_path = path + 'GliderRandomSampling/glider_uniform_' + \
                 append +  '_00.nc'
@@ -35,7 +37,11 @@ def get_sampled_path(model, append, post_transect=True, rotation=None):
     glider['lon_offset'] = glider.attrs['lon_offset']
     glider['lat_offset'] = glider.attrs['lat_offset']
     glider = glider.set_coords(['lon_offset','lat_offset','time_counter'])
+    if post_transect:
+        glider = get_transects(glider.votemper, offset=True,
+                               rotation=rotation, cut_meso=cut_meso)
     #glider = rotate(glider, np.radians(-90))
+    return glider
 
 def remove_meso(da, rotation=None):
         ''' removes the mesoscale north-south transects '''
@@ -45,9 +51,11 @@ def remove_meso(da, rotation=None):
             da = rotate_path(da, -rotation)
 
         da = da.where(da.transect>1, drop=True)
+        #da = da.reset_coords('transect')
         # this should work but there is a bug in xarray perhaps
         # idxmin drops all coordinates...
         # this works when transect is a coordinate rather than a variable
+        # it also cannot deal with chunks... 
         da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,
                       drop=True)
         # transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
@@ -72,6 +80,7 @@ def get_transects(da, concat_dim='distance', method='cycle',
                W
     cut meso: remove long north-south transects
     '''
+    print ('i')
 
     skip=False # skip transect finding due to copy from existing array
     # some paths are saved rotated

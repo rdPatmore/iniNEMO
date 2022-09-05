@@ -270,7 +270,8 @@ class plot_power_spectrum(object):
     def add_glider_spectra(self, model, ax, var='votemper', 
                            append='', c='orange',
                            label='', old=False, ls='-', old_spec_calc=False,
-                           simple_calc=False, panel_label=None):
+                           simple_calc=False, panel_label=None,
+                           lines=False):
         ''' plot glider spectrum with alterations'''
 
         # get spectrum
@@ -316,7 +317,11 @@ class plot_power_spectrum(object):
             spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
             spec_l = spec_mean + u_mag_mean
             spec_u = spec_mean - l_mag_mean
-        ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.2,
+        if lines:
+            ax.loglog(spec_l.freq*1000, spec_l, c=c, lw=0.8, ls=':')
+            ax.loglog(spec_u.freq*1000, spec_u, c=c, lw=0.8, ls=':')
+        else:
+            ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.4,
                              color=c, edgecolor=None)
         p = ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
                        lw=0.8, label=label, ls=ls)
@@ -471,6 +476,8 @@ class plot_power_spectrum(object):
         # set colours
         c0 = '#0083b6'
         c1 = '#b60083'
+        c1 = '#0d8ca7' # model mean colour
+        c0 = '#a7280d' # model mean colour
 
         # add full path spectrum to all panels
         for ax in axs.flatten():
@@ -487,7 +494,7 @@ class plot_power_spectrum(object):
                     '_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1']
         pl = ['every 2', 'every 3', 'every 4', 'every 8']
 
-        for i in range(4):
+        for i in range(1,4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
                         append=spec_append[i], panel_label=pl[i], c=c1)
 
@@ -525,7 +532,7 @@ class plot_power_spectrum(object):
                          fontsize=6, title='Path', borderaxespad=0)
 
         # save
-        plt.savefig('pair_and_climb_remove.png', dpi=1200)
+        plt.savefig('pair_and_climb_remove_no_00.png', dpi=1200)
 
     def plot_pre_post_transect(self):
         '''
