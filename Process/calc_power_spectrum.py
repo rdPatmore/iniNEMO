@@ -458,6 +458,7 @@ class power_spectrum_glider(object):
         #fs=np.logspace(-8,0,1000)
         #for i in range(var10_stack.sample.size):
         mean_set = []
+        gmean_set = []
         ldecile_set = []
         udecile_set = []
         for i in range(var10_stack.sample.size):
@@ -498,14 +499,20 @@ class power_spectrum_glider(object):
                 Pset_transect.append(PEm) 
             Pset_transect_stack = np.stack(Pset_transect)
 
+            # stats across transects 
             mean_spec = np.nanmean(Pset_transect_stack, axis=0)
+            gmean_spec = stats.mstats.gmean(Pset_transect_stack, axis=0)
             ldecile_spec = np.nanquantile(Pset_transect_stack, 0.1, axis=0)
             udecile_spec = np.nanquantile(Pset_transect_stack, 0.9, axis=0)
+
+            # set of stats for each sample 
             mean_set.append(mean_spec) 
+            gmean_set.append(gmean_spec) 
             ldecile_set.append(ldecile_spec) 
             udecile_set.append(udecile_spec) 
 
         mean_Pset = np.stack(mean_set)
+        gmean_Pset = np.stack(gmean_set)
         ldecile_Pset = np.stack(ldecile_set)
         udecile_Pset = np.stack(udecile_set)
 
@@ -517,6 +524,7 @@ class power_spectrum_glider(object):
         #plt.show()
         ds = xr.Dataset(data_vars=dict(
                         temp_spec_mean=(['sample','freq'], mean_Pset),
+                        temp_spec_gmean=(['sample','freq'], gmean_Pset),
                         temp_spec_l_decile=(['sample','freq'], ldecile_Pset),
                         temp_spec_u_decile=(['sample','freq'], udecile_Pset)),
                         coords=dict(freq=freq),
@@ -549,77 +557,107 @@ class power_spectrum_glider(object):
         print (integ.values)
 
 if __name__ == '__main__':
-    # pre transect
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='interp_1000_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+    # pre transect all
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
     # every 8
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='interp_1000_every_8_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_8_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+    ## every 4
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_4_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
     ## every 3
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='interp_1000_every_3_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_3_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+    ## every 2
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_every_2_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
 
     ## every 2 and dive
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                        append='interp_1000_every_2_and_dive_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
-
-    ## every 2 and climb
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                      append='interp_1000_every_2_and_climb_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
-
-    ## every 4 and dive
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                        append='interp_1000_every_4_and_dive_pre_transect_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
-
     m = power_spectrum_glider('EXP10', 'votemper', 
-                          append='interp_1000_every_8_and_climb_pre_transect_',
+                           append='interp_1000_every_2_and_climb_pre_transect_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
 
+    ## every 3 and climb
     m = power_spectrum_glider('EXP10', 'votemper', 
-                          append='interp_1000_every_8_and_dive_pre_transect_',
+                          append='interp_1000_every_3_and_climb_pre_transect_',
                               fs=1000)
     m.get_glider()
     m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+    ## every 4 and climb 
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                           append='interp_1000_every_4_and_climb_pre_transect_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+    ## every 8 and climb !!! not enough data to compute spectra !!! 
+    #m = power_spectrum_glider('EXP10', 'votemper', 
+    #                      append='interp_1000_every_8_and_climb_pre_transect_',
+    #                          fs=1000)
+    #m.get_glider()
+    #m.calc_spectrum(proc='multi_taper', get_transects_flag=False)
+
+
     # post transect
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='interp_1000_',
-    #                          fs=1000)
-    #m.get_glider()
+    # all
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='interp_1000_',
+                             fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
     # every 8
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='every_8_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_8_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
-    #m = power_spectrum_glider('EXP10', 'votemper', 
-    #                          append='every_2_',
-    #                          fs=1000)
-    #m.get_glider()
-    #m.calc_spectrum(proc='multi_taper')
+    # every 4
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_4_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+
+    # every 3
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_3_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+
+    # every 2
+    m = power_spectrum_glider('EXP10', 'votemper', 
+                              append='every_2_',
+                              fs=1000)
+    m.get_glider()
+    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+
     #m = power_spectrum_glider('EXP10', 'votemper', 
     #                          append='every_8_and_climb_',
     #                          fs=1000)

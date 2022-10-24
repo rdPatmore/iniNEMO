@@ -306,15 +306,15 @@ class plot_power_spectrum(object):
             spec_l = decile.sel(quantile=0.1) 
             spec_u = decile.sel(quantile=0.9) 
         elif simple_calc:
-            spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
+            spec_mean = spec.temp_spec_gmean.mean(dim='sample', skipna=True)
             spec_l = spec.temp_spec_l_decile.mean(dim='sample', skipna=True)
             spec_u = spec.temp_spec_u_decile.mean(dim='sample', skipna=True)
         else:
-            l_mag_mean = np.abs(spec.temp_spec_mean - spec.temp_spec_l_decile
+            l_mag_mean = np.abs(spec.temp_spec_gmean - spec.temp_spec_l_decile
                                ).mean(dim='sample', skipna=True)
-            u_mag_mean = np.abs(spec.temp_spec_mean - spec.temp_spec_u_decile
+            u_mag_mean = np.abs(spec.temp_spec_gmean - spec.temp_spec_u_decile
                                ).mean(dim='sample', skipna=True)
-            spec_mean = spec.temp_spec_mean.mean(dim='sample', skipna=True)
+            spec_mean = spec.temp_spec_gmean.mean(dim='sample', skipna=True)
             spec_l = spec_mean + u_mag_mean
             spec_u = spec_mean - l_mag_mean
         if lines:
@@ -363,6 +363,21 @@ class plot_power_spectrum(object):
         # initialise class
         self.spec = plot_power_spectrum()
 
+        # colours
+        c0 = '#0d8ca7' # ref
+        c1 = '#a7280d' # comparison
+        path_cset=['k','#dad1d1', '#7e9aa5', '#55475a']
+        path_cset=['#2fc300','#0091c3','#9400c3','#c33200']
+        #c1 = '#dad1d1'
+        #c1 = '#7e9aa5'
+        #c0 = '#55475a'
+        #c1 =  '#55475a'
+        c1 = '#00ecab' # dark cyan
+        c0 = '#3500ec' #magenta
+        c1 = '#7e9aa5'
+        c0 = '#55475a'
+        #c1= '#00ffa2' # model mean colour
+
         def add_path(ax, glider_data, post_transect):
             # domain projection
             inset_proj=ccrs.AlbersEqualArea(central_latitude=-60,
@@ -380,14 +395,22 @@ class plot_power_spectrum(object):
             proj = ccrs.PlateCarree() # lon lat projection
             glider_data = get_sampled_path('EXP10', glider_data,
                                     post_transect=post_transect, drop_meso=True) 
-            for (l,trans) in glider_data.groupby('transect'):
-                axins.plot(trans.lon, trans.lat, transform=proj)
+            for i, (l,trans) in enumerate(glider_data.groupby('transect')):
+                print (i)
+                print (trans)
+                print (int(trans.vertex[0]))
+        #for (l, v) in sample.groupby('vertex'):
+        #    print (l)
+        #    c = list(mcolors.TABLEAU_COLORS)[int(l)]
+        #    plt.plot(v.lon, v.lat, c=c)
+                axins.plot(trans.lon, trans.lat, transform=proj, 
+                           c=path_cset[int(trans.vertex[0])], lw=0.5)
             
         # add full path spectrum to all panels
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
-                                               c='green')
+                                               c=c0)
 
         # ~~~ pre transect pairs ~~~ #
 
@@ -405,7 +428,7 @@ class plot_power_spectrum(object):
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[1,i], 
-                        append=spec_append[i], panel_label=pl[i])
+                        append=spec_append[i], panel_label=pl[i], c=c1)
             add_path(axs[1,i], names[i], post_transect=False)
 
         # ~~~ post transect pairs ~~~ #
@@ -421,7 +444,7 @@ class plot_power_spectrum(object):
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
-                        append=spec_append[i], panel_label=pl[i])
+                        append=spec_append[i], panel_label=pl[i], c=c1)
             add_path(axs[0,i], names[i], post_transect=True)
 
         # ~~~ climb removal ~~~ #
@@ -434,7 +457,8 @@ class plot_power_spectrum(object):
 
         for i in range(3):
             p1, = self.spec.add_glider_spectra('EXP10', axs[2,i], 
-                        append=spec_append[i], panel_label=pl[i])
+                        append=spec_append[i], panel_label=pl[i],
+                        simple_calc=True, c=c1)
 
         # set lims
         for ax in axs.flatten():
@@ -458,7 +482,7 @@ class plot_power_spectrum(object):
                          fontsize=6, title='Path', borderaxespad=0)
 
         # save
-        plt.savefig('testing_proj.png')
+        plt.savefig('testing_proj_gmean_simple_calc.png')
         
     def plot_pair_remove_and_climb_dive_reduction(self):
         '''
@@ -483,7 +507,7 @@ class plot_power_spectrum(object):
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
-                                               c=c0)
+                                               c=c0, simple_calc=True)
 
         # ~~~ pre transect pairs ~~~ #
 
@@ -494,9 +518,10 @@ class plot_power_spectrum(object):
                     '_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1']
         pl = ['every 2', 'every 3', 'every 4', 'every 8']
 
-        for i in range(1,4):
+        for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
-                        append=spec_append[i], panel_label=pl[i], c=c1)
+                        append=spec_append[i], panel_label=pl[i], c=c1,
+                        simple_calc=True)
 
         # ~~~ climb removal ~~~ #
 
@@ -508,7 +533,8 @@ class plot_power_spectrum(object):
 
         for i in range(3):
             p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], 
-                        append=spec_append[i], panel_label=pl[i], c=c1)
+                        append=spec_append[i], panel_label=pl[i], c=c1,
+                        simple_calc=True)
 
         # set lims
         for ax in axs.flatten():
@@ -532,7 +558,7 @@ class plot_power_spectrum(object):
                          fontsize=6, title='Path', borderaxespad=0)
 
         # save
-        plt.savefig('pair_and_climb_remove_no_00.png', dpi=1200)
+        plt.savefig('pair_and_climb_remove_simple_calc_geo_mean.png', dpi=1200)
 
     def plot_pre_post_transect(self):
         '''
@@ -693,13 +719,19 @@ class plot_power_spectrum(object):
     
         spec = plot_power_spectrum()
         
+        # commom plotting parameters
+        simple_calc = False
+        old = False
+        old_spec_calc = True
+        label = ''
+
         for ax in axs.flatten():
             spec.add_glider_spectra('EXP10', ax, var='votemper',
                      append='_interp_1000_pre_transect_multi_taper_clean_pfit1',
                                     c='green',
-                                    label='', old=False, ls='-', 
-                                    old_spec_calc=False,
-                                    simple_calc=False)
+                                    label='', old=old, ls='-', 
+                                    old_spec_calc=old_spec_calc,
+                                    simple_calc=simple_calc)
 
         # remove every 2
         spec.add_glider_spectra('EXP10', axs[0,0], var='votemper',
@@ -707,7 +739,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
     
         # remove every 3
         spec.add_glider_spectra('EXP10', axs[0,1], var='votemper',
@@ -715,7 +747,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
 
         # remove every 4
         spec.add_glider_spectra('EXP10', axs[0,2], var='votemper',
@@ -723,7 +755,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
 
         # remove every 8
         spec.add_glider_spectra('EXP10', axs[0,3], var='votemper',
@@ -731,7 +763,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
 
         # remove climbs
         #spec.add_glider_spectra('EXP10', axs[1,0], var='votemper',
@@ -747,14 +779,14 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
         # remove every 3 and climb
         spec.add_glider_spectra('EXP10', axs[1,1], var='votemper',
        append='_interp_1000_every_3_and_climb_multi_taper_transect_clean_pfit1',
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
 
         # remove every 2 and climb
         spec.add_glider_spectra('EXP10', axs[1,2], var='votemper',
@@ -762,7 +794,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
 
         # remove every 8 and climb
         spec.add_glider_spectra('EXP10', axs[1,3], var='votemper',
@@ -770,7 +802,7 @@ class plot_power_spectrum(object):
                                     c='orange',
                                     label='', old=False, ls='-', 
                                     old_spec_calc=False,
-                                    simple_calc=False)
+                                    simple_calc=simple_calc)
         for ax in axs.flatten():
             ax.set_xlim(5e-2,5e-1)
         for ax in axs[:,0]:
@@ -843,8 +875,8 @@ def model_res_compare():
 
 m = plot_power_spectrum()
 #m.plot_pre_post_transect()
-#m.plot_pre_post_transect_and_climb_dive_reduction()
-m.plot_pair_remove_and_climb_dive_reduction()
+m.plot_pre_post_transect_and_climb_dive_reduction()
+#m.plot_pair_remove_and_climb_dive_reduction()
 
 #m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()

@@ -626,6 +626,33 @@ class plot_buoyancy_ratio(object):
 
         plt.savefig('density_ratio_two_panel.png')
 
+
+#    def test_proj(self):
+#        '''
+#        test for AlbersEqualArea projection
+#        '''
+#        fig = plt.figure(figsize=(5.5, 6.5), dpi=300)
+#
+#        lonmin, lonmax = -2,2
+#        latmin, latmax = -62,-58
+#
+#        gs0 = gridspec.GridSpec(ncols=2, nrows=1)
+#        gs0.update(top=0.99, bottom=0.15, left=0.15, right=0.98, wspace=0.05)
+#
+#        x = np.arange(-20,-10)
+#        y = np.arange(-10,10)
+#        data = np.sin(x+y)
+#
+#        axs0, axs1 = [], []
+#        for i in range(2):
+#            axs0.append(fig.add_subplot(gs0[i],
+#                     projection=ccrs.AlbersEqualArea(central_latitude=-15,
+#                      standard_parallels=(-10,-10))))
+#            axs0[i].set_extent([lonmin, lonmax, latmin, latmax], ccrs.PlateCarree())
+#        p0 = axs0[0].pcolor(si.nav_lon, si.nav_lat, si, shading='nearest',
+#                            cmap=cmocean.cm.ice, vmin=0, vmax=1,
+#                              transform=ccrs.PlateCarree())
+
     def plot_density_ratio_with_SI_Ro_and_bg_time_series(self):
         '''
         plot over time - buoyancy gradient mean (n,s,all)
@@ -643,6 +670,8 @@ class plot_buoyancy_ratio(object):
         
         fig = plt.figure(figsize=(5.5, 6.5), dpi=300)
 
+        lonmin, lonmax = -4,4
+        latmin, latmax = -64,-56
 
         gs0 = gridspec.GridSpec(ncols=2, nrows=1)
         gs1 = gridspec.GridSpec(ncols=1, nrows=4)
@@ -653,7 +682,8 @@ class plot_buoyancy_ratio(object):
         for i in range(2):
             axs0.append(fig.add_subplot(gs0[i],
                      projection=ccrs.AlbersEqualArea(central_latitude=-60,
-                      standard_parallels=(-62,-58))))
+                      standard_parallels=(latmin,latmax))))
+            axs0[i].set_extent([lonmin, lonmax, latmin, latmax], ccrs.PlateCarree())
 #            axs0.append(fig.add_subplot(gs0[i]))
         for i in range(4):
             axs1.append(fig.add_subplot(gs1[i]))
@@ -745,25 +775,25 @@ class plot_buoyancy_ratio(object):
         # axes formatting
         axs0[0].set_ylabel('latitude')
         axs0[1].yaxis.set_ticklabels([])
-        for ax in axs0:
-            ax.set_xlabel('longitude')
-            ax.set_xlim([-3.7,3.7])
-            ax.set_ylim([-63.8,-56.2])
+        #for ax in axs0:
+        #    ax.set_xlabel('longitude')
+        #    ax.set_xlim([-3.7,3.7])
+        #    ax.set_ylim([-63.8,-56.2])
         
-        # colour bars
-        pos = axs0[0].get_position()
-        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
-        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
-        cbar.ax.text(0.5, -2.0, r'Sea Ice Concentration [-]', fontsize=8,
-                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
-   
-        pos = axs0[1].get_position()
-        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
-        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
-        cbar.ax.text(0.5, -2.0, r'$\zeta / f$ [-]', fontsize=8,
-                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
-
-        #axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
+#        # colour bars
+#        pos = axs0[0].get_position()
+#        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
+#        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='horizontal')
+#        cbar.ax.text(0.5, -2.0, r'Sea Ice Concentration [-]', fontsize=8,
+#                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+#   
+#        pos = axs0[1].get_position()
+#        cbar_ax = fig.add_axes([pos.x0, 0.56, pos.x1 - pos.x0, 0.02])
+#        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+#        cbar.ax.text(0.5, -2.0, r'$\zeta / f$ [-]', fontsize=8,
+#                rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+#
+       #axs0[0].text(0.1, 0.9, '2012-12-30', transform=axs0[0].transAxes, c='w')
 
         date_lims = (self.stats.time_counter.min(), 
                      self.stats.time_counter.max())
