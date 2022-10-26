@@ -17,6 +17,7 @@ import cartopy.mpl.geoaxes
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+import haversine
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -271,7 +272,7 @@ class plot_power_spectrum(object):
                            append='', c='orange',
                            label='', old=False, ls='-', old_spec_calc=False,
                            simple_calc=False, panel_label=None,
-                           lines=False):
+                           lines=False, zorder=1, a=0.4):
         ''' plot glider spectrum with alterations'''
 
         # get spectrum
@@ -318,15 +319,17 @@ class plot_power_spectrum(object):
             spec_l = spec_mean + u_mag_mean
             spec_u = spec_mean - l_mag_mean
         if lines:
-            ax.loglog(spec_l.freq*1000, spec_l, c=c, lw=0.8, ls=':')
-            ax.loglog(spec_u.freq*1000, spec_u, c=c, lw=0.8, ls=':')
+            ax.loglog(spec_l.freq*1000, spec_l, c=c, lw=0.8, ls=':',
+                      zorder=zorder)
+            ax.loglog(spec_u.freq*1000, spec_u, c=c, lw=0.8, ls=':',
+                      zorder=zorder)
         else:
-            ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=0.4,
-                             color=c, edgecolor=None)
+            ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=a,
+                             color=c, edgecolor=None, zorder=zorder)
         p = ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
-                       lw=0.8, label=label, ls=ls)
+                       lw=1.2, label=label, ls=ls, zorder=zorder)
         if panel_label:
-            ax.text(0.04, 0.97, panel_label, va='top', ha='left',
+            ax.text(0.95, 0.97, panel_label, va='top', ha='right',
                     transform=ax.transAxes, fontsize=6)
         return p
     
@@ -346,6 +349,29 @@ class plot_power_spectrum(object):
         self.glider_raw = get_transects(
                                glider_raw.dives,concat_dim='ctd_data_point',
                                    shrink=100, offset=False)
+
+    def add_path(self, ax, glider_data, post_transect, path_cset):
+        ''' add birdseye view of glider track '''
+
+        # domain projection
+        inset_proj=ccrs.AlbersEqualArea(central_latitude=-60,
+                                    standard_parallels=(-62,-58))
+
+        # set inset
+        axins = inset_axes(ax, width='38%', height='38%',
+                       loc='lower left',
+                       axes_class=cartopy.mpl.geoaxes.GeoAxes, 
+                       axes_kwargs=dict(map_projection=inset_proj))
+        axins.spines['geo'].set_visible(False)
+        axins.patch.set_alpha(0.0)
+
+        # plot path
+        proj = ccrs.PlateCarree() # lon lat projection
+        glider_data = get_sampled_path('EXP10', glider_data,
+                                post_transect=post_transect, drop_meso=True) 
+        for i, (l,trans) in enumerate(glider_data.groupby('transect')):
+            axins.plot(trans.lon, trans.lat, transform=proj, 
+                       c=path_cset[int(trans.vertex[0])], lw=0.5)
 
     def plot_pre_post_transect_and_climb_dive_reduction(self):
         '''
@@ -368,49 +394,16 @@ class plot_power_spectrum(object):
         c1 = '#a7280d' # comparison
         path_cset=['k','#dad1d1', '#7e9aa5', '#55475a']
         path_cset=['#2fc300','#0091c3','#9400c3','#c33200']
-        #c1 = '#dad1d1'
-        #c1 = '#7e9aa5'
-        #c0 = '#55475a'
-        #c1 =  '#55475a'
-        c1 = '#00ecab' # dark cyan
-        c0 = '#3500ec' #magenta
-        c1 = '#7e9aa5'
-        c0 = '#55475a'
-        #c1= '#00ffa2' # model mean colour
+        c0 = 'k'
+        c1 = '#f18b00'
+        path_cset=[c1,'navy','green','purple']
 
-        def add_path(ax, glider_data, post_transect):
-            # domain projection
-            inset_proj=ccrs.AlbersEqualArea(central_latitude=-60,
-                                        standard_parallels=(-62,-58))
-
-            # set inset
-            axins = inset_axes(ax, width='40%', height='40%',
-                           loc='upper right',
-                           axes_class=cartopy.mpl.geoaxes.GeoAxes, 
-                           axes_kwargs=dict(map_projection=inset_proj))
-                           #bbox_to_anchor=[0.5, 0.5, 0.47, 0.47],
-            axins.spines['geo'].set_visible(False)
-
-            # plot path
-            proj = ccrs.PlateCarree() # lon lat projection
-            glider_data = get_sampled_path('EXP10', glider_data,
-                                    post_transect=post_transect, drop_meso=True) 
-            for i, (l,trans) in enumerate(glider_data.groupby('transect')):
-                print (i)
-                print (trans)
-                print (int(trans.vertex[0]))
-        #for (l, v) in sample.groupby('vertex'):
-        #    print (l)
-        #    c = list(mcolors.TABLEAU_COLORS)[int(l)]
-        #    plt.plot(v.lon, v.lat, c=c)
-                axins.plot(trans.lon, trans.lat, transform=proj, 
-                           c=path_cset[int(trans.vertex[0])], lw=0.5)
             
         # add full path spectrum to all panels
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
-                                               c=c0)
+                                               c=c0, zorder=1, a=0.5)
 
         # ~~~ pre transect pairs ~~~ #
 
@@ -428,7 +421,7 @@ class plot_power_spectrum(object):
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[1,i], 
-                        append=spec_append[i], panel_label=pl[i], c=c1)
+                        append=spec_append[i], panel_label=pl[i], c=c1, a=0.5)
             add_path(axs[1,i], names[i], post_transect=False)
 
         # ~~~ post transect pairs ~~~ #
@@ -444,8 +437,8 @@ class plot_power_spectrum(object):
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
-                        append=spec_append[i], panel_label=pl[i], c=c1)
-            add_path(axs[0,i], names[i], post_transect=True)
+                        append=spec_append[i], panel_label=pl[i], c=c1, a=0.5)
+            self.add_path(axs[0,i], names[i], post_transect=True)
 
         # ~~~ climb removal ~~~ #
 
@@ -458,7 +451,37 @@ class plot_power_spectrum(object):
         for i in range(3):
             p1, = self.spec.add_glider_spectra('EXP10', axs[2,i], 
                         append=spec_append[i], panel_label=pl[i],
-                        simple_calc=True, c=c1)
+                        simple_calc=True, c=c1, a=0.4)
+
+        # ~~~ add vertical path ~~~ #
+
+        def get_zig_zag(ypos,xpos):
+            p0dir = 7*np.pi/8.
+            pt = (ypos, xpos)
+            xpts = [pt[1]]
+            ypts = [pt[0]]
+            for i in range(8):
+                pt = haversine.inverse_haversine(pt, 10.05, p0dir)
+                xpts.append(pt[1])
+                ypts.append(pt[0])
+                pt = haversine.inverse_haversine(pt, 10.05, p0dir-(6*np.pi/8.))
+                xpts.append(pt[1])
+                ypts.append(pt[0])
+            return np.array(xpts), np.array(ypts)
+
+        # full path
+        for ax in axs.flatten():
+            xpts, ypts = get_zig_zag(0.9,0.4)
+            ax.plot(xpts, ypts, lw=1.5, c=c0, transform=ax.transAxes)
+
+        # every 2
+        xpts, ypts = get_zig_zag(0.9,0.4)
+        xpts = np.where(np.arange(len(xpts)) % 4 > 2, np.nan, xpts)
+        ypts = np.where(np.arange(len(ypts)) % 4 > 2, np.nan, ypts)
+        axs[0,0].plot(xpts, ypts, lw=1.5, c=c1, transform=axs[0,0].transAxes,
+                      alpha=1.0)
+
+        # every 3
 
         # set lims
         for ax in axs.flatten():
@@ -482,7 +505,7 @@ class plot_power_spectrum(object):
                          fontsize=6, title='Path', borderaxespad=0)
 
         # save
-        plt.savefig('testing_proj_gmean_simple_calc.png')
+        plt.savefig('testing_proj_gmean_simple_calc_new_orange_base_purp.png')
         
     def plot_pair_remove_and_climb_dive_reduction(self):
         '''
@@ -498,16 +521,17 @@ class plot_power_spectrum(object):
         self.spec = plot_power_spectrum()
 
         # set colours
-        c0 = '#0083b6'
-        c1 = '#b60083'
-        c1 = '#0d8ca7' # model mean colour
-        c0 = '#a7280d' # model mean colour
+        #c1 = '#0d8ca7' # model mean colour
+        #c0 = '#a7280d' # model mean colour
+        c0 = 'k'
+        c1 = '#f18b00'
+        path_cset=[c1,'navy','green','purple']
 
         # add full path spectrum to all panels
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
-                                               c=c0, simple_calc=True)
+                                               c=c0, simple_calc=True, a=0.5)
 
         # ~~~ pre transect pairs ~~~ #
 
@@ -516,12 +540,18 @@ class plot_power_spectrum(object):
                     '_interp_1000_every_3_pre_transect_multi_taper_clean_pfit1',
                     '_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
                     '_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1']
+        names = ['interp_1000_every_2_pre_transect',
+                 'interp_1000_every_3_pre_transect',
+                 'interp_1000_every_4_pre_transect',
+                 'interp_1000_every_8_pre_transect']
         pl = ['every 2', 'every 3', 'every 4', 'every 8']
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], 
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True)
+                        simple_calc=True, a=0.5)
+            self.add_path(axs[0,i], names[i], post_transect=True,
+                          path_cset=path_cset)
 
         # ~~~ climb removal ~~~ #
 
@@ -529,12 +559,56 @@ class plot_power_spectrum(object):
         ['_interp_1000_every_2_and_climb_pre_transect_multi_taper_clean_pfit1',
          '_interp_1000_every_3_and_climb_pre_transect_multi_taper_clean_pfit1',
          '_interp_1000_every_4_and_climb_pre_transect_multi_taper_clean_pfit1']
+        names = ['every_2', 'every_3','every_4','every_8']
         pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb']
 
         for i in range(3):
             p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], 
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True)
+                        simple_calc=True, a=0.5)
+            self.add_path(axs[1,i], names[i], post_transect=True,
+                          path_cset=path_cset)
+
+        # ~~~ add vertical path ~~~ #
+
+        def get_zig_zag(ypos,xpos):
+            p0dir = 7*np.pi/8.
+            pt = (ypos, xpos)
+            xpts = [pt[1]]
+            ypts = [pt[0]]
+            for i in range(8):
+                pt = haversine.inverse_haversine(pt, 10.05, p0dir)
+                xpts.append(pt[1])
+                ypts.append(pt[0])
+                pt = haversine.inverse_haversine(pt, 10.05, p0dir-(6*np.pi/8.))
+                xpts.append(pt[1])
+                ypts.append(pt[0])
+            return np.array(xpts), np.array(ypts)
+
+        # full path
+        for ax in axs.flatten():
+            xpts, ypts = get_zig_zag(0.9,0.4)
+            ax.plot(xpts, ypts, lw=1.5, c=c0, transform=ax.transAxes)
+
+        # pair removal
+        fac = [4,6,8,16]
+        for i, ax in enumerate(axs[0]):
+            # every 2
+            xpts, ypts = get_zig_zag(0.9,0.4)
+            xpts = np.where(np.arange(len(xpts)) % fac[i] > 2, np.nan, xpts)
+            ypts = np.where(np.arange(len(ypts)) % fac[i] > 2, np.nan, ypts)
+            ax.plot(xpts, ypts, lw=1.5, c=c1, transform=ax.transAxes)
+
+        # pair removal
+        fac = [4,6,8,16]
+        for i, ax in enumerate(axs[1]):
+            # every 2
+            xpts, ypts = get_zig_zag(0.9,0.4)
+            xpts = np.where(np.arange(len(xpts)) % fac[i] > 1, np.nan, xpts)
+            ypts = np.where(np.arange(len(ypts)) % fac[i] > 1, np.nan, ypts)
+            ax.plot(xpts, ypts, lw=1.5, c=c1, transform=ax.transAxes)
+
+        # ~~~ formating ~~~ #
 
         # set lims
         for ax in axs.flatten():
@@ -553,12 +627,18 @@ class plot_power_spectrum(object):
         for ax in axs[:,0]:
             ax.set_ylabel('Temperature\nPower Spectral Density')
 
+        # letters
+        letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)']
+        for i, ax in enumerate(axs.flatten()):
+            ax.text(0.05, 0.92, letters[i], transform=ax.transAxes)
+
         axs[0,-1].legend([p0,p1], ['full', 'reduced'],
                          loc='upper left', bbox_to_anchor=(1.03, 1.0),
                          fontsize=6, title='Path', borderaxespad=0)
 
         # save
-        plt.savefig('pair_and_climb_remove_simple_calc_geo_mean.png', dpi=1200)
+        plt.savefig(
+     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger.png', dpi=300)
 
     def plot_pre_post_transect(self):
         '''
@@ -875,8 +955,8 @@ def model_res_compare():
 
 m = plot_power_spectrum()
 #m.plot_pre_post_transect()
-m.plot_pre_post_transect_and_climb_dive_reduction()
-#m.plot_pair_remove_and_climb_dive_reduction()
+#m.plot_pre_post_transect_and_climb_dive_reduction()
+m.plot_pair_remove_and_climb_dive_reduction()
 
 #m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()
