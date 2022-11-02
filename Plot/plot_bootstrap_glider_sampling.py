@@ -57,7 +57,7 @@ class bootstrap_glider_samples(object):
             self.append='_s'
             patch = '_south_patch'
         
-        self.append = self.append + 'interp_' + interp
+        self.append = self.append + '_interp_' + interp
 
         # load samples
         prep = 'GliderRandomSampling/glider_uniform_interp_'+ interp + \
@@ -276,7 +276,8 @@ class bootstrap_glider_samples(object):
               '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_timeseries' + 
                     self.append + '.nc')
 
-    def get_full_model_day_week_sdt_and_mean_bg(self, save=False):
+    def get_full_model_day_week_sdt_and_mean_bg(self, save=False,
+                                                space_quantile=False):
         ''' 
         get mean bg for each day/week of full model data 
         out put retains x and y coordinates
@@ -295,6 +296,11 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
  
+        # reduce in x,y by finding quantiles
+        if space_quantile:
+            self.bg = self.bg.quantile([0.1,0.2,0.5,0.8,0.9], ('x','y'))
+            self.append = self.append + '_space_quantile'
+
         # stats dims
         dims=['time_counter']
 
@@ -331,10 +337,10 @@ class bootstrap_glider_samples(object):
         bg_stats = xr.merge([bg_w_mean,bg_d_mean,bg_w_std,bg_d_std])
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
-              '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_mean_timeseries' 
+            '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_mean_timeseries' 
                      + self.append + '.nc')
 
-    def get_full_model_timeseries(self, save=False):
+    def get_full_model_timeseries_stats(self, save=False):
         ''' 
            get model mean, std, and quantiles time_series
                - buoyancy
@@ -366,6 +372,29 @@ class bootstrap_glider_samples(object):
         if save:
             bg_stats.to_netcdf(self.data_path + '/BgGliderSamples' +
                     '/SOCHIC_PATCH_3h_20121209_20130331_bg_stats_timeseries' + 
+                    self.append + '.nc')
+
+    def get_full_model_timeseries_norm_bg(self, save=False):
+        ''' 
+        get timeseries of norm bg at z10
+        '''
+
+        self.get_model_buoyancy_gradients()
+        self.bg = self.bg.sel(deptht=10, method='nearest')
+        self.bg = np.abs(self.bg)
+
+        self.bg['bg_norm'] = (self.bg.bx ** 2 + self.bg.by ** 2) ** 0.5
+
+        # subset model
+        if self.subset=='north':
+            self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
+        if self.subset=='south':
+            self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
+
+        self.bg  = self.bg.chunk(chunks={'x':-1,'y':-1})
+        if save:
+            self.bg.to_netcdf(self.data_path +
+                  '/SOCHIC_PATCH_3h_20121209_20130331_bg_norm_timeseries_z10' + 
                     self.append + '.nc')
 
     def get_hist_stats(self, hist_set, bins):    
@@ -980,9 +1009,12 @@ class bootstrap_glider_samples(object):
             ds = ds.expand_dims('ensemble_size')
             return ds
 
+        # hack to remove interp from append (can this be removed from __init__?)
+        self.append = self.append.split('_interp')[0]
         prep = 'BgGliderSamples/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_'
         ensemble_list = [self.data_path + prep + str(i).zfill(2) +
-                       '_timeseries' + self.append + '.nc' for i in range(1,31)]
+                       '_timeseries' + self.append
+                        + '.nc' for i in range(1,31)]
         ensembles = xr.open_mfdataset(ensemble_list, 
                                    combine='nested', concat_dim='ensemble_size',
                                      preprocess=pre_proc).load()
@@ -996,7 +1028,7 @@ class bootstrap_glider_samples(object):
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=2, nrows=1)
         gs0.update(top=0.99, bottom=0.46, left=0.10, right=0.80)
-        gs1.update(top=0.35, bottom=0.10, left=0.10, right=0.80, wspace=0.3)
+        gs1.update(top=0.35, bottom=0.10, left=0.10, right=0.80, wspace=0.1)
 
         axs0 = fig.add_subplot(gs0[0])
         axs1 = []
@@ -1029,27 +1061,28 @@ class bootstrap_glider_samples(object):
         # reneder model time series
         c = '#fd0000'
         c = '#dd175f'
+        c = 'turquoise'
         m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
-        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
-                      c=c, lw=0.8, ls='--', label='__nolegend__')
-        p = axs0.plot(m_ts.time_counter,
-                      m_ts.bg_norm_ts_quant.sel(quantile=0.5),
-                      c=c, lw=0.8, ls='-', label='full model')
-        axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.8),
-                      c=c, lw=0.8, ls='--', label='__nolegend__')
+        #axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
+        #              c=c, lw=0.8, ls='--', label='__nolegend__')
+        #p = axs0.plot(m_ts.time_counter,
+        #              m_ts.bg_norm_ts_quant.sel(quantile=0.5),
+        #              c=c, lw=0.8, ls='-', label='full model')
+        #axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.8),
+        #              c=c, lw=0.8, ls='--', label='__nolegend__')
 
         end = m_ts.isel(time_counter=-1)
 
         # add model labels
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
-                 end.bg_norm_ts_quant.sel(quantile=0.2),
-                 r'$2^{nd}$ decile', ha='left',va='center', fontsize=6, c=c)
+                 end.bg_norm_ts_quant.sel(quantile=0.1),
+                 'lower decile', ha='left',va='center', fontsize=6, c=c)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                   end.bg_norm_ts_quant.sel(quantile=0.5),
                  'median', ha='left',va='center', fontsize=6, c=c)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
-                  end.bg_norm_ts_quant.sel(quantile=0.8),
-                 r'$8^{th}$ decile', ha='left',va='center', fontsize=6, c=c)
+                  end.bg_norm_ts_quant.sel(quantile=0.9),
+                 'upper decile', ha='left',va='center', fontsize=6, c=c)
 
 
         # diff data
@@ -1060,46 +1093,89 @@ class bootstrap_glider_samples(object):
            '/SOCHIC_PATCH_3h_20121209_20130331_bg_day_week_std_mean_timeseries' 
               + self.append + '.nc').dropna(dim='day')
         
-        # change in bg - model differences
-        m0 = m.sel(day=t0, method='nearest')  
-        m1 = m.sel(day=t1, method='nearest')
-        m_diff = m0 - m1
-        qs = [0.20,0.5,0.8] # quantiles
-        deltaM_mean_stats = m_diff.bg_norm_ts_week_mean.quantile(qs,('x','y'))
-        deltaM_std_stats  = m_diff.bg_norm_ts_week_std.quantile(qs,('x','y'))
+#        # change in bg - model differences over time
+        m0 = m.sel(day=t0, method='nearest') # x,y
+        m1 = m.sel(day=t1, method='nearest') # x,y
+#        m_diff = m0 - m1
+        qs = [0.1,0.2,0.5,0.8,0.9] # quantiles
+#        deltaM_mean_stats = m_diff.bg_norm_ts_week_mean.quantile(qs,('x','y'))
+#        deltaM_std_stats  = m_diff.bg_norm_ts_week_std.quantile(qs,('x','y'))
 
-        ### --- add median delta(bg) to time series --- ###
-        # find t0 and t1 of median delta(bg) 
-        diff_mean = m_diff.bg_norm_ts_week_mean
-        diff_mean = diff_mean.assign_coords(
-                           {'x':np.arange(diff_mean.sizes['x']),
-                            'y':np.arange(diff_mean.sizes['y'])})
-        ind0 = (np.abs(diff_mean - deltaM_mean_stats.sel(quantile=0.5))
-               ).argmin(dim='x')
-        diff_mean_1d = diff_mean.isel(x=ind0)
-        ind1 = (np.abs(diff_mean_1d - deltaM_mean_stats.sel(quantile=0.5))
-               ).argmin(dim='y')
-        dm = diff_mean_1d.isel(y=ind1) # median difference (x,y) in week-mean
-        m0_median = m0.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
-        m1_median = m1.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+        # calculate spatial average then difference
+        m0_stats = m0.quantile(qs,('x','y'))
+        m1_stats = m1.quantile(qs,('x','y'))
+        deltaM_stats = m0_stats - m1_stats
+        deltaM_mean_stats = deltaM_stats.bg_norm_ts_week_mean
+        deltaM_std_stats  = deltaM_stats.bg_norm_ts_week_std
+
+#        ### --- add median delta(bg) to time series --- ###
+#        # find t0 and t1 of median delta(bg) 
+#        diff_mean = m_diff.bg_norm_ts_week_mean
+#        diff_mean = diff_mean.assign_coords(
+#                           {'x':np.arange(diff_mean.sizes['x']),
+#                            'y':np.arange(diff_mean.sizes['y'])})
+#
+#        # select postion of median delta(bg) for week_mean data
+#        ind0 = (np.abs(diff_mean - deltaM_mean_stats.sel(quantile=0.5))
+#               ).argmin(dim='x')
+#        diff_mean_1d = diff_mean.isel(x=ind0)
+#        ind1 = (np.abs(diff_mean_1d - deltaM_mean_stats.sel(quantile=0.5))
+#               ).argmin(dim='y')
+#        dm = diff_mean_1d.isel(y=ind1) # median difference (x,y) in week-mean
+#        m0_median = m0.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+#        m1_median = m1.isel(x=dm.x, y=dm.y).bg_norm_ts_week_mean
+
+        # alternative to above
+        m0_median = m0_stats.sel(quantile=0.5).bg_norm_ts_week_mean
+        m1_median = m1_stats.sel(quantile=0.5).bg_norm_ts_week_mean
+
+        # select postion of median delta(bg) for full model time series
+        m_ts = xr.open_dataset(self.data_path + 
+                    'SOCHIC_PATCH_3h_20121209_20130331_bg_norm_timeseries_z10' +
+                    self.append + '.nc').bg_norm
+        m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
+
+        m_ts_rolling_mean = m_ts.rolling(time_counter=56, min_periods=1,
+                                         center=True).mean()
+        qs = [0.1,0.2,0.5,0.8,0.9]
+        m_ts = m_ts_rolling_mean.quantile(qs,('x','y'))
+
+        # 
+        ##m_ts_median = m_ts.isel(x=dm.x, y=dm.y)
+        #m_ts_median = m_ts.isel(x=2, y=2)
+        #p = axs0.plot(m_ts_median.time_counter,
+        #              m_ts_median,
+        #              c=c, lw=0.8, ls='-', label='full model')
+        #m_ts = m_ts.quantile([0.1,0.2,0.5,0.8,0.9], ['x','y'])
+        axs0.plot(m_ts.time_counter, m_ts.sel(quantile=0.1),
+                      c=c, lw=0.8, ls='--', label='__nolegend__')
+        p = axs0.plot(m_ts.time_counter,
+                      m_ts.sel(quantile=0.5),
+                      c=c, lw=0.8, ls='-', label='full model')
+        axs0.plot(m_ts.time_counter, m_ts.sel(quantile=0.9),
+                      c=c, lw=0.8, ls='--', label='__nolegend__')
+
+
+
+        # model median then diff
 
         # plot t0 and t1 weeks
         c_mm = '#17dd95' # model mean colour
         c_mm = '#00ffa2' # model mean colour
-        axs0.hlines(m0_median, m0_median.day, 
-                   m0_median.day + np.timedelta64(7, 'D'),
-                   transform=axs0.transData, colors=c_mm)
-        axs0.hlines(m1_median, m1_median.day, 
-                    m1_median.day + np.timedelta64(7, 'D'),
-                    transform=axs0.transData, colors=c_mm)
-        axs0.hlines(m0_median, m0_median.day + np.timedelta64(7, 'D'),
-                               m1_median.day + np.timedelta64(7, 'D'),
+        c_mm = 'orange'
+        axs0.hlines(m0_median, m0.day - np.timedelta64(84, 'h'), 
+                   m0.day + np.timedelta64(84, 'h'),
+                   transform=axs0.transData, colors=c_mm, zorder=10)
+        axs0.hlines(m1_median, m1.day - np.timedelta64(84, 'h'), 
+                    m1.day + np.timedelta64(84, 'h'),
+                    transform=axs0.transData, colors=c_mm, zorder=10)
+        axs0.hlines(m0_median, m0.day, m1.day,
                     transform=axs0.transData, colors=c_mm, lw=0.5,
                     zorder=0)
 
         from matplotlib.patches import FancyArrowPatch
 
-        x = m1_median.day + np.timedelta64(84, 'h')
+        x = m1.day
         y0 = m1_median
         y1 = m0_median
         myArrow = FancyArrowPatch(posA=(x, y0), posB=(x, y1),
@@ -1108,7 +1184,7 @@ class bootstrap_glider_samples(object):
         axs0.add_artist(myArrow)
 
         # add bounding box for labels
-        x0 = m0_median.day
+        x0 = m0.day
         y0 = m0_median
         w = np.timedelta64(96, 'h')
         h = 1e-8
@@ -1134,7 +1210,7 @@ class bootstrap_glider_samples(object):
 
         # legend
         legend1 =  axs0.legend(fill + p, ensemble_list + ['full model'], 
-                    title='ensemble size\ninter-decile range')
+                    title='number of gliders')
  
         # axis limits
         axs0.set_xlim(e.time_counter.min(skipna=True),
@@ -1154,7 +1230,7 @@ class bootstrap_glider_samples(object):
         qs = [0.01,0.05,0.1,0.9,0.95,0.99] # quantiles
         deltaG_mean_stats = g_diff.b_x_ml_week_mean.quantile(qs,'sets')
         deltaG_std_stats  = g_diff.b_x_ml_week_std.quantile(qs,'sets')
-       
+
 
         # plot
         def render(ax, g, m):
@@ -1170,16 +1246,17 @@ class bootstrap_glider_samples(object):
             p2 = ax.fill_between(g.ensemble_size + 1, g.sel(quantile=0.10),
                             g.sel(quantile=0.90), facecolor=cg_2,
                             edgecolor=None)
-            p3 = ax.axhline(m.sel(quantile=0.20), c=c_mm, lw=1.0)
+            p3 = ax.axhline(m.sel(quantile=0.1), c=c_mm, lw=1.0)
             ax.axhline(m.sel(quantile=0.5), c=c_mm, lw=1.0)
-            ax.axhline(m.sel(quantile=0.80), c=c_mm, lw=1.0)
+            ax.axhline(m.sel(quantile=0.9), c=c_mm, lw=1.0)
+            ax.axhline(0, c='lightgrey', lw=0.5, ls='--')
 
             # add model labels
-            ax.text(29.5, m.sel(quantile=0.2)-3e-9, r'$2^{nd}$ decile',
+            ax.text(29.5, m.sel(quantile=0.1)-3e-9, 'lower decile',
                     ha='right',va='top', fontsize=6, c=c_mm)
             ax.text(1.5, m.sel(quantile=0.5)-3e-9, 'median',
                     ha='left',va='top', fontsize=6, c=c_mm)
-            ax.text(29.5, m.sel(quantile=0.8)-3e-9, r'$8^{th}$ decile',
+            ax.text(29.5, m.sel(quantile=0.9)-3e-9, 'upper decile',
                     ha='right',va='top', fontsize=6, c=c_mm)
             return [p0,p1,p2,p3]
 
@@ -1193,25 +1270,26 @@ class bootstrap_glider_samples(object):
 
 
         # labels 
-        axs1[0].set_ylabel(
-        r'$\delta_t \langle|\nabla \mathbf{b}|\rangle_{t_w}$' + '\n' +
-                               r' [$\times 10^{-8}$ s$^{-2}$]')
-        axs1[1].set_ylabel(
-              r'$\delta_t (\sigma_{t_w}|\nabla \mathbf{b}|)$' + '\n' +
-                               r' [$\times 10^{-8}$ s$^{-2}$]')
+        axs1[0].set_ylabel(r'detected change in $|\nabla \mathbf{b}|$' + '\n' +
+                           r' [$\times 10^{-8}$ s$^{-2}$]')
+        axs1[1].set_yticklabels([])
+        #axs1[1].set_ylabel(
+        #      r'$\delta_t (\sigma_{t_w}|\nabla \mathbf{b}|)$' + '\n' +
+        #                       r' [$\times 10^{-8}$ s$^{-2}$]')
 
         # set ax1 titles
-        axs1[0].text(0.01, 1.01, 'change in temporal mean',
-                  transform=axs1[0].transAxes, ha='left', va='bottom')
-        axs1[1].text(0.01, 1.01, 'change in temporal standard deviation',
-                  transform=axs1[1].transAxes, ha='left', va='bottom')
+        axs1[0].text(0.5, 1.01, 'temporal mean',
+                  transform=axs1[0].transAxes, ha='center', va='bottom')
+        axs1[1].text(0.5, 1.01, 'standard deviation',
+                  transform=axs1[1].transAxes, ha='center', va='bottom')
 
-        axs1[0].set_ylim(-2e-8,8.0e-8)
-        axs1[1].set_ylim(-2e-8,8.0e-8)
+        axs1[0].set_ylim(-2e-8,9.0e-8)
+        axs1[1].set_ylim(-2e-8,9.0e-8)
         for ax in axs1:
             ax.set_xlim(1,30)
-            ax.set_xlabel('ensemble size')
+            ax.set_xlabel('number of gliders')
             ax.yaxis.get_offset_text().set_visible(False)
+            ax.set_xticks([1,5,10,15,20,25,30])
 
         # date labels
         axs0.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
@@ -1219,7 +1297,7 @@ class bootstrap_glider_samples(object):
         axs0.set_xlabel('date')
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
-                   '_'+ t0 + '_' + t1 + '.png', dpi=600)
+                   '_'+ t0 + '_' + t1 + '_new_model_ts_method_test.png', dpi=600)
 
 class bootstrap_plotting(object):
     def __init__(self, append='', bg_method='norm', interp='1000'):
@@ -2212,7 +2290,7 @@ def plot_quantify_delta_bg(subset=''):
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 #plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
-#plot_quantify_delta_bg(subset='south')
+plot_quantify_delta_bg(subset='south')
 
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
@@ -2232,10 +2310,11 @@ def plot_quantify_delta_bg(subset=''):
 #m = bootstrap_glider_samples('EXP10', load_samples=False, subset='south')
 #m.get_full_model_day_week_sdt_and_mean_bg(save=True)
 #m.get_full_model_timeseries(save=True)
+#m.get_full_model_timeseries_norm_bg(save=True)
 
-prep_hist(by_time='1W_rolling', interp=500)
-prep_hist(by_time='2W_rolling', interp=500)
-prep_hist(by_time='3W_rolling', interp=500)
+#prep_hist(by_time='1W_rolling', interp=500)
+#prep_hist(by_time='2W_rolling', interp=500)
+#prep_hist(by_time='3W_rolling', interp=500)
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')

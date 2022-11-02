@@ -525,7 +525,7 @@ class plot_power_spectrum(object):
         #c0 = '#a7280d' # model mean colour
         c0 = 'k'
         c1 = '#f18b00'
-        path_cset=[c1,'navy','green','purple']
+        path_cset=[c1,'navy','lightseagreen','purple']
 
         # add full path spectrum to all panels
         for ax in axs.flatten():
@@ -638,7 +638,7 @@ class plot_power_spectrum(object):
 
         # save
         plt.savefig(
-     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger.png', dpi=300)
+     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger.png', dpi=1200)
 
     def plot_pre_post_transect(self):
         '''
