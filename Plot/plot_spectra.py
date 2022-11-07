@@ -525,7 +525,7 @@ class plot_power_spectrum(object):
         #c0 = '#a7280d' # model mean colour
         c0 = 'k'
         c1 = '#f18b00'
-        path_cset=[c1,'navy','lightseagreen','purple']
+        path_cset=[c1,'navy','turquoise','purple']
 
         # add full path spectrum to all panels
         for ax in axs.flatten():

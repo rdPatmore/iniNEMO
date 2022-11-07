@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=1
  
-python -u calc_power_spectrum.py
+python -u calc_patch_sets.py

@@ -119,15 +119,21 @@ class plot_buoyancy_gradients(object):
         bg_quant = bg.chunk(chunks=chunk).quantile([0.05,0.95],['x','y'])
         bg_l, bg_u = bg_quant.sel(quantile=0.05), bg_quant.sel(quantile=0.95)
 
+        # colours
+        c0 = 'k'
+        c1 = '#f18b00'
+
         # render x
-        ax.plot(bg_mean.bx.time_counter, bg_mean.bx)
+        ax.plot(bg_mean.bx.time_counter, bg_mean.bx, c=c0,
+                label=r'$db/dx$')
         ax.fill_between(bg_l.bx.time_counter, bg_l.bx, bg_u.bx,
-                        color='green', alpha=0.2)
+                        color=c0, alpha=0.5)
 
         # render y
-        ax.plot(bg_mean.bx.time_counter, bg_mean.bx)
+        ax.plot(bg_mean.bx.time_counter, bg_mean.bx, c=c1,
+                label=r'$db/dy$')
         ax.fill_between(bg_l.by.time_counter, bg_l.by, bg_u.by,
-                        color='blue', alpha=0.2)
+                        color=c1, alpha=0.5)
 
     def plot_bg_timeseries_with_north_south(self, depth=10):
         '''
@@ -141,7 +147,7 @@ class plot_buoyancy_gradients(object):
                                   self.file_id + 'bg_z10m.nc', chunks='auto')
         self.bg = self.bg.isel(x=slice(20,-20), y=slice(20,-20))
         self.bg = np.abs(self.bg)
-
+ 
         # initialise plots
         fig, axs = plt.subplots(3,1, figsize=(5.5,4.0))
         plt.subplots_adjust(left=0.10, right=0.98, top=0.97, bottom=0.15,
@@ -179,6 +185,43 @@ class plot_buoyancy_gradients(object):
         axs[2].set_xlabel('date')
 
         plt.savefig('bg_time_series.png')
+
+    def plot_bg_timeseries_full_model(self, depth=10):
+        '''
+        plot timeseries of buoyancy gradients at defined depth
+        with split of north and south
+        depth: assigns the depth level slice
+        '''
+
+        # load bg
+        self.bg = xr.open_dataset(config.data_path() + self.case +
+                                  self.file_id + 'bg_z10m.nc', chunks='auto')
+        self.bg = self.bg.isel(x=slice(20,-20), y=slice(20,-20))
+        self.bg = np.abs(self.bg)
+
+        # initialise plots
+        fig, ax = plt.subplots(1,1, figsize=(4.0,2.0))
+        plt.subplots_adjust(left=0.12, right=0.98, top=0.92, bottom=0.3,
+                            hspace=0.13)
+        
+        self.render_buoyancy_gradient_mean_and_std(ax, self.bg)
+
+        # legend
+        plt.legend()
+
+        # axis params
+        ax.set_ylabel('buoyancy gradient')
+        ax.set_ylim(0, 1.7e-7)
+        ax.set_xlim(self.bg.time_counter.min(), self.bg.time_counter.max())
+
+        # date labels
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        # Rotates and right-aligns 
+        for label in ax.get_xticklabels(which='major'):
+            label.set(rotation=35, horizontalalignment='right')
+        ax.set_xlabel('date')
+
+        plt.savefig('bg_time_series_full_model.png', dpi=600)
         
     def plot_time_mean_bg(self, depth=10):
         '''
@@ -241,4 +284,5 @@ class plot_buoyancy_gradients(object):
 
 p = plot_buoyancy_gradients('EXP10')
 #p.plot_bg_timeseries_with_north_south()
-p.plot_time_mean_bg()
+p.plot_bg_timeseries_full_model()
+#p.plot_time_mean_bg()

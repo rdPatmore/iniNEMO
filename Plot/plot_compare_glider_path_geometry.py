@@ -8,6 +8,7 @@ import numpy as np
 import dask
 import matplotlib
 from get_transects import get_transects, get_sampled_path
+import cartopy.crs as ccrs
 
 dask.config.set({"array.slicing.split_large_chunks": True})
 
@@ -930,7 +931,10 @@ class glider_path_geometry_plotting(object):
             ver_sampled = path.where(path.vertex.isin(choice), drop=True)
             for j, (l, v) in enumerate(ver_sampled.groupby('vertex')):
                 c = list(mcolors.TABLEAU_COLORS)[vertex_list[i][j]]
-                axs[i].plot(v.lon, v.lat, c=c)
+                c_choice = vertex_list[i][j]
+                c1 = '#f18b00'
+                path_cset=[c1,'navy','lightseagreen','purple'][c_choice]
+                axs[i].plot(v.lon, v.lat, c=path_cset)#, lw=0.5)
 
             axs[i].axis('off')
             axs[i].set_xlim(path.lon.min(),path.lon.max())
@@ -1245,8 +1249,10 @@ class glider_path_geometry_plotting(object):
                                     post_transect=True,
                                     rotation=np.radians(rotations[i]))
 
-            for (l, v) in path.groupby('vertex'):
-                ax.plot(v.lon, v.lat, label=l)
+            c1 = '#f18b00'
+            path_cset=[c1,'navy','lightseagreen','purple']
+            for i, (l,trans) in enumerate(path.groupby('transect')):
+                ax.plot(trans.lon, trans.lat, c=path_cset[int(trans.vertex[0])])
             ax.axis('off')
 
         plt.savefig(case + '_rotation_' + str(samples) + 
@@ -1377,7 +1383,7 @@ m = glider_path_geometry_plotting()
 m.plot_model_and_glider_diff_rotate_bar_norm('EXP10', samples=100)
 #m.plot_model_and_glider_diff_rotate_timeseries('EXP10', samples=100)
 #m.plot_model_and_glider_diff_vertex_timeseries('EXP10', samples=100)
-#m.plot_model_and_glider_diff_vertex_bar_norm(cases, samples=100)
+#m.plot_model_and_glider_diff_vertex_bar_norm(['EXP10'], samples=100)
 
 
 # ~~~~ save file of vertex percentage error ~~~~ #

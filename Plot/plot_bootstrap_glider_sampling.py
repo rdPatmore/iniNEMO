@@ -1024,11 +1024,11 @@ class bootstrap_glider_samples(object):
                           self.append + '.nc')
 
         # initialise figure
-        fig = plt.figure(figsize=(6.5, 4), dpi=300)
+        fig = plt.figure(figsize=(6.5, 4.5), dpi=300)
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=2, nrows=1)
-        gs0.update(top=0.99, bottom=0.46, left=0.10, right=0.80)
-        gs1.update(top=0.35, bottom=0.10, left=0.10, right=0.80, wspace=0.1)
+        gs0.update(top=0.99, bottom=0.50, left=0.10, right=0.80)
+        gs1.update(top=0.38, bottom=0.09, left=0.10, right=0.80, wspace=0.1)
 
         axs0 = fig.add_subplot(gs0[0])
         axs1 = []
@@ -1062,6 +1062,7 @@ class bootstrap_glider_samples(object):
         c = '#fd0000'
         c = '#dd175f'
         c = 'turquoise'
+        #c = 'lightseagreen'
         m_ts = m_ts.sel(time_counter=slice('2012-12-15','2013-03-15 00:00:00'))
         #axs0.plot(m_ts.time_counter, m_ts.bg_norm_ts_quant.sel(quantile=0.2),
         #              c=c, lw=0.8, ls='--', label='__nolegend__')
@@ -1148,21 +1149,20 @@ class bootstrap_glider_samples(object):
         #              c=c, lw=0.8, ls='-', label='full model')
         #m_ts = m_ts.quantile([0.1,0.2,0.5,0.8,0.9], ['x','y'])
         axs0.plot(m_ts.time_counter, m_ts.sel(quantile=0.1),
-                      c=c, lw=0.8, ls='--', label='__nolegend__')
+                      c=c, lw=0.8, ls='-', label='__nolegend__')
         p = axs0.plot(m_ts.time_counter,
                       m_ts.sel(quantile=0.5),
                       c=c, lw=0.8, ls='-', label='full model')
         axs0.plot(m_ts.time_counter, m_ts.sel(quantile=0.9),
-                      c=c, lw=0.8, ls='--', label='__nolegend__')
+                      c=c, lw=0.8, ls='-', label='__nolegend__')
 
-
-
-        # model median then diff
 
         # plot t0 and t1 weeks
         c_mm = '#17dd95' # model mean colour
         c_mm = '#00ffa2' # model mean colour
         c_mm = 'orange'
+        c_mm = 'lightseagreen'
+        c_mm = '#f18b00'
         axs0.hlines(m0_median, m0.day - np.timedelta64(84, 'h'), 
                    m0.day + np.timedelta64(84, 'h'),
                    transform=axs0.transData, colors=c_mm, zorder=10)
@@ -1203,9 +1203,9 @@ class bootstrap_glider_samples(object):
         #         ha='left',va='bottom', fontsize=6, c=c_mm)
         #axs0.text(m1_median.day + np.timedelta64(7, 'D'),
         axs0.text(x - np.timedelta64(5,'h'),
-                  m0_median - 3e-9,
-        r'median $\delta_t \langle|\nabla \mathbf{b}|\rangle_{t_w}$',
-                 ha='right',va='top', fontsize=6, c=c_mm)
+                  m0_median,
+        r'modelled change in median $|\nabla \mathbf{b}|$',
+                 ha='right',va='bottom', fontsize=6, c=c_mm)
 
 
         # legend
@@ -1273,9 +1273,6 @@ class bootstrap_glider_samples(object):
         axs1[0].set_ylabel(r'detected change in $|\nabla \mathbf{b}|$' + '\n' +
                            r' [$\times 10^{-8}$ s$^{-2}$]')
         axs1[1].set_yticklabels([])
-        #axs1[1].set_ylabel(
-        #      r'$\delta_t (\sigma_{t_w}|\nabla \mathbf{b}|)$' + '\n' +
-        #                       r' [$\times 10^{-8}$ s$^{-2}$]')
 
         # set ax1 titles
         axs1[0].text(0.5, 1.01, 'temporal mean',
@@ -1297,7 +1294,7 @@ class bootstrap_glider_samples(object):
         axs0.set_xlabel('date')
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
-                   '_'+ t0 + '_' + t1 + '_new_model_ts_method_test.png', dpi=600)
+                   '_'+ t0 + '_' + t1 + '_AGM0.png', dpi=600)
 
 class bootstrap_plotting(object):
     def __init__(self, append='', bg_method='norm', interp='1000'):
@@ -1713,10 +1710,11 @@ class bootstrap_plotting(object):
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
             self.render_glider_sample_set_averaged_over_weeks(n=n, c=colours[i])
-        self.add_model_means_averaged_over_weeks(c='#00ffa2')
+        self.add_model_means_averaged_over_weeks(c='orange')
         #self.add_giddy(by_time=by_time)
 
-        self.axs[0].set_ylabel(r'buoyancy gradient [$\times 10^{-8}$ s$^{-1}$]')
+        self.axs[0].set_ylabel(
+                  r'$|\nabla \mathbf{b}|$ [$\times 10^{-8}$ s$^{-1}$]')
         for ax in self.axs:
             ax.set_xlabel(r'PDF [$\times 10 ^{-8}$]', labelpad=12)
 
@@ -2232,8 +2230,8 @@ def plot_hist(by_time=None):
     cases = ['EXP10']
     if by_time:
         boot = bootstrap_plotting(bg_method='norm', interp='1000')
-        boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
-                                                              'EXP10', by_time)
+        #boot.plot_histogram_buoyancy_gradients_and_samples_over_time(
+        #                                                      'EXP10', by_time)
         #boot.plot_rmse_over_ensemble_sizes_and_week('EXP10', by_time)
         #boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
         boot.plot_histogram_bg_pdf_averaged_weekly_samples('EXP10')
@@ -2312,19 +2310,9 @@ plot_quantify_delta_bg(subset='south')
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-#prep_hist(by_time='1W_rolling', interp=500)
-#prep_hist(by_time='2W_rolling', interp=500)
-#prep_hist(by_time='3W_rolling', interp=500)
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')
-#prep_hist(by_time='1W_rolling')
-#plot_hist(by_time='3W_rolling')
-#prep_hist(by_time='2W_rolling')
-#prep_hist(by_time='1W_rolling')
-#prep_hist(by_time='1W_rolling')
-#prep_hist(by_time='3W_rolling')
-#prep_hist(by_time='2W_rolling')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
