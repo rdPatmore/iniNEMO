@@ -134,7 +134,57 @@ class model(object):
         #samples.to_netcdf(self.data_path + prep + 
         #                  rotation_label.rstrip('_') + '.nc')
 
-    def load_gridT_and_giddy(self):
+
+    def get_normed_buoyancy_gradients(self, load=True):
+        '''
+        add nomred buoyancy gradient to model object
+        purpose: for finding result of perfect sampling across bg
+                 for isolating effects of sampling freqency from non-bg-perp
+                 sampling
+        '''
+
+        if load:
+            bg_norm = xr.open_dataarray(config.data_path() + self.case + '/' +
+                                      self.file_id + 'bg_mod2.nc',
+                                      chunks='auto') ** 0.5
+            bg_norm = bg_norm.assign_coords({'x': bg_norm.x.values + 1,
+                                             'y': bg_norm.y.values + 1})
+            bg_norm.name = 'bg_norm'
+
+        else:
+            mesh_mask = xr.open_dataset(config.data_path() + self.case + 
+                                     '/mesh_mask.nc').squeeze('time_counter')
+ 
+            # remove halo
+            mesh_mask = mesh_mask.isel(x=slice(1,-1), y=slice(1,-1))
+
+            # constants
+            g = 9.81
+            rho_0 = 1027
+
+            # mesh
+            dx = mesh_mask.e1t.isel(x=slice(1,None))
+            dy = mesh_mask.e2t.isel(y=slice(1,None))
+
+            # buoyancy gradient
+            print (self.ds)
+            buoyancy = g * (1 - self.ds['grid_T'].rho / rho_0)
+            bg_x = buoyancy.diff('x') / dx
+            bg_y = buoyancy.diff('y') / dy
+  
+            # regrid to scalar points (roll east and north)
+            bg_x = bg_x + bg_x.roll(x=1, roll_coords=False) / 2
+            bg_y = bg_y + bg_y.roll(y=1, roll_coords=False) / 2
+
+            # get norm
+            bg_norm = ( bg_x**2 + bg_y**2 ) ** 0.5
+
+            # remove x0 and y0 rim
+            bg_norm = bg_norm.isel(x=slice(1,None), y=slice(1,None))
+
+        return bg_norm
+
+    def load_gridT_and_giddy(self, bg=False):
         ''' minimal loading for glider sampling of model '''
 
         # grid T
@@ -155,7 +205,15 @@ class model(object):
                             'mldr10_3', 'time_instant',
                             'time_instant_bounds'])#.isel(x=slice(0,50),
                                                    #      y=slice(0,50)).load()
-        print (self.ds['grid_T'])
+        self.ds['grid_T'] = self.ds['grid_T'].assign_coords(
+                                        {'x': self.ds['grid_T'].x.values,
+                                         'y': self.ds['grid_T'].y.values})
+
+
+        # add model normed buoyancy gradient
+        if bg:
+            self.ds['grid_T'] = xr.merge([self.ds['grid_T'],
+                                          self.get_normed_buoyancy_gradients()])
 
         # glider
         self.giddy_raw = xr.open_dataset(self.root + 
@@ -472,6 +530,7 @@ class model(object):
         preliminary processing for sampling model like a glider
         '''
         
+        # add rho
         rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc')
         self.ds['grid_T'] = xr.merge([self.ds['grid_T'], rho])
 
@@ -1004,7 +1063,7 @@ if __name__ == '__main__':
             m.save_append = m.save_append + '_' + remove
         if transects:
             m.save_append = m.save_append + '_pre_transect'
-        m.load_gridT_and_giddy()
+        m.load_gridT_and_giddy(bg=True)
 
         # reductions of nemo domain
         m.south_limit = south_limit
@@ -1028,6 +1087,7 @@ if __name__ == '__main__':
         for ind in range(0,100):
             m.ind = ind
             print ('ind: ', ind)
+            # calculate perfect gradient crossings
             m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
             print ('done part 1')
             m.interp_raw_obs_path_to_uniform_grid(ind=ind)
@@ -1040,6 +1100,7 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
+    glider_sampling('EXP10', interp_dist=1000, transects=False)
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)
@@ -1051,14 +1112,20 @@ if __name__ == '__main__':
     #                interp_dist=1000, transects=True)
     #glider_sampling('EXP10', remove='every_4_and_dive',
     #                interp_dist=1000, transects=True)
-    glider_sampling('EXP10', remove='every_3_and_climb',
-                    interp_dist=1000, transects=False)
-    glider_sampling('EXP10', remove='every_2_and_climb',
-                    interp_dist=1000, transects=False)
-    glider_sampling('EXP10', remove='every_4_and_climb',
-                    interp_dist=1000, transects=False)
-    glider_sampling('EXP10', remove='every_8_and_climb',
-                    interp_dist=1000, transects=False)
+
+    # done 27th Oct
+#    glider_sampling('EXP10', remove='every_3_and_climb',
+#                    interp_dist=1000, transects=False)
+    # do last 15
+    #glider_sampling('EXP10', remove='every_2_and_climb',
+    #                interp_dist=1000, transects=False)
+
+    # not done
+#    glider_sampling('EXP10', remove='every_4_and_climb',
+#                    interp_dist=1000, transects=False)
+#    glider_sampling('EXP10', remove='every_8_and_climb',
+#                    interp_dist=1000, transects=False)
+
     #glider_sampling('EXP10', remove='every_3',
     #                interp_dist=1000, transects=False)
 #    glider_sampling('EXP10', remove=False, append='interp_2000', 

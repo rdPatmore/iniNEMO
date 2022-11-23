@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import iniNEMO.Process.calc_vorticity as vort
 import dask
-import gfuncs
 
 # Let's start simple with a LocalCluster that makes use of all the cores and RAM we have on a single machine
 from dask.distributed import Client, LocalCluster
@@ -62,12 +61,19 @@ class richardson(object):
          
         bg = xr.open_dataset(self.nc_preamble + '_bg.nc', chunks=self.chunks)
 
-        b_mod2 = bg.bx**2 + bg.by**2
+        # put gradients on matching scalar positons
+        bg_x_t = (bg.bx + bg.bx.roll(x=1,roll_coords=False)) / 2
+        bg_y_t = (bg.by + bg.by.roll(y=1,roll_coords=False)) / 2
+       
+        # chop x0 and y0 rim
+        bg_x_t = bg_x_t.isel(x=slice(1,None), y=slice(1,None))
+        bg_y_t = bg_y_t.isel(x=slice(1,None), y=slice(1,None))
+        bg_mod2 = bg_x_t**2 + bg_y_t**2
 
         if save:
             bg_mod2.name = 'bg_mod2'
             bg_mod2.to_netcdf(self.nc_preamble + '_bg_mod2.nc')
-        return b_mod2
+        return bg_mod2
 
     def format_N2(self, save=False):
         ''' format N2 to conform with rho '''
@@ -183,9 +189,10 @@ if __name__ == '__main__':
     #client = Client(cluster)
 
     nc_preamble = 'SOCHIC_PATCH_3h_20121209_20130331'
-    m = richardson('EXP08', nc_preamble)
+    m = richardson('EXP10', nc_preamble)
     start = time.time()
-    m.buoyancy_gradients(save=True)
+    #m.buoyancy_gradients(save=True)
+    m.buoyancy_gradient_mod_squared(save=True)
     #m.balanced_richardson_number(save=True)
     end = time.time()
-    print(end - start)
+    print('time elapsed ', end - start)

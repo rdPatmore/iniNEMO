@@ -527,10 +527,14 @@ class plot_power_spectrum(object):
         c1 = '#f18b00'
         path_cset=[c1,'navy','turquoise','purple']
 
+        # scalar choice
+        var = 'rho'
+
         # add full path spectrum to all panels
         for ax in axs.flatten():
             spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
-            p0, = self.spec.add_glider_spectra('EXP10', ax, append=spec_append,
+            p0, = self.spec.add_glider_spectra('EXP10', ax, var=var,
+                                               append=spec_append,
                                                c=c0, simple_calc=True, a=0.5)
 
         # ~~~ pre transect pairs ~~~ #
@@ -547,7 +551,7 @@ class plot_power_spectrum(object):
         pl = ['every 2', 'every 3', 'every 4', 'every 8']
 
         for i in range(4):
-            self.spec.add_glider_spectra('EXP10', axs[0,i], 
+            self.spec.add_glider_spectra('EXP10', axs[0,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
                         simple_calc=True, a=0.5)
             self.add_path(axs[0,i], names[i], post_transect=True,
@@ -563,7 +567,7 @@ class plot_power_spectrum(object):
         pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb']
 
         for i in range(3):
-            p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], 
+            p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
                         simple_calc=True, a=0.5)
             self.add_path(axs[1,i], names[i], post_transect=True,
@@ -613,7 +617,7 @@ class plot_power_spectrum(object):
         # set lims
         for ax in axs.flatten():
             ax.set_xlim(5e-2,1e0)
-            ax.set_ylim(5e-5,3e1)
+            ax.set_ylim(5e-7,3e0)
 
         # drop ticks 
         for ax in axs[:-1,:].flatten(): 
@@ -625,7 +629,7 @@ class plot_power_spectrum(object):
         for ax in axs[-1,:]:
             ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
         for ax in axs[:,0]:
-            ax.set_ylabel('Temperature\nPower Spectral Density')
+            ax.set_ylabel('Density \nPower Spectral Density')
 
         # letters
         letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)']
@@ -638,7 +642,7 @@ class plot_power_spectrum(object):
 
         # save
         plt.savefig(
-     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger.png', dpi=1200)
+     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger_rho.png', dpi=1200)
 
     def plot_pre_post_transect(self):
         '''

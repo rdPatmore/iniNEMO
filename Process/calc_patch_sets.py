@@ -16,6 +16,7 @@ class patch_set(object):
         self.data_path = config.data_path() + self.case + '/'
 
         self.hist_range = (0,2e-8)
+        self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
         #self.sample = xr.open_dataset(self.data_path + 
         #       'GliderRandomSampling/glider_uniform_rotated_path.nc')
 
@@ -41,12 +42,14 @@ class patch_set(object):
 
         rolling_str, stats_str = '', ''
         # model
-        bg = xr.open_dataset(config.data_path() + self.case +
-                             '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc')
+        bg = np.abs(xr.open_dataset(config.data_path() + self.case +
+                             self.file_id + 'bg_z10m.nc'))
+        #bg = xr.open_dataset(config.data_path() + self.case +
+        #                     '/SOCHIC_PATCH_3h_20121209_20130331_bg.nc')
                              #chunks={'time_counter':113})
                              #chunks='auto')
                              #chunks={'time_counter':1})
-        bg = np.abs(bg.sel(deptht=10, method='nearest')).load()
+        #bg = np.abs(bg.sel(deptht=10, method='nearest'))#.load()
 
         # get norm
         bg['bg_norm'] = (bg.bx ** 2 + bg.by ** 2) ** 0.5
@@ -72,7 +75,16 @@ class patch_set(object):
             y1 = float(sample.lat.max())
  
             patch = bg.sel(lon=slice(x0,x1),
-                           lat=slice(y0,y1)).expand_dims(sample=[l])
+                           lat=slice(y0,y1))
+
+            xi = np.arange(len(patch.lon))
+            yi = np.arange(len(patch.lat))
+            patch = patch.assign_coords({'xi':(['lon'], xi),
+                                         'yi':(['lat'], yi)})
+            print (patch)
+            patch = patch.swap_dims({'lon':'xi','lat':'yi'})
+            patch = patch.reset_coords(['lon','lat'])
+            patch = patch.expand_dims(sample=[l])
 
             dims = ['lon','lat','time_counter']
             if rolling:
@@ -85,46 +97,68 @@ class patch_set(object):
                 dims = ['lat','lon','weekly_rolling']
 
             if stats == 'mean':
-                patch = patch.mean(dims).load()
+                patch = patch.mean(dims)#.load()
                 stats_str = '_mean'
             if stats == 'std':
-                patch = patch.std(dims).load()
+                patch = patch.std(dims)#.load()
                 stats_str = '_std'
             if stats == 'median':
                 stats_str = '_median'
-                patch = patch.median(dims).load()
-                patch = patch.std(dims).load()
-
+                patch = patch.median(dims)#.load()
+                patch = patch.std(dims)#.load()
+            
             if stats == 'time_mean_space_quantile':
-                patch_mean = patch.rolling(time_counter=168).mean()
-                patch_std = patch.rolling(time_counter=168).std()
+                kwargs = dict(time_counter=168, center=True, min_periods=1)
+                patch_mean = patch.rolling(**kwargs).mean()#.dropna('time_counter')
+                patch_std = patch.rolling(**kwargs).std()#.dropna('time_counter')
                 for k in list(patch_mean.keys()):
+                    if k in ['lat','lon']: continue
                     patch_mean = patch_mean.rename({k:k + '_rolling_mean'})
                     patch_std = patch_std.rename({k:k + '_rolling_std'})
                 print ('a', l)
 
-                patch = xr.merge([patch_mean, patch_std]).load()
-
-            print ('before before')
+                patch = xr.merge([patch_mean, patch_std])#.load()
+            print (patch)
             patch_set.append(patch)
-
-        print ('before')
         self.model_patches = xr.concat(patch_set, dim='sample')
-        print ('efta')
-
+        #    patch.to_netcdf('Scratch/patch_' + str(l) + '.nc')
         # space median
         if stats == 'time_mean_space_quantile':
-            print (jkhasl)
             stats_str = '_time_mean_space_quantile'
-            space_dims=['sample','lat','lon']
+            space_dims=['sample','xi','yi']
             qs = [0.1,0.5,0.9]
-            self.model_patches = self.model_patches.quantile(qs, space_dims)
+            self.model_patchs = self.model_patches.quantile(qs, space_dims)
 
         # save
         self.model_patches.to_netcdf(config.data_path() + self.case +
                 '/PatchSets/SOCHIC_PATCH_3h_20121209_20130331_bg_patch_set' +
                 rolling_str + stats_str + '.nc')
 
+
+
+    def group_patch_files(self, stats=None):
+        #    print ('before before')
+        patch_set = xr.open_mfdataset('Scratch/patch*.nc')
+        print (patch_set)
+        print (jksfd)
+                             
+        #print ('before', patch_set)
+        #self.model_patches = xr.concat(patch_set, dim='sample')
+        #print ('efta')
+
+        # space median
+        if stats == 'time_mean_space_quantile':
+            stats_str = '_time_mean_space_quantile'
+            space_dims=['sample','lat','lon']
+            qs = [0.1,0.5,0.9]
+            patch_set = patch_set.quantile(qs, space_dims)
+
+        # save
+        patch_set.to_netcdf(config.data_path() + self.case +
+                '/PatchSets/SOCHIC_PATCH_3h_20121209_20130331_bg_patch_set' +
+                rolling_str + stats_str + '.nc')
+
 exp10 = patch_set('EXP10')
 exp10.get_glider_samples()
 exp10.get_model_buoyancy_gradients_patch_set(stats='time_mean_space_quantile')
+#exp10.group_patch_files(stats='time_mean_space_quantile')
