@@ -797,15 +797,16 @@ class glider_path_geometry_plotting(object):
         else:
             var = 'diff_bg_norm_' + stat
 
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
         # plot bars 
         print (x_pos)
         print (u_quant[var])
         ax.bar(x_pos, u_quant[var] - l_quant[var],
-               width=0.25, alpha=0.2, bottom=l_quant[var],
-               color='navy', tick_label=ds[label_var], align='center')
+               width=0.5, alpha=1.0, bottom=l_quant[var],
+               color=colours[0], tick_label=ds[label_var], align='center')
 
         # plot mean line 
-        ax.hlines(mean[var], x_pos-0.125, x_pos+0.125, lw=2)
+        ax.hlines(mean[var], x_pos-0.25, x_pos+0.25, lw=2, colors=colours[2])
 
         # remove frame
         ax.spines['top'].set_visible(False)
@@ -1376,14 +1377,14 @@ class glider_path_geometry_plotting(object):
         # ~~~~~ define figure layout ~~~~ #
 
         # initialise figure
-        fig = plt.figure(figsize=(4.0,4.0))
+        fig = plt.figure(figsize=(3.2,4.0))
 
         # initialise gridspec
         gs0 = gridspec.GridSpec(ncols=1, nrows=2, right=0.97)#, figure=fig)
         gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
     
         # set frame bounds
-        gs0.update(top=0.98, bottom=0.25, left=0.18, hspace=0.1)
+        gs0.update(top=0.92, bottom=0.25, left=0.18, right=0.95, hspace=0.1)
         gs1.update(top=0.15, bottom=0.02, left=0.18)
 
         # assign axes to lists
@@ -1446,11 +1447,12 @@ class glider_path_geometry_plotting(object):
         path = get_sampled_path('EXP10','interp_1000', post_transect=True,
                                      cut_meso=True)
 
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
         # plot removed paths
         for i, choice in enumerate(vertex_list_inv):
             ver_sampled_inv = path.where(path.vertex.isin(choice), drop=True)
             for (l, v) in ver_sampled_inv.groupby('vertex'):
-                axs1[i].plot(v.lon, v.lat, c='navy', alpha=0.2)
+                axs1[i].plot(v.lon, v.lat, c=colours[0], alpha=1.0)
 
         # plot kept paths
         for i, choice in enumerate(vertex_list):
@@ -1468,9 +1470,12 @@ class glider_path_geometry_plotting(object):
 
 
         axs0[0].set_xticks([])
-        axs0[0].set_ylabel('% difference\n in mean')
-        axs0[1].set_ylabel('% difference\n in standard deviation')
-        axs0[1].set_xlabel('path rotation [degrees]')
+        axs0[1].set_xticks(np.linspace(0.5,6.5,4))
+        axs0[1].set_xticklabels(['parallel', 'cross', 'standard',
+                                 r'90$^{\circ}$ rotation'])
+        axs0[0].set_ylabel('% difference in\n temporal mean')
+        axs0[1].set_ylabel('% difference in\n temporal standard deviation')
+        axs0[1].set_xlabel('path choice')
 
         axs0[0].text(0.5, 1.1, 
                    'difference in buoyancy gradients\nbetween model and glider',

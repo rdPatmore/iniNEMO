@@ -59,8 +59,8 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
 
     def animate(i):
         print (i)
-        for j in range(2):
-            p[j].set_array(salt.isel(time_counter=i).stack(z=('x','y')))
+        #for j in range(2):
+            #p[j].set_array(salt.isel(time_counter=i).stack(z=('x','y')))
         pice.set_array(ice.isel(time_counter=i).stack(z=('x','y')))
         plt.suptitle(salt.time_counter[i].dt.strftime(
                       '%y-%m-%d %H:%M').values)

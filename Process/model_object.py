@@ -1084,7 +1084,7 @@ if __name__ == '__main__':
                                         shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
-        for ind in range(0,100):
+        for ind in range(47,100):
             m.ind = ind
             print ('ind: ', ind)
             # calculate perfect gradient crossings
