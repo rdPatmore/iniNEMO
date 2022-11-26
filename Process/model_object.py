@@ -376,7 +376,7 @@ class model(object):
         if load:
             # load shifted data
             data = xr.open_dataset(self.data_path + 
-                             'GliderRandomSampling/glider_uniform_interp_1000_'
+                             'GliderRandomSampling/glider_uniform_interp_1000_every_2_and_climb_'
                                  + str(self.ind).zfill(2) + '.nc')
             # get random shifts within nemo bounds
             self.lon_shift = data.attrs['lon_offset']
@@ -908,6 +908,33 @@ class model(object):
                             glider_sample.deptht < glider_sample.mld, drop=True)
         return glider_sample
 
+    def restrict_bg_norm_to_mld(self):
+        ''' 
+        bg_norm was not restricted to mld by mistake. This routine corrects
+        for this mistake.
+        '''
+
+        # loop over samples
+        for ind in range(3,100):
+            # load sample
+            kwargs = dict(clobber=True,mode='a')
+            g = xr.open_dataset(self.data_path + 
+                           'GliderRandomSampling/glider_uniform_'
+                           + self.save_append + '_' + str(ind).zfill(2) + '.nc',
+                           backend_kwargs=kwargs)
+
+            # bg_norm within mixed layer
+            print (g)
+            g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
+
+            # drop fill depth bg_norm
+            g = g.drop('bg_norm')
+
+            # save
+            g.to_netcdf(self.data_path + 'GliderRandomSampling/glider_uniform_'
+                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
+  
+
     def theta_and_salt_gradients_in_mld_from_interped_data(glider_sample):
         '''
         add theta gradients to uniformly interpolated sample set
@@ -1084,7 +1111,8 @@ if __name__ == '__main__':
                                         shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
-        for ind in range(47,100):
+        #for ind in range(87,100):
+        for ind in [0,2]:
             m.ind = ind
             print ('ind: ', ind)
             # calculate perfect gradient crossings
@@ -1168,6 +1196,25 @@ if __name__ == '__main__':
         m.interp_to_raw_obs_path()
         m.interp_raw_obs_path_to_uniform_grid(ind='')
     
+    def restrict_bg_norm_to_mld(remove=False, append='', interp_dist=1000,
+                                transects=False):
+        ''' 
+        Fix mistake made when adding bg_norm to glider samples.
+        Variable was taken over full depth rather than being restricted
+        to mld.
+        '''        
+
+        m = model('EXP10')
+
+        m.save_append = 'interp_' + str(interp_dist) + append
+        if remove:
+            m.save_append = m.save_append + '_' + remove
+        if transects:
+            m.save_append = m.save_append + '_pre_transect'
+
+        m.restrict_bg_norm_to_mld()
+
+    #restrict_bg_norm_to_mld()
     
     #print ('start')
     #m.get_conservative_temperature(save=True)

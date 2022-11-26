@@ -29,6 +29,7 @@ class bootstrap_glider_samples(object):
         self.root = config.root()
         self.case = case
         self.data_path = config.data_path() + self.case + '/'
+        self.var = var
 
         self.hist_range = (0,2e-8)
         def expand_sample_dim(ds):
@@ -532,7 +533,8 @@ class bootstrap_glider_samples(object):
             
         if save:
             hist_ds.to_netcdf(self.data_path + 
-                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_glider_' +
+                          '/SOCHIC_PATCH_3h_20121209_20130331_' + 
+                          self.var + '_glider_' +
                           str(n).zfill(2) + '_hist' + self.append + '.nc')
         return hist_ds
 
@@ -2246,9 +2248,17 @@ def plot_hist(by_time=None):
 
 
 def prep_hist(by_time=None, interp='1000'):
+    '''
+    Create files for histogram plotting. Takes output from model_object.
+
+    Select variable from model object files.
+    Expectation: - b_x_ml (along-track gradients) 
+                 - bg_norm (glider sample of model norm)
+    '''
+
     cases = ['EXP10']
     for case in cases:
-        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
+        m = bootstrap_glider_samples(case, var='bg_norm', load_samples=True,
                                      subset='', transect=False, interp=interp)
         if by_time:
              m.append =  m.append + '_' + by_time
@@ -2288,8 +2298,12 @@ def plot_quantify_delta_bg(subset=''):
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
 #plot_quantify_delta_bg()
 ##plot_quantify_delta_bg(subset='north')
-plot_quantify_delta_bg(subset='south')
 
+# -------- paper plot --------- #
+
+#plot_quantify_delta_bg(subset='south')
+
+# ----------------------------- #
 
 #bootstrap_plotting().plot_variance(['EXP13','EXP08','EXP10'])
 
@@ -2313,6 +2327,7 @@ plot_quantify_delta_bg(subset='south')
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')
+prep_hist(by_time='1W_rolling', interp='1000')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
