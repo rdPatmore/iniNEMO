@@ -131,8 +131,8 @@ class model(object):
 
             sample_set.append(sample.expand_dims('sample'))
         samples=xr.concat(sample_set, dim='sample')
-        #samples.to_netcdf(self.data_path + prep + 
-        #                  rotation_label.rstrip('_') + '.nc')
+        samples.to_netcdf(self.data_path + prep + 
+                          rotation_label.rstrip('_') + '.nc')
 
 
     def get_normed_buoyancy_gradients(self, load=True):
@@ -376,7 +376,7 @@ class model(object):
         if load:
             # load shifted data
             data = xr.open_dataset(self.data_path + 
-                             'GliderRandomSampling/glider_uniform_interp_1000_every_2_and_climb_'
+                             'GliderRandomSampling/glider_uniform_interp_1000_'
                                  + str(self.ind).zfill(2) + '.nc')
             # get random shifts within nemo bounds
             self.lon_shift = data.attrs['lon_offset']
@@ -915,7 +915,7 @@ class model(object):
         '''
 
         # loop over samples
-        for ind in range(3,100):
+        for ind in range(4,100):
             # load sample
             kwargs = dict(clobber=True,mode='a')
             g = xr.open_dataset(self.data_path + 
@@ -1128,7 +1128,7 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
-    glider_sampling('EXP10', interp_dist=1000, transects=False)
+    #glider_sampling('EXP10', interp_dist=1000, transects=False)
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)
@@ -1170,6 +1170,12 @@ if __name__ == '__main__':
         currently has a conditional statement for get_transects that is
         not used
         method relies on orignal data already containing transects
+
+        Transects required for spectra and geom. These plotting scripts have
+        in-built routines for adding transects. Better to add this here?
+
+        Combine is required for bootstrapping. Need to check if the calcs
+        include the mesoscale transect.
         '''
 
         m = model(case)
@@ -1184,9 +1190,9 @@ if __name__ == '__main__':
 
         m.save_interpolated_transects_to_one_file(n=100, rotation=None)
 
-    #combine_glider_samples('EXP10', remove=False,
-    #                       append='interp_1000_every_8', 
-    #                       interp_dist=1000, transects=False, rotate=False)
+    combine_glider_samples('EXP10',
+                           append='interp_1000', 
+                           interp_dist=1000, transects=False)
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)

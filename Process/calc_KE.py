@@ -2,7 +2,6 @@ import xarray as xr
 import config
 import matplotlib.pyplot as plt
 
-
 class KE(object):
 
     def __init__(self, case):
@@ -10,7 +9,8 @@ class KE(object):
         self.preamble = config.data_path() + case +  self.file_id
 
     def get_basic_vars(self):
-        kwargs = {'chunks':{'time_counter':1} ,'decode_cf':False} 
+        kwargs = {'chunks':{'time_counter':100} ,'decode_cf':False} 
+        #kwargs = {'chunks':'auto' ,'decode_cf':False} 
         self.u = xr.open_dataset(self.preamble + 'grid_U.nc', **kwargs).uo
         self.v = xr.open_dataset(self.preamble + 'grid_V.nc', **kwargs).vo
         self.w = xr.open_dataset(self.preamble + 'grid_W.nc', **kwargs).wo
@@ -85,6 +85,7 @@ class KE(object):
         self.vT = conform_z_coords(self.vT, z, 'depthv')
         self.wT = conform_z_coords(self.wT, z, 'depthw')
 
+        #self.uT.to_netcdf(self.preamble + 'uT.nc')
         # merge into dataset
         vels_T = xr.merge([self.uT, self.vT, self.wT])
        
@@ -97,14 +98,14 @@ class KE(object):
         # open T-pt velocities
         vels = xr.open_dataset(self.preamble + 'vels_Tpt.nc',
                                chunks={'time_counter':10})
-        vels = vels.reset_coords('depthw')
-        print (vels)
-        print (kjd)
 
         # open ice mask
         #icemsk = xr.open_dataset(self.preamble + 'icemod.nc', decode_cf=False,
         icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
                                  chunks={'time_counter':10} ).icepres
+        icemsk['time_counter'] = icemsk.time_instant
+        print (icemsk)
+        print (vels)
 
         # ice mask
         vel_ice = vels.where(icemsk > 0)
@@ -114,30 +115,35 @@ class KE(object):
         self.vel_bar_ice = vel_ice.mean(['x','y'])
         self.vel_bar_oce = vel_oce.mean(['x','y'])
 
+        # get primes
         self.vel_prime_ice = self.remove_edges(self.vel_bar_ice - vel_ice)
         self.vel_prime_oce = self.remove_edges(self.vel_bar_oce - vel_oce)
+
+        print (self.vel_prime_ice)
+        # get prime mean squared
+        self.vel_prime_ice_sqmean = (self.vel_prime_ice ** 2).mean(['x','y'])
+        self.vel_prime_oce_sqmean = (self.vel_prime_oce ** 2).mean(['x','y'])
 
     def calc_TKE(self, save=False):
         ''' get turbulent kinetic energy '''
     
         # TKE in ice covered region
-        self.TKE_ice = 0.5 * ( self.vel_prime_ice.uT ** 2 + 
-                               self.vel_prime_ice.vT ** 2 +
-                               self.vel_prime_ice.wT ** 2 ).load()
+        self.TKE_ice = 0.5 * ( self.vel_prime_ice_sqmean.uT + 
+                               self.vel_prime_ice_sqmean.vT +
+                               self.vel_prime_ice_sqmean.wT ).load()
         self.TKE_ice.name = 'TKE_ice'
 
         # TKE over open ocean
-        self.TKE_oce = 0.5 * ( self.vel_prime_oce.uT ** 2 + 
-                               self.vel_prime_oce.vT ** 2 +
-                               self.vel_prime_oce.wT ** 2 ).load()
+        self.TKE_oce = 0.5 * ( self.vel_prime_oce_sqmean.uT + 
+                               self.vel_prime_oce_sqmean.vT +
+                               self.vel_prime_oce_sqmean.wT ).load()
         self.TKE_ice.name = 'TKE_oce'
 
+        TKE = xr.merge([self.TKE_ice, self.TKE_oce])
     
         if save:
-            self.TKE_ice.to_netcdf(self.preamble + 'TKE_ice.nc')
-            self.TKE_oce.to_netcdf(self.preamble + 'TKE_oce.nc')
+            self.TKE_ice.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
 m = KE('EXP10')
-m.grid_to_T_pts(save=True)
-#m.calc_reynolds_terms()
-#m.calc_TKE(save=True)
+m.calc_reynolds_terms()
+m.calc_TKE(save=True)

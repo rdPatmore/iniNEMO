@@ -79,7 +79,7 @@ class bootstrap_glider_samples(object):
 
         # unify times
         self.samples['time_counter'] = self.samples.time_counter.isel(sample=0)
-
+    
         # get transects and remove 2 n-s excursions
         # this cannot currently deal with depth-distance data (1-d only)
         old=False
@@ -2258,7 +2258,7 @@ def prep_hist(by_time=None, interp='1000'):
 
     cases = ['EXP10']
     for case in cases:
-        m = bootstrap_glider_samples(case, var='bg_norm', load_samples=True,
+        m = bootstrap_glider_samples(case, var='bg_norm_ml', load_samples=True,
                                      subset='', transect=False, interp=interp)
         if by_time:
              m.append =  m.append + '_' + by_time
@@ -2327,7 +2327,10 @@ def plot_quantify_delta_bg(subset=''):
 #plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')
-prep_hist(by_time='1W_rolling', interp='1000')
+#prep_hist(by_time='1W_rolling', interp='1000')
+prep_hist(by_time='2W_rolling', interp='1000')
+prep_hist(by_time='3W_rolling', interp='1000')
+prep_hist(interp='1000')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
