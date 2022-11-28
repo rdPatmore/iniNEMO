@@ -12,9 +12,11 @@ class buoyancy_gradients(object):
     def __init__(self, case):
         self.case = case
         self.model = model_object.model(case)
-        self.model.ds = self.model.ds['grid_T']
-        self.model.ds['rho'] = xr.open_dataarray(config.data_path() + case + 
-                                               '/rho.nc')
+        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
+        self.preamble = config.data_path() + case + file_id
+        #self.model.ds = self.model.ds['grid_T']
+        #self.model.ds['rho'] = xr.open_dataarray(config.data_path() + case + 
+        #                                       '/rho.nc')
 
     def open_temp(self):
         ''' open t grid file '''
@@ -37,7 +39,10 @@ class buoyancy_gradients(object):
         self.ds = xr.merge([ct, abs_s, p])
 
     def mixed_layer_buoyancy_gradients(self):
-        ''' calculate mixed layer buoyancy gradient '''
+        '''
+        calculate mixed layer buoyancy gradient 
+            - Note superior calc in calc_richardson.py
+        '''
 
         # restrict data to mixed layer
         self.model.ds = self.model.ds.where(
@@ -78,6 +83,75 @@ class buoyancy_gradients(object):
                        buoyancy_gradient_y.isel(x=slice(1,None))])
         bg.to_netcdf(config.data_path() + self.case + 
                     '/buoyancy_gradients.nc')
+
+    def get_mixed_layer_buoyancy_gradient(self):
+        '''
+        load bg_norm2 created in calc_richardson.py and restrict to mixed layer
+        '''
+
+        # load bg
+        kwargs = {'chunks':{'time_counter':10} ,'decode_cf':True} 
+        bg_mod2 = xr.open_dataset(self.preamble + 'bg_mod2.nc', **kwargs)
+        bg_mod2 = bg_mod2.set_coords(['nav_lon','nav_lat']).bg_mod2
+
+        # load mld
+        mld = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs
+                                   ).mldr10_3
+        mld = mld.isel(x=slice(2,-2), y=slice(2,-2))
+
+        # mask below mixed layer
+        bg_mod2 = bg_mod2.where(bg_mod2.deptht < mld)
+
+        return bg_mod2 ** 0.5
+        
+
+    def split_bg_into_ice_oce_zones(self, save=False):
+        '''
+        split buoyancy gradients into two variables
+            - ice area
+            - ocean area
+        '''
+
+        # load buoyancy gradients 
+        bg_norm = self.get_mixed_layer_buoyancy_gradient()
+
+        # load ice presence
+        icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
+                            chunks={'time_counter':10}, decode_cf=True).icepres
+        #icemsk['time_counter'] = icemsk.time_instant
+        icemsk = icemsk.isel(x=slice(2,-2), y=slice(2,-2))
+
+        print (icemsk.time_counter)
+        print (bg_norm.time_counter)
+
+        # ice mask
+        bg_norm_ice = bg_norm.where(icemsk > 0)
+        bg_norm_oce = bg_norm.where(icemsk == 0)
+        print (bg_norm_ice)
+        bg_norm_ice.name = 'bg_norm_ice'
+        bg_norm_oce.name = 'bg_norm_oce'
+
+        # merge partitions
+        self.bg_norm_partition = xr.merge([bg_norm_ice, bg_norm_oce])
+
+        # save
+        if save:
+            self.bg_norm_partition.to_netcdf(
+                                           self.preamble + 'bg_norm_ice_oce.nc')
+
+    def get_zoned_quantiles(self):
+        ''' get quantiles for spatially partitioned variables '''
+
+        # restrict size
+        self.bg_norm_partition = self.bg_norm_partition.isel(
+                       x=slice(43,-43),y=slice(43,-43))
+
+        quantiles = [0.02, 0.05, 0.2, 0.5, 0.8, 0.95, 0.98]
+        dims = ['deptht','x','y']
+        quant = self.bg_norm_partition.quantile(quantiles, dims).load()
+        
+        quant.to_netcdf(self.preamble + 'bg_norm_ice_oce_quantile.nc')
+        
 
     def buoyancy_gradient_glider_path(self):
         #import dask
@@ -145,8 +219,9 @@ class buoyancy_gradients(object):
         bg_stats.to_netcdf(config.data_path() + self.case + 
                            '/buoyancy_gradient_stats.nc')
 
-bg = buoyancy_gradients('EXP02')
-bg.buoyancy_gradient_glider_path()
+bg = buoyancy_gradients('EXP10')
+bg.split_bg_into_ice_oce_zones()
+bg.get_zoned_quantiles()
 #bg.mixed_layer_buoyancy_gradients()
 #bg.buoyancy_gradient_stats()
 #bg.open_temp()

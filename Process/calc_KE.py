@@ -48,7 +48,7 @@ class KE(object):
     def remove_edges(self, ds):
         ''' remove rim '''
         
-        ds = ds.isel(x=slice(10,-10), y=slice(10,-10))
+        ds = ds.isel(x=slice(45,-45), y=slice(45,-45))
         return ds
 
     def grid_to_T_pts(self, save=False):
@@ -104,8 +104,6 @@ class KE(object):
         icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
                                  chunks={'time_counter':10} ).icepres
         icemsk['time_counter'] = icemsk.time_instant
-        print (icemsk)
-        print (vels)
 
         # ice mask
         vel_ice = vels.where(icemsk > 0)
@@ -137,12 +135,12 @@ class KE(object):
         self.TKE_oce = 0.5 * ( self.vel_prime_oce_sqmean.uT + 
                                self.vel_prime_oce_sqmean.vT +
                                self.vel_prime_oce_sqmean.wT ).load()
-        self.TKE_ice.name = 'TKE_oce'
+        self.TKE_oce.name = 'TKE_oce'
 
         TKE = xr.merge([self.TKE_ice, self.TKE_oce])
     
         if save:
-            self.TKE_ice.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
+            TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
 m = KE('EXP10')
 m.calc_reynolds_terms()

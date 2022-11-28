@@ -45,7 +45,7 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
     #              vmin=0, vmax=1, origin='lower',
     #              aspect='equal', animated=True, cmap=cmocean.cm.ice)
     pice = axs[0].pcolor(ice.nav_lon, ice.nav_lat,
-                 ice.isel(time_counter=0),
+                 ice.isel(time_counter=300),
                   vmin=0, vmax=1,
                   cmap=cmocean.cm.ice, shading='nearest', zorder=10)
 
@@ -59,11 +59,17 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
 
     def animate(i):
         print (i)
-        #for j in range(2):
-            #p[j].set_array(salt.isel(time_counter=i).stack(z=('x','y')))
-        pice.set_array(ice.isel(time_counter=i).stack(z=('x','y')))
+        for j in range(2):
+            p[j].set_array(salt.isel(time_counter=i).stack(z=('x','y')))
+        ice_i = ice.isel(time_counter=i).stack(z=('x','y'))
+        pice.set_array(ice_i)
+        #pice = axs[0].pcolor(ice.nav_lon, ice.nav_lat,
+        #         ice.isel(time_counter=i),
+        #          vmin=0, vmax=1,
+        #          cmap=cmocean.cm.ice, shading='nearest', zorder=10)
         plt.suptitle(salt.time_counter[i].dt.strftime(
                       '%y-%m-%d %H:%M').values)
+        return pice
         #return p[0],p[1],pice
     
  
@@ -89,7 +95,7 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
 
     frames = int((len(salt.coords['time_counter']) - 1) )
     print (frames)
-    #frames = 3
+    #frames = 100
     line_ani = animation.FuncAnimation(fig, animate,frames=frames, blit=False)
     fname = 'surface_salt_and_ice_' + outfreq + '.mp4'
     line_ani.save(fname, writer=writer, dpi=300)
