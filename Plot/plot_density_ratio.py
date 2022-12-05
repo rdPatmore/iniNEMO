@@ -470,6 +470,19 @@ class plot_buoyancy_ratio(object):
 
         return Tu_compen, Tu_constr, Tu_sal, Tu_tem
 
+    def get_sea_ice_presence_stats(self):
+        ''' load sea ice and subset '''
+
+        # load ice
+        self.si = xr.open_dataset(self.f_path + 'icemod.nc').icepres
+
+        # subset
+        if self.subset:
+            self.si = self.subset_n_s(self.si, loc=self.subset)
+
+        self.si = self.get_stats(self.si)
+
+
     def plot_density_ratio(self):
         '''
         plot - buoyancy gradient
@@ -665,8 +678,6 @@ class plot_buoyancy_ratio(object):
          a) 1 x 2
          a) 4 x 1
         '''
-
-
         
         fig = plt.figure(figsize=(5.5, 6.5), dpi=300)
 
@@ -881,25 +892,27 @@ class plot_buoyancy_ratio(object):
         plt.savefig('density_ratio_snapshot_dec.png', dpi=600)
 
 
-# this needs to be run in two rounds, saving intermediate files: 1st/2nd round
-def prep_data():
-    for subset in [None, 'north', 'south']:
-        m = plot_buoyancy_ratio('EXP10', subset=subset)
-        m.load_basics()
-#        m.get_grad_T_and_S(save=True)  # first round
-    #    m.load_surface_fluxes()
-    #    m.get_bg_and_surface_flux_stats(save=True)
-        m.get_grad_T_and_S(load=True)
-        m.get_density_ratio(save=True)
-        #m.get_T_S_bg_stats(save=True) # second round
-#prep_data()
-
-def plot():
-    m = plot_buoyancy_ratio('EXP10')
-    #m.plot_density_ratio_slice()
-    m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
-
-#m = plot_buoyancy_ratio('EXP10')
-#m.load_basics()
-#m.get_grad_T_and_S()
-plot()
+if __name__ == '__main__':
+    # this needs to be run in two rounds, saving intermediate files:
+    #                           - 1st/2nd round
+    def prep_data():
+        for subset in [None, 'north', 'south']:
+            m = plot_buoyancy_ratio('EXP10', subset=subset)
+            m.load_basics()
+    #        m.get_grad_T_and_S(save=True)  # first round
+        #    m.load_surface_fluxes()
+        #    m.get_bg_and_surface_flux_stats(save=True)
+            m.get_grad_T_and_S(load=True)
+            m.get_density_ratio(save=True)
+            #m.get_T_S_bg_stats(save=True) # second round
+    #prep_data()
+    
+    def plot():
+        m = plot_buoyancy_ratio('EXP10')
+        #m.plot_density_ratio_slice()
+        m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
+    
+    #m = plot_buoyancy_ratio('EXP10')
+    #m.load_basics()
+    #m.get_grad_T_and_S()
+    plot()
