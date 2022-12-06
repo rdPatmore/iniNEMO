@@ -11,7 +11,7 @@ import cartopy.crs as ccrs
 import iniNEMO.Plot.plot_density_ratio as dr
 
 matplotlib.rcParams.update({'font.size': 8})
-print (matplotlib.__version__)
+
 class paper_hydrog(object):
 
     def __init__(self, case, subset=None, giddy_method=False):
@@ -115,8 +115,8 @@ class paper_hydrog(object):
         # move z axis to the left
         tmp_planes = axs.zaxis._PLANES
         axs.zaxis._PLANES = ( tmp_planes[2], tmp_planes[3],
-                                  tmp_planes[0], tmp_planes[1],
-                                  tmp_planes[4], tmp_planes[5])
+                              tmp_planes[0], tmp_planes[1],
+                              tmp_planes[4], tmp_planes[5])
 
         # set axis labels
         axs.set_xlabel('Longitude' , fontsize=8)
@@ -149,28 +149,37 @@ class paper_hydrog(object):
         #cbar.set_ticks([-0.04,-0.02,0, 0.02, 0.04])
 
         # add subset lines
-        #x0 = Ro.nav_lon.min()  - 0.5
-        #x1 = Ro.nav_lon.min()  - 1.5
-        #y = [Ro.nav_lat.min(), Ro.nav_lat.max()]
-        #y_mid = np.mean(y)
-        #d = dep[0]
-        #axs.plot([x0, x0], [y[0], y[1]],
-        #         [d,  d ], color=self.colours[0], zorder=10)
-        #axs.plot([x1, x1], [y_mid, y[1]],
-        #         [d,  d ], color=self.colours[1], zorder=10)
-        #axs.plot([x1, x1], [y[0], y_mid],
-        #         [d,  d ], color=self.colours[2], zorder=10)
-        #axs.text(x0, y[0], d, 'full', 'y', transform=axs.transData,
-        #             va='bottom', ha='center', color=self.colours[0])
-        #axs.text(x1, y[0], d, 'south', 'y', transform=axs.transData,
-        #             va='bottom', ha='center', color=self.colours[1], zorder=11)
-        #axs.text(x1, y_mid, d, 'north', 'y', transform=axs.transData,
-        #             va='bottom', ha='center', color=self.colours[2])
+        x0 = Ro.nav_lon.min()  - 0.5
+        x1 = Ro.nav_lon.min()  - 1.5
+        y = [Ro.nav_lat.min(), Ro.nav_lat.max()]
+        y_mid = np.mean(y)
+        d = dep[0]
+
+        # add subest lines 
+        p0, = axs.plot([x0, x0], [y[0], y[1]],
+                 [d,  d ], color=self.colours[0])
+        p1, = axs.plot([x1, x1], [y_mid+0.20, y[1]],
+                 [d,  d ], color=self.colours[1])
+        p2, = axs.plot([x1, x1], [y[0], y_mid-0.20],
+                 [d,  d ], color=self.colours[2])
+
+        # add text for subset lines
+        axs.text(x0, y[0], d, 'full', 'y', transform=axs.transData,
+                 va='bottom', ha='center', color=self.colours[0])
+        axs.text(x1, y[0], d, 'south', 'y', transform=axs.transData,
+                     va='bottom', ha='center', color=self.colours[2])
+        axs.text(x1, y_mid, d, 'north', 'y', transform=axs.transData,
+                     va='bottom', ha='center', color=self.colours[1])
+
+        # allow lines outside of canvas
+        p0.set_clip_on(False)
+        p1.set_clip_on(False)
+        p2.set_clip_on(False)
 
         plt.text(0.43, 0.20, 'Maud Rise', transform=axs.transAxes,
                      va='center', ha='left', rotation=-30, fontsize=6)
 
-        plt.text(0.0, 0.85, '(a)', transform=axs.transAxes,
+        plt.text(-0.05, 0.85, '(a)', transform=axs.transAxes,
                  va='top', ha='left', fontsize=8)
 
     def render_timeseries(self, axs):
@@ -285,8 +294,8 @@ class paper_hydrog(object):
 
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=1, nrows=3)
-        gs0.update(top=1.05, bottom=0.60, left=0.00, right=0.78, wspace=0.05)
-        gs1.update(top=0.55, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
+        gs0.update(top=1.03, bottom=0.58, left=0.00, right=0.78, wspace=0.05)
+        gs1.update(top=0.53, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
 
         axs0, axs1 = [], []
         axs0 = fig.add_subplot(gs0[0], projection='3d')

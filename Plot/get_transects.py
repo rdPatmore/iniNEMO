@@ -56,8 +56,11 @@ def remove_meso(da, rotation=None):
         # idxmin drops all coordinates...
         # this works when transect is a coordinate rather than a variable
         # it also cannot deal with chunks... 
-        da = da.where(da.transect != da.lat.idxmin(skipna=True).transect,
-                      drop=True)
+        if 'ctd_depth' in da.dims:
+            idxmin = da.lat.idxmin(skipna=True, dim='distance').transect
+        else:
+            idxmin = da.lat.idxmin(skipna=True).transect
+        da = da.where(da.transect != idxmin, drop=True)
         # transect_south = da.isel(distance=da.lat.argmin(skipna=True).values)
         # da = da.where(da.transect != transect_south, drop=True)
 
@@ -126,7 +129,8 @@ def get_transects(da, concat_dim='distance', method='cycle',
                 test = (dp.orig_lon < -0.173)
             elif a == 3:
                 test = (dp.orig_lat > -59.93)
-            if test: 
+            print (test)
+            if test.any(): 
                 start = False
                 idx.append(i)
                 a = next(crit_iter)
@@ -207,14 +211,19 @@ def get_transects(da, concat_dim='distance', method='cycle',
     if cut_meso:
         da = remove_meso(da)
 
-    # name mesoscale transects
-    # 1 for bow tie, 0 for n-s transects
-    meso = xr.where(da.transect>1, 1, 0) # get 1st transect
-    lat_nan_t0 = da.lat.where(meso) # temp arr with 1st path removed
-    # get second 
-    meso = xr.where(da.transect != lat_nan_t0.idxmin(skipna=True).transect,
-                    meso, 0)
-    da = da.assign_coords({'meso_transect': meso})
+    else:
+        # name mesoscale transects
+        # 1 for bow tie, 0 for n-s transects
+        meso = xr.where(da.transect>1, 1, 0) # get 1st transect
+        lat_nan_t0 = da.lat.where(meso) # temp arr with 1st path removed
+        # get second 
+        if 'ctd_depth' in da.dims:
+            idxmin = lat_nan_t0.idxmin(skipna=True, dim='distance').transect
+        else:
+            idxmin = lat_nan_t0.idxmin(skipna=True).transect
+
+        meso = xr.where(da.transect != idxmin, meso, 0)
+        da = da.assign_coords({'meso_transect': meso})
 
     # re-rotate
     if rotation:
