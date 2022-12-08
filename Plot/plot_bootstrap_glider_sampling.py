@@ -417,15 +417,15 @@ class bootstrap_glider_samples(object):
 
         model_hist = self.get_full_model_hist(subset='')
 
-        print (' ')
-        print (model_hist)
-        print (' ')
-        print (glider_hist)
-        print (' ')
-        print (lsdkfjh)
+        # rmse :: pred - truth / truth
+        frac_diff = (glider_hist - model_hist.hist_norm) / model_hist.hist_norm
+        rmsep_diff = np.abs(frac_diff) * 100
         
-        hist_mean = hist_array.mean('sets')
-        hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
+        # get stats
+        hist_mean = rmsep_diff.mean('sets')
+        hist_u_quant = rmsep_diff.quantile([0.1,0.9],'sets')
+        hist_l_quant, hist_u_quant = rmsep_diff.quantile([0.1,0.9],'sets')
+
         return hist_mean, hist_l_quant, hist_u_quant
 
 
@@ -461,10 +461,14 @@ class bootstrap_glider_samples(object):
             # calculate spread across histogram set
             hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(
                                                                     hists, bins)
+
             bin_centers = (bins[:-1] + bins[1:]) / 2
             hist_ds = xr.Dataset({'hist_mean':(['bin_centers'], hist_mean),
                                   'hist_l_dec':(['bin_centers'], hist_l_quant),
                                   'hist_u_dec':(['bin_centers'], hist_u_quant),
+                                  'rmse_mean':(['bin_centers'], rmse_mean),
+                                  'rmse_l_dec':(['bin_centers'], rmse_l_quant),
+                                  'rmse_u_dec':(['bin_centers'], rmse_u_quant),
                                   'sample_size':(sample_size)},
                                       coords={
                                   'bin_centers': (['bin_centers'], bin_centers),
@@ -2502,7 +2506,7 @@ def plot_quantify_delta_bg(subset=''):
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-plot_hist(by_time='1W_rolling')
+#plot_hist(by_time='1W_rolling')
 #plot_hist(by_time='2W_rolling')
 #plot_hist(by_time='3W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
