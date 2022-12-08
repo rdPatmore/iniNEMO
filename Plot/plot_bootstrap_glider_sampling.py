@@ -131,8 +131,10 @@ class bootstrap_glider_samples(object):
         if ml:
             bg = bg.where(bg.deptht < mld)
         
-         
-        clean_float_time = self.samples.time_counter
+        # for some reason this needs to be replicated from __init__ 
+        float_time = self.samples.time_counter.astype('float64')
+        clean_float_time = float_time.where(float_time > 0, np.nan)
+        print (clean_float_time.min())
         start = clean_float_time.min().astype('datetime64[ns]')
         end   = clean_float_time.max().astype('datetime64[ns]')
 
@@ -407,6 +409,25 @@ class bootstrap_glider_samples(object):
         hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
         return hist_mean, hist_l_quant, hist_u_quant
 
+    def get_rmse_stats(self, hist_set, bins):    
+        ''' get mean, lower and upper deciles of group of histograms '''
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+        glider_hist = xr.DataArray(hist_set, dims=('sets', 'bin_centers'), 
+                                  coords={'bin_centers': bin_centers})
+
+        model_hist = self.get_full_model_hist(subset='')
+
+        print (' ')
+        print (model_hist)
+        print (' ')
+        print (glider_hist)
+        print (' ')
+        print (lsdkfjh)
+        
+        hist_mean = hist_array.mean('sets')
+        hist_l_quant, hist_u_quant = hist_array.quantile([0.1,0.9],'sets')
+        return hist_mean, hist_l_quant, hist_u_quant
+
 
     def get_glider_sampled_hist(self, n=1, save=False, by_time=None):
         '''
@@ -433,6 +454,10 @@ class bootstrap_glider_samples(object):
                 #                    range=(1e-9,5e-8), density=True)
                 hists.append(hist)
             
+            # calculate rmse across histogram set
+            rmse_mean, rmse_l_quant, rmse_u_quant = self.get_rmse_stats(
+                                                                    hists, bins)
+
             # calculate spread across histogram set
             hist_mean, hist_l_quant, hist_u_quant = self.get_hist_stats(
                                                                     hists, bins)
@@ -2483,7 +2508,7 @@ plot_hist(by_time='1W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
 #prep_hist(by_time='2W_rolling', interp='1000')
 #prep_hist(by_time='3W_rolling', interp='1000')
-#prep_hist(interp='1000')
+prep_hist(interp='1000')
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()

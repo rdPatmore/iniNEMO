@@ -45,7 +45,7 @@ def get_sampled_path(model, append, post_transect=True, rotation=None,
 
 def remove_meso(da, rotation=None):
         ''' removes the mesoscale north-south transects '''
-
+        
         # some paths are saved rotated
         if rotation: # shift back to unrotated
             da = rotate_path(da, -rotation)
@@ -83,7 +83,6 @@ def get_transects(da, concat_dim='distance', method='cycle',
                W
     cut meso: remove long north-south transects
     '''
-    print ('i')
 
     skip=False # skip transect finding due to copy from existing array
     # some paths are saved rotated
@@ -129,8 +128,7 @@ def get_transects(da, concat_dim='distance', method='cycle',
                 test = (dp.orig_lon < -0.173)
             elif a == 3:
                 test = (dp.orig_lat > -59.93)
-            print (test)
-            if test.any(): 
+            if test: 
                 start = False
                 idx.append(i)
                 a = next(crit_iter)
@@ -205,6 +203,7 @@ def get_transects(da, concat_dim='distance', method='cycle',
         for i in pop_list:
             da.pop(i)
         da = xr.concat(da, dim=concat_dim)
+    
 
     # remove initial and mid-path mesoscale excursions
     # defunct due to next naming lines
