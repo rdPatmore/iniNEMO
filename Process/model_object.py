@@ -1111,8 +1111,7 @@ if __name__ == '__main__':
                                         shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
-        #for ind in range(87,100):
-        for ind in [0,2]:
+        for ind in range(100):
             m.ind = ind
             print ('ind: ', ind)
             # calculate perfect gradient crossings
@@ -1149,10 +1148,10 @@ if __name__ == '__main__':
     #                interp_dist=1000, transects=False)
 
     # not done
-#    glider_sampling('EXP10', remove='every_4_and_climb',
-#                    interp_dist=1000, transects=False)
-#    glider_sampling('EXP10', remove='every_8_and_climb',
-#                    interp_dist=1000, transects=False)
+    glider_sampling('EXP10', remove='every_4_and_climb',
+                    interp_dist=1000, transects=False)
+    glider_sampling('EXP10', remove='every_8_and_climb',
+                    interp_dist=1000, transects=False)
 
     #glider_sampling('EXP10', remove='every_3',
     #                interp_dist=1000, transects=False)
@@ -1190,9 +1189,9 @@ if __name__ == '__main__':
 
         m.save_interpolated_transects_to_one_file(n=100, rotation=None)
 
-    combine_glider_samples('EXP10',
-                           append='interp_1000', 
-                           interp_dist=1000, transects=False)
+#    combine_glider_samples('EXP10',
+#                           append='interp_1000', 
+#                           interp_dist=1000, transects=False)
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)

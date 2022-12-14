@@ -10,7 +10,7 @@
 #SBATCH --output=myout_08.txt #(default is ~/slurm-<job ID>.out)
  
 # time limit and memory allocation 
-#SBATCH --time=0-12:00:00 #(2 days and 0 hours, default is 24 hours) 
+#SBATCH --time=0-24:00:00 #(2 days and 0 hours, default is 24 hours) 
 #SBATCH --mem=64GB #(8 GB, default is 1G)
  
 #again, these are the defaults anyway

@@ -1330,10 +1330,7 @@ class bootstrap_glider_samples(object):
     def collect_hists(self, var):
         ''' group histogram files into one '''
 
-        if var == 'b_x_ml':
-            var_str = 'bg_glider_'
-        if var == 'bg_norm_ml':
-            var_str = var + '_glider_'
+        var_str = var + '_glider_'
 
         preamble = self.data_path + '/SOCHIC_PATCH_3h_20121209_20130331_'
 
@@ -1341,7 +1338,7 @@ class bootstrap_glider_samples(object):
         for n in range(1,31):
             # entier glider time series
             g_all = xr.open_dataset(preamble + var_str + str(n).zfill(2) + 
-                                   '_hist.nc')
+                                   '_hist_interp_1000.nc')
             roll_coord = xr.DataArray(['full_time'], dims='rolling')
             quant_coord = xr.DataArray([n], dims='glider_quantity')
             g_all = g_all.assign_coords({'rolling':         roll_coord,
@@ -1354,7 +1351,7 @@ class bootstrap_glider_samples(object):
             # weekly glider time series
                 try:
                     g = xr.open_dataset(preamble + var_str + str(n).zfill(2) +
-                                    '_hist_' + roll_freq + '_interp_1000.nc')
+                                    '_hist_interp_1000_' + roll_freq + '.nc')
                 except:
                     g = xr.open_dataset(preamble + var_str + str(n).zfill(2) +
                                     '_hist_' + roll_freq + '.nc')
@@ -1934,6 +1931,207 @@ class bootstrap_plotting(object):
 
         plt.savefig(case + '_bg_sampling_skill_time_mean_multi_var_' +
                      self.append + norm_str + interp_str + '.png', dpi=600)
+    
+    def plot_histogram_bg_rmse_averaged_weekly_samples_multi_var(self, case):
+        '''
+        Plot percentage error of bg histograms ~~ glider versus model ~~.
+   
+        3 x 2 plot
+        - Top row is line plots of percentage error against bg grad
+          for different glider numbers, with diff_bg_norm and diff_b_x
+        - Bottom row is mean across bg of the above percentage error
+        Across rows changes samplign length from 1 week up to the 
+        full 3.5 months.
+        '''
+
+        # data paths
+        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
+        self.path = self.data_path + case 
+        self.preamble = self.path + file_id
+
+        ## initialise plot
+        #fig, axs = plt.subplots(2,5, figsize=(6.5,4))
+        #plt.subplots_adjust()
+
+        # initialised figure
+        fig = plt.figure(figsize=(5.5, 6.0))
+        gs0 = gridspec.GridSpec(ncols=4, nrows=2)
+        gs1 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs0.update(top=0.95, bottom=0.57, left=0.12, right=0.98, hspace=0.1,
+                   wspace=0.1)
+        gs1.update(top=0.39, bottom=0.08, left=0.12, right=0.98, wspace=0.1)
+
+        axs0, axs1 = [], []
+        for i in range(8):
+            axs0.append(fig.add_subplot(gs0[i]))
+        for i in range(2):
+            axs1.append(fig.add_subplot(gs1[i]))
+
+        # get data
+        b_x_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_b_x_ml.nc')
+        bg_norm_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_bg_norm_ml.nc')
+        b_x_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_b_x_ml.nc')
+        bg_norm_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_bg_norm_ml.nc')
+        print (bg_norm_full.bin_centers)
+
+        # plot rmse across bg
+        nums = [1,4,20]
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
+        p = []
+        for i, num in enumerate(nums):
+            b_x = b_x_full.sel(glider_quantity=num)
+            l = axs0[3].bar(b_x.bin_left, 
+                        b_x.rmse_mean, 
+                        color=colours[i],
+                        width=b_x.bin_right - b_x.bin_left,
+                        align='edge')
+
+            bg_norm = bg_norm_full.sel(glider_quantity=num)
+            axs0[7].bar(bg_norm.bin_left, 
+                        bg_norm.rmse_mean, 
+                        color=colours[i],
+                        width=bg_norm.bin_right - bg_norm.bin_left,
+                        align='edge')
+                        #label='gliders: ' + str(n))
+            p.append(l)
+
+            for j, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
+                b_x = b_x_roll.sel(glider_quantity=num, rolling=roll)
+                b_x = b_x.mean('time_counter')
+                axs0[j].bar(b_x.bin_left, 
+                             b_x.rmse_mean, 
+                             color=colours[i],
+                             width=b_x.bin_right - b_x.bin_left,
+                             align='edge')
+
+                bg_norm = bg_norm_roll.sel(glider_quantity=num, rolling=roll)
+                bg_norm = bg_norm.mean('time_counter')
+                axs0[j+4].bar(bg_norm.bin_left, 
+                             bg_norm.rmse_mean, 
+                             color=colours[i],
+                             width=bg_norm.bin_right - bg_norm.bin_left,
+                             align='edge')
+
+        fig.legend(p, ['1 Glider', '4 Gliders', '20 Gliders'],
+                       loc='lower center', bbox_to_anchor=(0.555, 0.95), 
+                       ncol=4, fontsize=8)
+
+        # ~~~ plot rmse across glider number ~~~ #
+
+        c1 = '#f18b00'
+        colours=[c1, 'purple', 'green' 'navy']#,'turquoise']
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
+        c0 = '#7e9aa5'
+        #c0 = '#dad1d1'
+        c= ['lightgrey', 'grey', 'black', c1]
+        #c = ['#dad1d1', '#7e9aa5', '#55475a', c1]
+        #c=[c1, 'purple', 'green', 'navy']#,'turquoise']
+        #cg_0='grey'
+        #cg_1='black'
+        #cg_2='lightgrey'
+
+        b_x_f_mean = b_x_full.mean('bin_centers')
+        bg_norm_f_mean = bg_norm_full.mean('bin_centers')
+        b_x_r_mean = b_x_roll.mean(['bin_centers','time_counter'])
+        bg_norm_r_mean = bg_norm_roll.mean(['bin_centers','time_counter'])
+
+        # cut small bg magnitudes
+        b_x_full_cut = b_x_full.isel(bin_centers=slice(3,None))
+        b_x_roll_cut = b_x_roll.isel(bin_centers=slice(3,None))
+        b_x_f_mean_cut = b_x_full_cut.mean('bin_centers')
+        b_x_r_mean_cut = b_x_roll_cut.mean(['bin_centers','time_counter'])
+
+        bg_norm_full_cut = bg_norm_full.isel(bin_centers=slice(3,None))
+        bg_norm_roll_cut = bg_norm_roll.isel(bin_centers=slice(3,None))
+        bg_norm_f_mean_cut = bg_norm_full_cut.mean('bin_centers')
+        bg_norm_r_mean_cut=bg_norm_roll_cut.mean(['bin_centers','time_counter'])
+
+        p0, = axs1[0].plot(b_x_f_mean.glider_quantity, b_x_f_mean.rmse_mean,
+                     c=c[3], lw=1.5, zorder=10)
+        p1, = axs1[0].plot(b_x_f_mean_cut.glider_quantity,
+                     b_x_f_mean_cut.rmse_mean,
+                     c=c[3], ls='--', lw=1.5)
+        axs1[1].plot(bg_norm_f_mean.glider_quantity, bg_norm_f_mean.rmse_mean,
+                     c=c[3], lw=1.5)
+
+        p = []
+        for i, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
+            b_x_mean = b_x_r_mean.sel(rolling=roll)
+            b_x_mean_cut = b_x_r_mean_cut.sel(rolling=roll)
+            bg_norm_mean = bg_norm_r_mean.sel(rolling=roll)
+            bg_norm_mean_cut = bg_norm_r_mean_cut.sel(rolling=roll)
+            l, = axs1[0].plot(b_x_mean.glider_quantity, b_x_mean.rmse_mean, 
+                         c=c[i], lw=1.5)
+            axs1[1].plot(bg_norm_mean.glider_quantity, bg_norm_mean.rmse_mean,
+                         c=c[i], lw=1.5)
+            p.append(l)
+            #ax.text(0.9,0.9,roll,transform=ax.transAxes)
+
+        p = p + [p0]# + [p1]
+        #labs = ['1-Week', '2-Week', '3-Week', '3.5-Month', '3.5-Month '+ thresh]
+        labs = ['1-Week', '2-Week', '3-Week', '3.5-Month', '3.5-Month']
+        fig.legend(p, labs, loc='lower center', title='Deployment',
+                       title_fontsize=8,
+                       bbox_to_anchor=(0.555, 0.39), ncol=4, fontsize=8)
+
+        for ax in axs0:
+            ax.set_ylim(0,160)
+            ax.xaxis.get_offset_text().set_visible(False)
+            ax.set_xlim(self.hist_range[0], self.hist_range[1])
+        for ax in axs0[:4]:
+            ax.set_xticklabels([])
+        for ax in axs0[1:4] + axs0[5:] + [axs1[1]]:
+            ax.set_yticklabels([])
+        for ax in axs1:
+            ax.set_ylim(0,120)
+
+        for ax in axs1:
+            ax.set_xlim(1,30)
+            ax.set_xlabel('Number of Gliders')
+            ax.set_xticks([1,5,10,15,20,25,30])
+
+        l0 = r'$|\nabla b|$'
+        l1 = r'($\times 10^{-8}$ s$^{-1}$)'
+        axs0[4].set_xlabel(l0 + ' 1-Week\n' + l1)
+        axs0[5].set_xlabel(l0 + ' 2-Week\n' + l1)
+        axs0[6].set_xlabel(l0 + ' 3-Week\n' + l1)
+        axs0[7].set_xlabel(l0 + ' 3.5-Month\n' + l1)
+
+        l2 = ' RMSE (%)'
+        axs0[0].set_ylabel('Along-Track\nSampled' + l2)
+        axs0[4].set_ylabel('Across-Front\nSampled'+ l2)
+
+        l2 = ' RMSE (%)'
+        axs0[0].set_ylabel('Along-Track\nSampled' + l2)
+        axs0[4].set_ylabel('Across-Front\nSampled'+ l2)
+       
+        axs1[0].set_ylabel('Mean RMSE (%)')
+
+        axs1[0].text(0.98, 0.96, 'Along-Track', va='top', ha='right',
+                    transform=axs1[0].transAxes)
+        axs1[1].text(0.98, 0.96, 'Across-Front', va='top', ha='right',
+                    transform=axs1[1].transAxes)
+
+        thresh = r'$|\nabla b|> 4 \times 10^{-9}$ s$^{-1}$'
+        axs1[0].text(29.5, 32, thresh, va='bottom', ha='right',
+                    transform=axs1[0].transData, c=c[3], fontsize=6)
+        # letters
+        letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)']
+        for i, ax in enumerate(axs0):
+            ax.text(0.95, 0.95, letters[i], transform=ax.transAxes, va='top',
+                    ha='right')
+
+        letters = ['(i)', '(j)']
+        for i, ax in enumerate(axs1):
+            ax.text(0.03, 0.96, letters[i], transform=ax.transAxes, va='top',
+                    ha='left')
+
+
+        plt.savefig('paper_hist_rmse.png', dpi=1200)
 
     def get_ensembles(self, case, by_time):
         '''
@@ -2415,11 +2613,11 @@ def plot_hist(by_time=None):
         #boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
         #boot.plot_histogram_bg_pdf_averaged_weekly_samples('EXP10',
         #                                                          var='b_x_ml')
-        boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
+        #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
     
     else:
-        for case in cases:
-            print ('case: ', case)
+        boot = bootstrap_plotting()
+        boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
             #m.plot_histogram_buoyancy_gradients_and_samples()
@@ -2428,7 +2626,9 @@ def plot_hist(by_time=None):
 def collect_hists():
     m = bootstrap_glider_samples('EXP10')
     m.collect_hists('b_x_ml')
+    m.collect_hists('bg_norm_ml')
 
+#collect_hists()
 def prep_hist(by_time=None, interp='1000'):
     '''
     Create files for histogram plotting. Takes output from model_object.
@@ -2439,16 +2639,18 @@ def prep_hist(by_time=None, interp='1000'):
     '''
 
     cases = ['EXP10']
-    for case in cases:
-        m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=True,
-                                     subset='', transect=False, interp=interp)
-        if by_time:
-             m.append =  m.append + '_' + by_time
-        #m.get_full_model_hist(save=True, by_time=by_time)
-        #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
-        for n in range(1,31):
-            print (n)
-            m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
+    #for var in ['bg_norm_ml','b_x_ml']:
+    for var in ['b_x_ml']:
+        for case in cases:
+            m = bootstrap_glider_samples(case, var=var, load_samples=True,
+                                       subset='', transect=False, interp=interp)
+            if by_time:
+                 m.append =  m.append + '_' + by_time
+            #m.get_full_model_hist(save=True, by_time=by_time)
+            #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
+            for n in range(30,31):
+                print (n)
+                m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
 
 def prep_timeseries(subset='', interp='1000'):
     cases = ['EXP10']
@@ -2506,13 +2708,13 @@ def plot_quantify_delta_bg(subset=''):
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-#plot_hist(by_time='1W_rolling')
-#plot_hist(by_time='2W_rolling')
-#plot_hist(by_time='3W_rolling')
+#prep_hist(by_time='2W_rolling')
+#prep_hist(by_time='3W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
 #prep_hist(by_time='2W_rolling', interp='1000')
 #prep_hist(by_time='3W_rolling', interp='1000')
-prep_hist(interp='1000')
+#prep_hist(interp='1000')
+plot_hist()
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
