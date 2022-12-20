@@ -1579,14 +1579,16 @@ class bootstrap_plotting(object):
                    ds.bin_left, ds.bin_right,
                    transform=axs.flatten()[i].transData,
                    colors=c, lw=0.8, label='model')
-        axs[-1].vlines(ds_all.hist,
+        l = axs[-1].vlines(ds_all.hist,
                    ds_all.bin_left, ds_all.bin_right,
                    transform=axs[-1].transData,
                        colors=c, lw=0.8, label='model')
+        return l
 
     def render_glider_sample_set_averaged_over_weeks(self, axs, sample_sizes,
                                                      c='green'):
 
+        l = []
         for i, n in enumerate(sample_sizes):
             print ('sample', i)
             ds_rolling = self.ds_rolling.isel(glider_quantity=n)
@@ -1603,14 +1605,15 @@ class bootstrap_plotting(object):
                                  label='gliders: ' + str(n))
 
             ds_all = self.ds_all.isel(glider_quantity=n)
-            axs[-1].barh(ds_all.bin_left, 
+            l.append(axs[-1].barh(ds_all.bin_left, 
                              ds_all.hist_u_dec - ds_all.hist_l_dec, 
                              height=ds_all.bin_right - ds_all.bin_left,
                              color=c[i],
                              alpha=1.0,
                              left=ds_all.hist_l_dec, 
                              align='edge',
-                             label='gliders: ' + str(n))
+                             label='gliders: ' + str(n)))
+        return l
 
     def add_giddy(self, by_time=None):
         ''' add giddy buoyancy gradient distribution '''
@@ -1852,9 +1855,9 @@ class bootstrap_plotting(object):
         self.path = self.data_path + case 
         self.preamble = self.path + file_id
 
-        self.figure, self.axs = plt.subplots(2,4, figsize=(6.5,5.0))
-        plt.subplots_adjust(wspace=0.1, bottom=0.08, left=0.11, right=0.87,
-                            top=0.98, hspace=0.05)
+        self.figure, self.axs = plt.subplots(2,4, figsize=(5.5,4.5))
+        plt.subplots_adjust(wspace=0.1, bottom=0.08, left=0.13, right=0.98,
+                            top=0.94, hspace=0.05)
         #self.add_giddy(self.axs[0,0])
         #self.add_giddy(by_time=by_time)
 
@@ -1870,25 +1873,30 @@ class bootstrap_plotting(object):
                      + self.interp + self.append + '_rolling_' + var + '.nc')
 
             # render
-            self.render_glider_sample_set_averaged_over_weeks(row,
+            lines = self.render_glider_sample_set_averaged_over_weeks(row,
                                                               sample_sizes, 
                                                               c=colours)
-            self.add_model_means_averaged_over_weeks(row, c='orange')
+            l = self.add_model_means_averaged_over_weeks(row, c='orange')
+
+            return [l] + lines
             #self.add_giddy(by_time=by_time)
 
         # render variables
-        render(self.axs[0], var='b_x_ml')
+        p = render(self.axs[0], var='b_x_ml')
         render(self.axs[1], var='bg_norm_ml')
 
-        l2 = r'$|\nabla b|$ [$\times 10^{-8}$ s$^{-1}$]'
+        l2 = r'$|\nabla b|$ ($\times 10^{-8}$ s$^{-2}$)'
         self.axs[0,0].set_ylabel('Along-Track Sampled\n' + l2)
         self.axs[1,0].set_ylabel('Across-Front Sampled\n' + l2)
         for ax in self.axs[1]:
-            ax.set_xlabel(r'PDF [$\times 10 ^{-8}$]', labelpad=12)
+            ax.set_xlabel(r'PDF ($\times 10 ^{-8}$)', labelpad=12)
 
         # legend
-        self.axs[0,-1].legend(loc='upper left', bbox_to_anchor=(1.02,1.0),
-                            fontsize=6, borderaxespad=0)
+        #self.axs[0,-1].legend(loc='upper left', bbox_to_anchor=(1.02,1.0),
+        #                    fontsize=6, borderaxespad=0)
+        self.figure.legend(p, ['Model','1 Glider', '4 Gliders', '20 Gliders'],
+                       loc='lower center', bbox_to_anchor=(0.555, 0.94), 
+                       ncol=4, fontsize=8)
 
         for ax in self.axs.flatten():
             ax.set_ylim(self.hist_range[0], self.hist_range[1])
@@ -1914,7 +1922,7 @@ class bootstrap_plotting(object):
         time_txt = ['1-Week', '2-Week', '3-Week', '3.5-Month']
         for row in self.axs:
             for i, txt in enumerate(time_txt):
-                row[i].text(0.95, 0.98, 'Sampling Period\n' + txt,
+                row[i].text(0.95, 0.98, 'Deployment\n' + txt,
                           transform=row[i].transAxes,
                           fontsize=6, ha='right', va='top')
         #self.figure.text(0.5, 0.99, 'Along-Track Sampling', fontsize=8, 
@@ -2095,7 +2103,7 @@ class bootstrap_plotting(object):
             ax.set_xticks([1,5,10,15,20,25,30])
 
         l0 = r'$|\nabla b|$'
-        l1 = r'($\times 10^{-8}$ s$^{-1}$)'
+        l1 = r'($\times 10^{-8}$ s$^{-2}$)'
         axs0[4].set_xlabel(l0 + ' 1-Week\n' + l1)
         axs0[5].set_xlabel(l0 + ' 2-Week\n' + l1)
         axs0[6].set_xlabel(l0 + ' 3-Week\n' + l1)
@@ -2116,7 +2124,7 @@ class bootstrap_plotting(object):
         axs1[1].text(0.98, 0.96, 'Across-Front', va='top', ha='right',
                     transform=axs1[1].transAxes)
 
-        thresh = r'$|\nabla b|> 4 \times 10^{-9}$ s$^{-1}$'
+        thresh = r'$|\nabla b|> 4 \times 10^{-9}$ s$^{-2}$'
         axs1[0].text(29.5, 32, thresh, va='bottom', ha='right',
                     transform=axs1[0].transData, c=c[3], fontsize=6)
         # letters
@@ -2613,11 +2621,11 @@ def plot_hist(by_time=None):
         #boot.plot_rmse_over_ensemble_sizes_and_week_3_panel('EXP10')
         #boot.plot_histogram_bg_pdf_averaged_weekly_samples('EXP10',
         #                                                          var='b_x_ml')
-        #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
     
     else:
         boot = bootstrap_plotting()
-        boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
+        #boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
             #m.plot_histogram_buoyancy_gradients_and_samples()

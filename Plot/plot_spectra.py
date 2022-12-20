@@ -269,11 +269,17 @@ class plot_power_spectrum(object):
         plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
     def add_glider_spectra(self, model, ax, var='votemper', 
-                           append='', c='orange',
+                           append='', c='orange', c2=None,
                            label='', old=False, ls='-', old_spec_calc=False,
                            simple_calc=False, panel_label=None,
                            lines=False, zorder=1, a=0.4):
         ''' plot glider spectrum with alterations'''
+
+        # shading colour is provided
+        if c2:
+            a=1.0
+        else:
+            c2 = c
 
         # get spectrum
         if old:
@@ -325,7 +331,7 @@ class plot_power_spectrum(object):
                       zorder=zorder)
         else:
             ax.fill_between(spec_l.freq*1000, spec_l, spec_u, alpha=a,
-                             color=c, edgecolor=None, zorder=zorder)
+                             color=c2, edgecolor=None, zorder=zorder)
         p = ax.loglog(spec_mean.freq*1000, spec_mean, c=c, alpha=1,
                        lw=1.2, label=label, ls=ls, zorder=zorder)
         if panel_label:
@@ -507,14 +513,16 @@ class plot_power_spectrum(object):
         # save
         plt.savefig('testing_proj_gmean_simple_calc_new_orange_base_purp.png')
         
-    def plot_pair_remove_and_climb_dive_reduction(self):
+    def plot_pair_remove_and_climb_dive_reduction(self, post_transect=True):
         '''
         plot paths and associated spectra when removing dive-climb pairs
         also additional row of removing climbs
+
+        order: order of interpolation (pre/post)
         '''
         # initialised figure
-        fig, axs = plt.subplots(2, 4, figsize=(6.5, 3.5), dpi=300)
-        plt.subplots_adjust(left=0.11,right=0.89,top=0.99,bottom=0.12,
+        fig, axs = plt.subplots(2, 4, figsize=(5.5, 3.5), dpi=300)
+        plt.subplots_adjust(left=0.12,right=0.98,top=0.99,bottom=0.12,
                             hspace=0.05,wspace=0.05)
 
         # initialise class
@@ -523,54 +531,76 @@ class plot_power_spectrum(object):
         # set colours
         #c1 = '#0d8ca7' # model mean colour
         #c0 = '#a7280d' # model mean colour
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
         c0 = 'k'
+        #c0_sh = '#55475a'
+        c0_sh = '#dad1d1'
         c1 = '#f18b00'
-        path_cset=[c1,'navy','turquoise','purple']
+        path_cset=[c1,'navy','green','purple']
+        alpha=0.5
 
-        # scalar choice
-        var = 'rho'
+        var   = 'rho'     # scalar choice
+        freq  = [2,3,4,8] # sampling frequency
+
+        # order of interpolation
+        if post_transect: 
+            order = 'post'
+        else:
+            order = 'pre'
 
         # add full path spectrum to all panels
         for ax in axs.flatten():
-            spec_append='_interp_1000_pre_transect_multi_taper_clean_pfit1'
+            spec_append='_interp_1000_' + order + \
+                        '_transect_multi_taper_clean_pfit1'
             p0, = self.spec.add_glider_spectra('EXP10', ax, var=var,
                                                append=spec_append,
-                                               c=c0, simple_calc=True, a=0.5)
+                                               c=c0, c2=c0_sh,
+                                               simple_calc=True, a=alpha)
 
         # ~~~ pre transect pairs ~~~ #
-
         spec_append = \
-                   ['_interp_1000_every_2_pre_transect_multi_taper_clean_pfit1',
-                    '_interp_1000_every_3_pre_transect_multi_taper_clean_pfit1',
-                    '_interp_1000_every_4_pre_transect_multi_taper_clean_pfit1',
-                    '_interp_1000_every_8_pre_transect_multi_taper_clean_pfit1']
-        names = ['interp_1000_every_2_pre_transect',
-                 'interp_1000_every_3_pre_transect',
-                 'interp_1000_every_4_pre_transect',
-                 'interp_1000_every_8_pre_transect']
-        pl = ['every 2', 'every 3', 'every 4', 'every 8']
+                    ['_interp_1000_every_' + str(i) + '_' + order +\
+                     '_transect_multi_taper_clean_pfit1' for i in freq]
+
+        if post_transect:
+            names = ['every_' + str(i) for i in freq]
+        else:
+            names = ['interp_1000_every_' + str(i) + '_pre_transect' \
+                     for i in freq]
+
+        pl = ['every ' + str(i) for i in freq]
 
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True, a=0.5)
-            self.add_path(axs[0,i], names[i], post_transect=True,
+                        simple_calc=True, a=alpha, lines=False)
+            self.add_path(axs[0,i], names[i], post_transect=post_transect,
                           path_cset=path_cset)
 
         # ~~~ climb removal ~~~ #
 
         spec_append = \
-        ['_interp_1000_every_2_and_climb_pre_transect_multi_taper_clean_pfit1',
-         '_interp_1000_every_3_and_climb_pre_transect_multi_taper_clean_pfit1',
-         '_interp_1000_every_4_and_climb_pre_transect_multi_taper_clean_pfit1']
-        names = ['every_2', 'every_3','every_4','every_8']
-        pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb']
+        ['_interp_1000_every_' + str(i) + '_and_climb_' + order + \
+         '_transect_multi_taper_clean_pfit1' for i in freq]
+        if post_transect:
+            names = ['interp_1000_every_' + str(i) + '_and_climb' \
+                     for i in freq]
+        else:
+            names = ['interp_1000_every_' + str(i) + '_and_climb_pre_transect' \
+                     for i in freq]
+        #pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb']
+        pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb',
+              'every 8 and climb']
 
-        for i in range(3):
+        if post_transect:
+            num=4
+        else:
+            num=3
+        for i in range(num):
             p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True, a=0.5)
-            self.add_path(axs[1,i], names[i], post_transect=True,
+                        simple_calc=True, a=alpha, lines=False)
+            self.add_path(axs[1,i], names[i], post_transect=post_transect,
                           path_cset=path_cset)
 
         # ~~~ add vertical path ~~~ #
@@ -617,7 +647,7 @@ class plot_power_spectrum(object):
         # set lims
         for ax in axs.flatten():
             ax.set_xlim(5e-2,1e0)
-            ax.set_ylim(5e-7,3e0)
+            ax.set_ylim(6e-7,3e0)
 
         # drop ticks 
         for ax in axs[:-1,:].flatten(): 
@@ -627,7 +657,7 @@ class plot_power_spectrum(object):
 
         # axis labels
         for ax in axs[-1,:]:
-            ax.set_xlabel(r'Wavenumber [km$^{-1}$]')
+            ax.set_xlabel(r'Wavenumber (km$^{-1}$)')
         for ax in axs[:,0]:
             ax.set_ylabel('Density \nPower Spectral Density')
 
@@ -636,13 +666,14 @@ class plot_power_spectrum(object):
         for i, ax in enumerate(axs.flatten()):
             ax.text(0.05, 0.92, letters[i], transform=ax.transAxes)
 
-        axs[0,-1].legend([p0,p1], ['full', 'reduced'],
-                         loc='upper left', bbox_to_anchor=(1.03, 1.0),
-                         fontsize=6, title='Path', borderaxespad=0)
+        #axs[0,-1].legend([p0,p1], ['full', 'reduced'],
+        #                 loc='upper left', bbox_to_anchor=(1.03, 1.0),
+        #                 fontsize=6, title='Path', borderaxespad=0)
 
         # save
         plt.savefig(
-     'pair_and_climb_remove_simple_calc_geo_mean_post_challenger_rho.png', dpi=1200)
+     'pair_and_climb_remove_' + order + '_rho.png',
+                    dpi=1200)
 
     def plot_pre_post_transect(self):
         '''
@@ -960,7 +991,8 @@ def model_res_compare():
 m = plot_power_spectrum()
 #m.plot_pre_post_transect()
 #m.plot_pre_post_transect_and_climb_dive_reduction()
-m.plot_pair_remove_and_climb_dive_reduction()
+m.plot_pair_remove_and_climb_dive_reduction(post_transect=True)
+m.plot_pair_remove_and_climb_dive_reduction(post_transect=False)
 
 #m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()

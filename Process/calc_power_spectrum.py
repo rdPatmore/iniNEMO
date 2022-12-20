@@ -627,32 +627,32 @@ if __name__ == '__main__':
     #~~~~ standard plotting ~~~~#
     # post transect
     # all
-    m = power_spectrum_glider('EXP10', var, append='interp_1000_', fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-
-    # every 8
-    m = power_spectrum_glider('EXP10', var, append='every_8_', fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-
-    # every 4
-    m = power_spectrum_glider('EXP10', var, append='every_4_', fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-
-    # every 3
-    m = power_spectrum_glider('EXP10', var, append='every_3_', fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
-
-    # every 2
-    m = power_spectrum_glider('EXP10', var, append='every_2_', fs=1000)
-    m.get_glider()
-    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+#    m = power_spectrum_glider('EXP10', var, append='interp_1000_', fs=1000)
+#    m.get_glider()
+#    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+#
+#    # every 8
+#    m = power_spectrum_glider('EXP10', var, append='every_8_', fs=1000)
+#    m.get_glider()
+#    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+#
+#    # every 4
+#    m = power_spectrum_glider('EXP10', var, append='every_4_', fs=1000)
+#    m.get_glider()
+#    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+#
+#    # every 3
+#    m = power_spectrum_glider('EXP10', var, append='every_3_', fs=1000)
+#    m.get_glider()
+#    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+#
+#    # every 2
+#    m = power_spectrum_glider('EXP10', var, append='every_2_', fs=1000)
+#    m.get_glider()
+#    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
     for num in [2,3,4,8]:
-        app = 'every_' + str(num) + '_and_climb_'
+        app = 'interp_1000_every_' + str(num) + '_and_climb_'
         m = power_spectrum_glider('EXP10', var, append=app, fs=1000)
         m.get_glider()
         m.calc_spectrum(proc='multi_taper', get_transects_flag=True)

@@ -1111,7 +1111,7 @@ if __name__ == '__main__':
                                         shrink=100)
         if remove:
             m.prep_remove_dives(remove=remove)
-        for ind in range(100):
+        for ind in range(54,100):
             m.ind = ind
             print ('ind: ', ind)
             # calculate perfect gradient crossings
@@ -1148,8 +1148,8 @@ if __name__ == '__main__':
     #                interp_dist=1000, transects=False)
 
     # not done
-    glider_sampling('EXP10', remove='every_4_and_climb',
-                    interp_dist=1000, transects=False)
+    #glider_sampling('EXP10', remove='every_4_and_climb',
+    #                interp_dist=1000, transects=False)
     glider_sampling('EXP10', remove='every_8_and_climb',
                     interp_dist=1000, transects=False)
 

@@ -119,11 +119,11 @@ class paper_hydrog(object):
                               tmp_planes[4], tmp_planes[5])
 
         # set axis labels
-        axs.set_xlabel('Longitude' , fontsize=8)
-        axs.set_ylabel('Latitude', fontsize=8)
+        axs.set_xlabel(r'Longitude ($^{\circ}$)' , fontsize=8)
+        axs.set_ylabel(r'Latitude ($^{\circ}$)', fontsize=8)
         # rotate label
         axs.zaxis.set_rotate_label(False)  # disable automatic rotation
-        axs.set_zlabel('Depth [m]' , fontsize=8, rotation=90)
+        axs.set_zlabel('Depth (m)' , fontsize=8, rotation=90)
 
         # colour bar
         fig = plt.gcf()
@@ -131,14 +131,14 @@ class paper_hydrog(object):
 
         cbar_ax = fig.add_axes([0.70, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
         cbar = fig.colorbar(pt, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(4.8, 0.5, r'Potential Temperature [$^{\circ}$C]',
+        cbar.ax.text(4.8, 0.5, r'Potential Temperature ($^{\circ}$C)',
                      rotation=90,
                      transform=cbar.ax.transAxes, va='center', ha='left')
         cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
         cbar_ax = fig.add_axes([0.85, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
         cbar = fig.colorbar(pRo, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(4.8, 0.5, r'$\zeta / f$', rotation=90,
+        cbar.ax.text(4.8, 0.5, r'$\zeta / f (-)$', rotation=90,
                      transform=cbar.ax.transAxes, va='center', ha='left')
         cbar.set_ticks((up_levs[0] - up_levs[1]) /2 + up_levs[1::2])
         print(up_levs)
@@ -164,11 +164,11 @@ class paper_hydrog(object):
                  [d,  d ], color=self.colours[2])
 
         # add text for subset lines
-        axs.text(x0, y[0], d, 'full', 'y', transform=axs.transData,
+        axs.text(x0, y[0], d, 'Full', 'y', transform=axs.transData,
                  va='bottom', ha='center', color=self.colours[0])
-        axs.text(x1, y[0], d, 'south', 'y', transform=axs.transData,
+        axs.text(x1, y[0], d, 'South', 'y', transform=axs.transData,
                      va='bottom', ha='center', color=self.colours[2])
-        axs.text(x1, y_mid, d, 'north', 'y', transform=axs.transData,
+        axs.text(x1, y_mid, d, 'North', 'y', transform=axs.transData,
                      va='bottom', ha='center', color=self.colours[1])
 
         # allow lines outside of canvas
@@ -234,7 +234,7 @@ class paper_hydrog(object):
             l.append(p)
           
 
-        axs[0].legend(l, ['all', 'north', 'south'], loc='upper center',
+        axs[0].legend(l, ['Full', 'North', 'South'], loc='upper center',
                        bbox_to_anchor=(0.25, 1.10, 0.5, 0.3), ncol=3)
 
         # axes formatting
@@ -247,9 +247,9 @@ class paper_hydrog(object):
             ax.set_xticklabels([])
 
 
-        axs[0].set_ylabel(r'$|\nabla b|$' + '\n' +r'[$\times10^{-8}$ s$^{-2}]$')
-        axs[1].set_ylabel('sea-ice area' + '\n[%]')
-        axs[2].set_ylabel(r'$Q^{fw}$' + '\n' +r'[kg m$^{-2}$ s$^{-1}$]')
+        axs[0].set_ylabel(r'$|\nabla b|$' + '\n' +r'($\times10^{-8}$ s$^{-2})$')
+        axs[1].set_ylabel('Sea-Ice Area' + '\n(%)')
+        axs[2].set_ylabel(r'$Q^{fw}$' + '\n' +r'(kg m$^{-2}$ s$^{-1}$)')
 
         # align labels
         xpos = -0.11  # axes coords
@@ -266,7 +266,7 @@ class paper_hydrog(object):
         for ax in axs:
             ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
-        axs[-1].set_xlabel('date')
+        axs[-1].set_xlabel('Date')
 
         # letters
         letters = ['(b)','(c)','(d)']
