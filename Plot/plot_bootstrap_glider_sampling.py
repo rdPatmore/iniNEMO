@@ -1055,7 +1055,7 @@ class bootstrap_glider_samples(object):
                           self.append + '.nc')
 
         # initialise figure
-        fig = plt.figure(figsize=(6.5, 4.5), dpi=300)
+        fig = plt.figure(figsize=(6.5, 4.5))
         gs0 = gridspec.GridSpec(ncols=1, nrows=1)
         gs1 = gridspec.GridSpec(ncols=2, nrows=1)
         gs0.update(top=0.99, bottom=0.50, left=0.10, right=0.80)
@@ -1108,13 +1108,13 @@ class bootstrap_glider_samples(object):
         # add model labels
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                  end.bg_norm_ts_quant.sel(quantile=0.1),
-                 'lower decile', ha='left',va='center', fontsize=6, c=c)
+                 'Lower Decile', ha='left',va='center', fontsize=6, c=c)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                   end.bg_norm_ts_quant.sel(quantile=0.5),
-                 'median', ha='left',va='center', fontsize=6, c=c)
+                 'Median', ha='left',va='center', fontsize=6, c=c)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                   end.bg_norm_ts_quant.sel(quantile=0.9),
-                 'upper decile', ha='left',va='center', fontsize=6, c=c)
+                 'Upper Decile', ha='left',va='center', fontsize=6, c=c)
 
 
         # diff data
@@ -1235,13 +1235,15 @@ class bootstrap_glider_samples(object):
         #axs0.text(m1_median.day + np.timedelta64(7, 'D'),
         axs0.text(x - np.timedelta64(5,'h'),
                   m0_median,
-        r'modelled change in median $|\nabla \mathbf{b}|$',
+        r'Modelled Change in Median $|\nabla b|$',
                  ha='right',va='bottom', fontsize=6, c=c_mm)
 
 
         # legend
-        legend1 =  axs0.legend(fill + p, ensemble_list + ['full model'], 
-                    title='number of gliders')
+        ensemble_text = ['1 Glider','4 Gliders','30 Gliders']
+        legend1 =  axs0.legend(fill + p, ensemble_text + ['Model']) 
+                       #loc='lower center', bbox_to_anchor=(0.5, 0.94), 
+                       #ncol=4, fontsize=8)
  
         # axis limits
         axs0.set_xlim(e.time_counter.min(skipna=True),
@@ -1249,7 +1251,7 @@ class bootstrap_glider_samples(object):
         axs0.set_ylim(0,1.3e-7)
 
         # add labels
-        axs0.set_ylabel(r'$|\nabla \mathbf{b}|$' + '\n' + 
+        axs0.set_ylabel(r'$|\nabla b|$' + '\n' + 
                         r' [$\times 10^{-7}$ s$^{-2}$]')
         axs0.yaxis.get_offset_text().set_visible(False)
 
@@ -1283,11 +1285,11 @@ class bootstrap_glider_samples(object):
             ax.axhline(0, c='lightgrey', lw=0.5, ls='--')
 
             # add model labels
-            ax.text(29.5, m.sel(quantile=0.1)-3e-9, 'lower decile',
+            ax.text(29.5, m.sel(quantile=0.1)-3e-9, 'Lower Decile',
                     ha='right',va='top', fontsize=6, c=c_mm)
-            ax.text(1.5, m.sel(quantile=0.5)-3e-9, 'median',
+            ax.text(1.5, m.sel(quantile=0.5)-3e-9, 'Median',
                     ha='left',va='top', fontsize=6, c=c_mm)
-            ax.text(29.5, m.sel(quantile=0.9)-3e-9, 'upper decile',
+            ax.text(29.5, m.sel(quantile=0.9)-3e-9, 'Upper Decile',
                     ha='right',va='top', fontsize=6, c=c_mm)
             return [p0,p1,p2,p3]
 
@@ -1295,37 +1297,45 @@ class bootstrap_glider_samples(object):
         leg = render(axs1[1], deltaG_std_stats, deltaM_std_stats)
 
         # add legend
-        axs1[1].legend(leg, ['gliders (98%)', 'gliders (95%)',
-                             'gliders (80%)', 'model'],
-                       loc='upper left', bbox_to_anchor=(1.00,1.01))
+        axs1[1].legend(leg, ['Gliders (98%)', 'Gliders (95%)',
+                             'Gliders (80%)', 'Model'],
+                   loc='upper left', bbox_to_anchor=(1.00,1.01))
 
 
         # labels 
-        axs1[0].set_ylabel(r'detected change in $|\nabla \mathbf{b}|$' + '\n' +
+        axs1[0].set_ylabel(r'Detected Change in $|\nabla b|$' + '\n' +
                            r' [$\times 10^{-8}$ s$^{-2}$]')
         axs1[1].set_yticklabels([])
 
         # set ax1 titles
-        axs1[0].text(0.5, 1.01, 'temporal mean',
+        axs1[0].text(0.5, 1.01, 'Temporal Mean',
                   transform=axs1[0].transAxes, ha='center', va='bottom')
-        axs1[1].text(0.5, 1.01, 'standard deviation',
+        axs1[1].text(0.5, 1.01, 'Standard Deviation',
                   transform=axs1[1].transAxes, ha='center', va='bottom')
 
         axs1[0].set_ylim(-2e-8,9.0e-8)
         axs1[1].set_ylim(-2e-8,9.0e-8)
         for ax in axs1:
             ax.set_xlim(1,30)
-            ax.set_xlabel('number of gliders')
+            ax.set_xlabel('Number of Gliders')
             ax.yaxis.get_offset_text().set_visible(False)
             ax.set_xticks([1,5,10,15,20,25,30])
 
         # date labels
         axs0.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         axs0.xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
-        axs0.set_xlabel('date')
+        axs0.set_xlabel('Date')
+
+        # letters
+        axs0.text(0.01, 0.98, '(a)',
+                     transform=axs0.transAxes, ha='left', va='top')
+        axs1[0].text(0.02, 1.01, '(b)',
+                     transform=axs1[0].transAxes, ha='left', va='bottom')
+        axs1[1].text(0.02, 1.01, '(c)',
+                     transform=axs1[1].transAxes, ha='left', va='bottom')
 
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
-                   '_'+ t0 + '_' + t1 + '_AGM0.png', dpi=600)
+                   '_'+ t0 + '_' + t1, dpi=600)
 
     def collect_hists(self, var):
         ''' group histogram files into one '''
@@ -1920,9 +1930,11 @@ class bootstrap_plotting(object):
 
         # add time span info
         time_txt = ['1-Week', '2-Week', '3-Week', '3.5-Month']
-        for row in self.axs:
+        letters = ['(a)','(b)','(c)','(d)','(e)','(f)','(g)','(h)']
+        for j, row in enumerate(self.axs):
             for i, txt in enumerate(time_txt):
-                row[i].text(0.95, 0.98, 'Deployment\n' + txt,
+                row[i].text(0.95, 0.98, 
+                          letters[i + (4*j)] + '\n' + txt + '\nDeployment',
                           transform=row[i].transAxes,
                           fontsize=6, ha='right', va='top')
         #self.figure.text(0.5, 0.99, 'Along-Track Sampling', fontsize=8, 

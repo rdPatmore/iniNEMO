@@ -8,6 +8,8 @@ import cartopy.crs as ccrs
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 import matplotlib.ticker as mticker
 import matplotlib.gridspec as gridspec
+import matplotlib
+matplotlib.rcParams.update({'font.size': 8})
 
                      # ~~~ horizontal path ~~~ #
 
@@ -40,9 +42,9 @@ for i, (l,trans) in enumerate(glider_data.groupby('transect')):
              c=path_cset[int(trans.vertex[0])], lw=0.5)
 
 ax0.set_aspect(2.0)
-ax0.set_xlabel('Longitude')
-ax0.set_ylabel('Latitude')
-ax0.set_title('\'Bow-Tie\'')
+ax0.set_xlabel(r'Longitude ($^{\circ}$)')
+ax0.set_ylabel(r'Latitude ($^{\circ}$)')
+ax0.set_title('\'Bow-Tie\'', fontsize=8)
 
 ax0.text(0.02, 1.01, '(b)', transform=ax0.transAxes, ha='left', va='bottom',
          fontsize=8)
@@ -94,9 +96,9 @@ print (giddy_raw)
 ax1.plot(giddy_raw.distance.diff('ctd_data_point').cumsum()/1000,
         -giddy_raw.isel(ctd_data_point=slice(None,-1)).ctd_depth,
         c=path_cset[0])
-ax1.set_xlabel('Distance [km]')
-ax1.set_ylabel('Depth [m]')
-ax1.set_title('Dive Pattern')
+ax1.set_xlabel('Distance (km)')
+ax1.set_ylabel('Depth (m)')
+ax1.set_title('Dive Pattern', fontsize=8)
 
 #ax0.spines['right'].set_visible(False)
 #ax1.spines['right'].set_visible(False)

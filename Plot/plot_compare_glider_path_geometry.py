@@ -1384,7 +1384,7 @@ class glider_path_geometry_plotting(object):
         gs1 = gridspec.GridSpec(ncols=4, nrows=1, right=0.97)#, figure=fig)
     
         # set frame bounds
-        gs0.update(top=0.92, bottom=0.25, left=0.18, right=0.95, hspace=0.1)
+        gs0.update(top=0.97, bottom=0.25, left=0.18, right=0.95, hspace=0.1)
         gs1.update(top=0.15, bottom=0.02, left=0.18)
 
         # assign axes to lists
@@ -1461,7 +1461,7 @@ class glider_path_geometry_plotting(object):
                 c = list(mcolors.TABLEAU_COLORS)[vertex_list[i][j]]
                 c_choice = vertex_list[i][j]
                 c1 = '#f18b00'
-                path_cset=[c1,'navy','lightseagreen','purple'][c_choice]
+                path_cset=[c1,'navy','green','purple'][c_choice]
                 axs1[i].plot(v.lon, v.lat, c=path_cset)#, lw=0.5)
 
             axs1[i].axis('off')
@@ -1471,16 +1471,16 @@ class glider_path_geometry_plotting(object):
 
         axs0[0].set_xticks([])
         axs0[1].set_xticks(np.linspace(0.5,6.5,4))
-        axs0[1].set_xticklabels(['parallel', 'cross', 'standard',
-                                 r'90$^{\circ}$ rotation'])
-        axs0[0].set_ylabel('% difference in\n temporal mean')
-        axs0[1].set_ylabel('% difference in\n temporal standard deviation')
-        axs0[1].set_xlabel('path choice')
+        axs0[1].set_xticklabels(['Parallel', 'Cross', 'Standard',
+                                 r'90$^{\circ}$ Rotation'])
+        axs0[0].set_ylabel('Bias in Temporal\nMean (%)')
+        axs0[1].set_ylabel('Bias in Temporal\nStandard Deviation (%)')
+        axs0[1].set_xlabel('Path Choice')
 
-        axs0[0].text(0.5, 1.1, 
-                   'difference in buoyancy gradients\nbetween model and glider',
-                     transform=axs0[0].transAxes,
-                     ha='center', va='center')
+        #axs0[0].text(0.5, 1.1, 
+        #           'difference in ' + '\nBetween Model and Glider',
+        #             transform=axs0[0].transAxes,
+        #             ha='center', va='center')
 
         ## add glider paths
         path = get_sampled_path('EXP10', 
@@ -1489,10 +1489,17 @@ class glider_path_geometry_plotting(object):
                             rotation=np.radians(90))
 
         c1 = '#f18b00'
-        path_cset=[c1,'navy','lightseagreen','purple']
+        path_cset=[c1,'navy','green','purple']
         for i, (l,trans) in enumerate(path.groupby('transect')):
             axs1[3].plot(trans.lon,trans.lat,c=path_cset[int(trans.vertex[0])])
         axs1[-1].axis('off')
+
+        # letters
+        axs0[0].text(0.02, 1.0, '(a)', transform=axs0[0].transAxes,
+                     ha='left', va='center')
+        axs0[1].text(0.02, 1.0, '(b)', transform=axs0[1].transAxes,
+                     ha='left', va='center')
+
 
         # save
         plt.savefig('multi_model_rotate_and_transect_skill_' + str(samples) + 
