@@ -11,8 +11,8 @@ from dask.distributed import Client, LocalCluster
 class richardson(object):
 
     def __init__(self, model, nc_preamble):
-        self.chunks = {'time_counter':1,'x':50,'y':50}
-        self.chunks = {'time_counter':1}
+        self.chunks = {'x':100,'y':100}
+        #self.chunks = {'time_counter':1}
         self.path = config.data_path() + model
         self.nc_preamble = self.path + '/' + nc_preamble
         #self.dsu = xr.open_dataset(self.path + 
@@ -56,65 +56,75 @@ class richardson(object):
         if save:
             bg.to_netcdf(self.nc_preamble + '_bg.nc')
 
-    def buoyancy_gradient_mod_squared(self, save=False):
+    def buoyancy_gradient_mod_squared(self, load=False, save=False):
         ''' calculate the modulus square buoyancy gradient '''
          
-        bg = xr.open_dataset(self.nc_preamble + '_bg.nc', chunks=self.chunks)
+        if load:
+            bg_mod2 = xr.open_dataarray(self.nc_preamble + '_bg_mod2.nc',
+                                      chunks=self.chunks)
+        else:
+            bg = xr.open_dataset(self.nc_preamble + '_bg.nc', 
+                                 chunks=self.chunks)
 
-        # put gradients on matching scalar positons
-        bg_x_t = (bg.bx + bg.bx.roll(x=1,roll_coords=False)) / 2
-        bg_y_t = (bg.by + bg.by.roll(y=1,roll_coords=False)) / 2
+            # put gradients on matching scalar positons
+            bg_x_t = (bg.bx + bg.bx.roll(x=1,roll_coords=False)) / 2
+            bg_y_t = (bg.by + bg.by.roll(y=1,roll_coords=False)) / 2
        
-        # chop x0 and y0 rim
-        bg_x_t = bg_x_t.isel(x=slice(1,None), y=slice(1,None))
-        bg_y_t = bg_y_t.isel(x=slice(1,None), y=slice(1,None))
-        bg_mod2 = bg_x_t**2 + bg_y_t**2
+            # chop x0 and y0 rim
+            bg_x_t = bg_x_t.isel(x=slice(1,None), y=slice(1,None))
+            bg_y_t = bg_y_t.isel(x=slice(1,None), y=slice(1,None))
+            bg_mod2 = bg_x_t**2 + bg_y_t**2
 
         if save:
             bg_mod2.name = 'bg_mod2'
             bg_mod2.to_netcdf(self.nc_preamble + '_bg_mod2.nc')
         return bg_mod2
 
-    def format_N2(self, save=False):
+    def format_N2(self, save=False, load=False):
         ''' format N2 to conform with rho '''
 
-        rho = xr.open_dataset(self.nc_preamble + '_rho.nc',
-                       chunks=self.chunks, decode_cf=False).rho
-        N2 = xr.open_dataset(self.nc_preamble + '/_grid_W.nc',
-                       chunks=self.chunks, decode_cf=False).bn2
+        if load:
+            N2 = xr.open_dataarray(self.path + '/N2_conform.nc',
+                           chunks=self.chunks, decode_cf=True)
 
-        N2 = N2.interp(depthw=rho.deptht)#, time_counter=rho.time_counter)
-        N2 = N2.drop('depthw')
+        else:
+            rho = xr.open_dataset(self.nc_preamble + '_rho.nc',
+                           chunks=self.chunks, decode_cf=False).rho
+            N2 = xr.open_dataset(self.nc_preamble + '_grid_W.nc',
+                           chunks=self.chunks, decode_cf=False).bn2
 
-        # convert time units for interpolation 
-        #N2['time_counter'] = (N2.time_counter -
-        #                      np.datetime64('1970-01-01 00:00:00')
-        #                     ).astype(np.int64)
-        #interp_time = (rho_time -
-        #               np.datetime64('1970-01-01 00:00:00')
-        #              ).astype(np.int64)
-        # interpolate
-        N2 = N2.interp(time_counter=rho.time_counter)
+            N2 = N2.interp(depthw=rho.deptht)#, time_counter=rho.time_counter)
+            N2 = N2.drop('depthw')
 
-        # convert time units back to datetime64
-        #N2['time_counter'] = N2.time_counter / 1e9 
-        unit = "seconds since 1900-01-01 00:00:00"
-        N2.time_counter.attrs['units'] = unit
-        N2 = xr.decode_cf(N2.to_dataset()).bn2
+            # convert time units for interpolation 
+            #N2['time_counter'] = (N2.time_counter -
+            #                      np.datetime64('1970-01-01 00:00:00')
+            #                     ).astype(np.int64)
+            #interp_time = (rho_time -
+            #               np.datetime64('1970-01-01 00:00:00')
+            #              ).astype(np.int64)
+            # interpolate
+            N2 = N2.interp(time_counter=rho.time_counter)
+
+            # convert time units back to datetime64
+            #N2['time_counter'] = N2.time_counter / 1e9 
+            unit = "seconds since 1900-01-01 00:00:00"
+            N2.time_counter.attrs['units'] = unit
+            #N2 = xr.decode_cf(N2.to_dataset()).bn2
         if save:
             N2.name = 'bn2'
             N2.to_netcdf(self.path + '/N2_conform.nc')
-        return format_N2
+        return N2
     
     def merge_ri_components(self):
         f2 = self.cfg.ff_t**2
-        N2 = self.format_N2()
-        b_mod2 = self.buoyancy_gradient_mod_squared()
+        N2 = self.format_N2(load=True)
+        b_mod2 = self.buoyancy_gradient_mod_squared(load=True)
         #N2 = xr.open_dataarray(self.path + '/N2_conform.nc', chunks=self.chunks)
         #b_mod2 = xr.open_dataarray(self.path + '/b_grad_mod2.nc',
         #                          chunks=self.chunks)
-        f2 = f2.isel(x=slice(None,-1), y=slice(None,-1))
-        N2 = N2.isel(x=slice(1   ,-2), y=slice(1   ,-2))
+        f2 = f2.isel(x=slice(1,-1), y=slice(1,-1))
+        N2 = N2.isel(x=slice(2   ,-2), y=slice(2   ,-2))
         print (' ')
         print (f2)
         print (' ')
@@ -130,31 +140,25 @@ class richardson(object):
         merged_ri.to_netcdf(self.path + '/merged_ri.nc')
 
 
-    def balanced_richardson_number(self, save=False):
+    def balanced_richardson_number(self, save=True):
         ''' calculate balanced richardson number '''
     
         #f2 = vort.vorticity('EXP08').planetary_vorticity(save=False)**2
         f2 = self.cfg.ff_t**2
-        N2 = self.format_N2()
-        b_mod2 = self.buoyancy_gradient_mod_squared()
+        N2 = self.format_N2(load=True)
+        b_mod2 = self.buoyancy_gradient_mod_squared(load=True)
         #f2 = xr.open_dataarray(self.path + '/cori.nc', chunks=self.chunks)**2
         #f2 = self.cfg.ff_t**2
         #N2 = xr.open_dataarray(self.path + '/N2_conform.nc', chunks=self.chunks)
         #b_mod2 = xr.open_dataarray(self.path + '/bg_mod2.nc',
                                    #chunks=self.chunks)
-        f2 = f2.isel(x=slice(None,-1), y=slice(None,-1))
-        N2 = N2.isel(x=slice(1   ,-2), y=slice(1   ,-2))
+        f2 = f2.isel(x=slice(1,-1), y=slice(1,-1))
+        N2 = N2.isel(x=slice(2   ,-2), y=slice(2   ,-2))
         #b_mod2 = b_mod2.reset_coords(['nav_lat','nav_lon'], drop=True)
         #f2, N2, b_mod2 = xr.align(f2,N2,b_mod2)
       
-        #print (' ')
-        #print (f2)
-        #print (' ')
-        #print (N2)
-        #print (' ')
-        m_ri = xr.merge([f2,N2,b_mod2])
-        #print (b_mod2)
-        #print (' ')
+        #b_mod2.name = 'b_mod2'
+        #m_ri = xr.merge([f2,N2,b_mod2])
         #merged_ri = xr.merge([f2,N2,b_mod2])
         #print (merged_ri)
         #m_ri = xr.open_dataset(self.path + '/merged_ri.nc',
@@ -170,7 +174,15 @@ class richardson(object):
         #print (b_mod2.time_counter)
         
         # balanced richardson number
-        Ri_b = m_ri.ff_t * m_ri.bn2 / m_ri.b_mod2
+        #Ri_b = m_ri.ff_t * m_ri.bn2 / m_ri.b_mod2
+        print ('')
+        print (f2)
+        print ('')
+        print (N2)
+        print ('')
+        print (b_mod2)
+        print ('')
+        Ri_b = f2 * N2 / b_mod2
         Ri_b = Ri_b.where(np.abs(Ri_b) != np.inf)
         Ri_b = Ri_b.dropna(dim='time_counter', how='all')
         Ri_b = Ri_b.transpose('time_counter','deptht','y','x')
@@ -192,7 +204,8 @@ if __name__ == '__main__':
     m = richardson('EXP10', nc_preamble)
     start = time.time()
     #m.buoyancy_gradients(save=True)
-    m.buoyancy_gradient_mod_squared(save=True)
-    #m.balanced_richardson_number(save=True)
+    #m.buoyancy_gradient_mod_squared(save=True)
+    #m.format_N2(save=True)
+    m.balanced_richardson_number(save=True)
     end = time.time()
     print('time elapsed ', end - start)

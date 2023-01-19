@@ -25,7 +25,9 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
     if outfreq == '24h':
         fn = 'SOCHIC_PATCH_24h_20120101_20121231_'
         outdir = config.data_path_old()
-    salt = xr.open_dataset(outdir + model + '/' + fn + 'grid_T.nc').sos
+    #salt = xr.open_dataset(outdir + model + '/' + fn + 'grid_T.nc').sos
+    salt = xr.open_dataset(outdir + model + '/' + fn + 'grid_T.nc').vosaline
+    salt = salt.sel(deptht=10, method='nearest')
     salt = salt.isel(x=slice(45,-45),y=slice(45,-45)).T
     p = []
     for ax in axs:
@@ -39,15 +41,16 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
 
 
     ice = xr.open_dataset(outdir + model + '/' + fn + 'icemod.nc').siconc
-    ice = ice.where(ice > 0)
+    #ice = ice.where(ice > 0)
     ice = ice.isel(x=slice(45,-45),y=slice(45,-45)).T
     #pice = axs[0].imshow(ice.isel(time_counter=0),
     #              vmin=0, vmax=1, origin='lower',
     #              aspect='equal', animated=True, cmap=cmocean.cm.ice)
     pice = axs[0].pcolor(ice.nav_lon, ice.nav_lat,
-                 ice.isel(time_counter=300),
+                 ice.isel(time_counter=100),
                   vmin=0, vmax=1,
                   cmap=cmocean.cm.ice, shading='nearest', zorder=10)
+                 #ice.isel(time_counter=300),
 
 #    def animate(i):
 #        print (i)
@@ -95,12 +98,12 @@ def make_salt_slice_movie_2param(model, outfreq='3h'):
 
     frames = int((len(salt.coords['time_counter']) - 1) )
     print (frames)
-    #frames = 100
+    #frames = 10
     line_ani = animation.FuncAnimation(fig, animate,frames=frames, blit=False)
-    fname = 'surface_salt_and_ice_' + outfreq + '.mp4'
+    fname = 'surface_salt_and_ice_' + outfreq + '_10m.mp4'
     line_ani.save(fname, writer=writer, dpi=300)
  
 #models = ['EXP37','EXP39','EXP40','EXP41']
 model = 'EXP10'
-#make_salt_slice_movie_2param(model, outfreq='3h')
-make_salt_slice_movie_2param(model, outfreq='24h')
+make_salt_slice_movie_2param(model, outfreq='3h')
+#make_salt_slice_movie_2param(model, outfreq='24h')
