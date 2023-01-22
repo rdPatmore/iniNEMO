@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 class KE(object):
 
     def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
+        self.file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
         self.preamble = config.data_path() + case +  self.file_id
 
     def get_basic_vars(self):
@@ -142,6 +142,63 @@ class KE(object):
         if save:
             TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
-m = KE('EXP10')
-m.calc_reynolds_terms()
-m.calc_TKE(save=True)
+    def calc_TKE_budget(self):
+        ''' calculate terms of the tubulent kinetic energy tendency '''
+
+        # load primes
+        kwargs = {'decode_cf':False} 
+        uvel_prime = xr.open_dataarray(self.preamble + 'uvel_mld_rey.nc', **kwargs)
+        umom_prime = xr.open_dataset(self.preamble + 'momu_mld_rey.nc', **kwargs)
+        kwargs = {'decode_cf':False} 
+        vvel_prime = xr.open_dataarray(self.preamble + 'vvel_mld_rey.nc', **kwargs)
+        vmom_prime = xr.open_dataset(self.preamble + 'momv_mld_rey.nc', **kwargs)
+
+        #umom_prime = umom_prime.set_coords(['nav_lat','nav_lon'])
+
+        #umom_prime = umom_prime.drop_vars(['bounds_nav_lon',
+        #                                   'bounds_nav_lat',
+        #                                   'area',
+        #                                   'depthu_bounds',
+        #                                   'time_instant',
+        #                                   'time_instant_bounds',
+        #                                   'time_counter_bounds'])
+        #vmom_prime = vmom_prime.set_coords(['nav_lat','nav_lon'])
+
+        #vmom_prime = vmom_prime.drop_vars(['bounds_nav_lon',
+        #                                   'bounds_nav_lat',
+        #                                   'area',
+        #                                   'depthv_bounds',
+        #                                   'time_instant',
+        #                                   'time_instant_bounds',
+        #                                   'time_counter_bounds'])
+
+        # get products
+        u_tke = uvel_prime * umom_prime
+        #u_tke.to_netcdf(self.preamble + 'u_tke.nc')
+        v_tke = vvel_prime * vmom_prime
+
+        # regrid to t-pts
+        uT_tke = (u_tke + u_tke.roll(x=1, roll_coords=False)) / 2
+        vT_tke = (v_tke + v_tke.roll(y=1, roll_coords=False)) / 2
+
+        for var in uT_tke.data_vars:
+            uT_tke = uT_tke.rename({var:var.lstrip('u')})
+        for var in vT_tke.data_vars:
+            vT_tke = vT_tke.rename({var:var.lstrip('v')})
+        print (uT_tke)
+        print (' ')
+        print (vT_tke)
+
+        uT_tke = uT_tke.mean('time_counter')
+        vT_tke = vT_tke.mean('time_counter')
+        #uT_tke.to_netcdf(self.preamble + 'uT_tke.nc')
+        # tke budget
+        tke_budg = 0.5 * ( uT_tke + vT_tke ).load()
+
+        # save
+        tke_budg.to_netcdf(self.preamble + 'tke_budget.nc')
+
+m = KE('EXP90')
+m.calc_TKE_budget()
+#m.calc_reynolds_terms()
+#m.calc_TKE(save=True)

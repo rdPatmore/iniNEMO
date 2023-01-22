@@ -3,14 +3,14 @@ import matplotlib.pyplot as plt
 import config
 import matplotlib.dates as mdates
 import matplotlib
+import cmocean
 
 matplotlib.rcParams.update({'font.size': 8})
 
 class plot_KE(object):
 
-    def __init__(self, case):
+    def __init__(self, case, file_id):
         self.case = case
-        file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
         self.preamble = config.data_path() + case + '/' + file_id
 
     def plot_ke_time_series(self):
@@ -87,6 +87,127 @@ class plot_KE(object):
         # save
         plt.savefig('ke_oce_ice.png', dpi=600)
 
+    def plot_KE_budget_slices(self):
+        ''' plot budget of KE '''
+        
+        # ini figure
+        fig, axs = plt.subplots(4, 4, figsize=(5.5,5.5))
+
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'KE_24_mean.nc')
+        ds = ds.sel(deptht=30, method='nearest') # depth
+
+        # 0.5 * d(u'_bar^2)/dt
+        trd_tot = (ds.KE.diff('time_counter') /\
+                  ds.time_counter.astype('float64').diff('time_counter')).squeeze()*1e9
+        print (trd_tot)
+ 
+
+        ds = ds.isel(time_counter=1)             # time
+
+        # plot
+        vmin, vmax = -5e-3, 5e-3
+        cmap=cmocean.cm.balance
+        axs[0,0].pcolor(ds.ketrd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,1].pcolor(ds.ketrd_spg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,2].pcolor(ds.ketrd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,3].pcolor(ds.ketrd_rvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,0].pcolor(ds.ketrd_pvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,1].pcolor(ds.ketrd_zad, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,2].pcolor(ds.ketrd_udx, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,3].pcolor(ds.ketrd_ldf, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2,0].pcolor(ds.ketrd_zdf, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2,1].pcolor(ds.ketrd_tau, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[2,2].pcolor(ds.ketrd_bfr, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[2,3].pcolor(ds.ketrd_bfri, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[3,0].pcolor(ds.ketrd_atf, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[3,1].pcolor(ds.ketrd_convP2K, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[3,3].pcolor(trd_tot, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        # sum
+        kesum = ds.ketrd_hpg + ds.ketrd_spg + ds.ketrd_keg + ds.ketrd_rvo +  \
+                ds.ketrd_pvo + ds.ketrd_zad + \
+                ds.ketrd_zdf + ds.ketrd_tau + \
+                ds.ketrd_atf + ds.ketrd_convP2K
+        axs[3,2].pcolor(kesum, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        # residule
+        resid = kesum - trd_tot
+        #axs[3,3].pcolor(resid, vmin=vmin, vmax=vmax, cmap=cmap)
+
+
+        # titles
+        axs[0,0].set_title('hyd p')
+        axs[0,1].set_title('surf p')
+        axs[0,2].set_title('hadv')
+        axs[0,3].set_title('zeta')
+        axs[1,0].set_title('cori')
+        axs[1,1].set_title('vadv')
+        axs[1,2].set_title('udx')
+        axs[1,3].set_title('hdiff')
+        axs[2,0].set_title('zdiff')
+        axs[2,1].set_title('wind')
+        axs[2,2].set_title('imdrag')
+        axs[2,3].set_title('expdrag')
+        axs[3,0].set_title('asselin')
+        axs[3,1].set_title('PE2KE')
+        axs[3,2].set_title('sum of terms')
+        axs[3,3].set_title('TOT')
+        #axs[3,4].set_title('residule')
+
+        plt.savefig(self.case + '_ke_mld_budget.png')
+
+    def plot_TKE_budget_mld(self):
+        ''' plot budget of TKE at middepth of the mixed layer '''
+        
+        # ini figure
+        fig, axs = plt.subplots(3, 4, figsize=(5.5,5.5))
+
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'tke_budget.nc')
+
+        # plot
+        vmin, vmax = -1e-7, 1e-7
+        cmap=cmocean.cm.balance
+        axs[0,0].pcolor(ds.trd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,1].pcolor(ds.trd_spg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,2].pcolor(ds.trd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,3].pcolor(ds.trd_rvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,0].pcolor(ds.trd_pvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,1].pcolor(ds.trd_zad, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,2].pcolor(ds.trd_zdf, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,3].pcolor(ds.trd_atf, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2,0].pcolor(ds.trd_tot, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        # sum
+        kesum = ds.trd_hpg + ds.trd_spg + ds.trd_keg + ds.trd_rvo +  \
+                ds.trd_pvo + ds.trd_zad# + \
+                #ds.trd_zdf 
+        axs[2,1].pcolor(kesum, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        # residule
+        resid = kesum - ds.trd_tot
+        axs[2,2].pcolor(resid, vmin=vmin, vmax=vmax, cmap=cmap)
+
+
+        # titles
+        axs[0,0].set_title('hyd p')
+        axs[0,1].set_title('surf p')
+        axs[0,2].set_title('ke adv')
+        axs[0,3].set_title('zeta adv')
+        axs[1,0].set_title('cori')
+        axs[1,1].set_title('v adv')
+        axs[1,2].set_title('zdiff')
+        axs[1,3].set_title('asselin')
+        axs[2,0].set_title('TOT')
+        axs[2,1].set_title('sum of terms')
+        axs[2,2].set_title('residule')
+
+        plt.savefig(self.case + '_tke_mld_budget.png')
+
+
     
-ke = plot_KE('EXP10')
-ke.plot_ke_time_series()
+#file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
+ke = plot_KE('EXP90', file_id)
+ke.plot_TKE_budget_mld()

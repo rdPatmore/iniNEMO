@@ -12,3 +12,4 @@ Process/Scratch/
 Plot/myout_08.txt
 Process/myout_combine.txt
 Movie/myout_08.txt
+*dask-worker-space
