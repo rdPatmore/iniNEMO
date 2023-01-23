@@ -153,25 +153,6 @@ class KE(object):
         vvel_prime = xr.open_dataarray(self.preamble + 'vvel_mld_rey.nc', **kwargs)
         vmom_prime = xr.open_dataset(self.preamble + 'momv_mld_rey.nc', **kwargs)
 
-        #umom_prime = umom_prime.set_coords(['nav_lat','nav_lon'])
-
-        #umom_prime = umom_prime.drop_vars(['bounds_nav_lon',
-        #                                   'bounds_nav_lat',
-        #                                   'area',
-        #                                   'depthu_bounds',
-        #                                   'time_instant',
-        #                                   'time_instant_bounds',
-        #                                   'time_counter_bounds'])
-        #vmom_prime = vmom_prime.set_coords(['nav_lat','nav_lon'])
-
-        #vmom_prime = vmom_prime.drop_vars(['bounds_nav_lon',
-        #                                   'bounds_nav_lat',
-        #                                   'area',
-        #                                   'depthv_bounds',
-        #                                   'time_instant',
-        #                                   'time_instant_bounds',
-        #                                   'time_counter_bounds'])
-
         # get products
         u_tke = uvel_prime * umom_prime
         #u_tke.to_netcdf(self.preamble + 'u_tke.nc')
@@ -198,7 +179,59 @@ class KE(object):
         # save
         tke_budg.to_netcdf(self.preamble + 'tke_budget.nc')
 
+    def calc_z_TKE_budget(self):
+
+        # load
+        kwargs = {'decode_cf':True} 
+        wvel_prime = xr.open_dataarray(self.preamble + 'wvel_mld_rey.nc', **kwargs).load()
+        rho_prime = xr.open_dataset(self.preamble + 'rho_mld_rey.nc', **kwargs).rhop.load()
+        #rho = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs).rhop.load()
+        rho_prime['time_counter'] = wvel_prime.time_counter
+
+        #print (wvel_prime)
+        print (rho_prime.min())
+        print (rho_prime.max())
+        # get products
+        g = 9.81
+        rho_0 = 1000 # rho prime is sigma0 (already anom to 1000)
+        b_flux = g * wvel_prime * rho_prime / rho_0
+        print (wvel_prime.min().values)
+        print (wvel_prime.max().values)
+        print (rho_prime.min().values)
+        print (rho_prime.max().values)
+        print (b_flux.min().values)
+        print (b_flux.max().values)
+        b_flux_mean = b_flux.mean('time_counter')
+
+        # save
+        b_flux_mean.to_netcdf(self.preamble + 'b_flux_mld.nc')
+        
+
+    def calc_TKE_steadiness(self):
+        ''' plot time series of TKE and dTKE/dt at mixed later depth '''
+       
+        kwargs = {'decode_cf':False} 
+        uvel_prime = xr.load_dataarray(self.preamble + 'uvel_mld_rey.nc', **kwargs)
+        vvel_prime = xr.load_dataarray(self.preamble + 'vvel_mld_rey.nc', **kwargs)
+
+        # regrid to t-pts
+        uvelT_prime = (uvel_prime + uvel_prime.roll(x=1, roll_coords=False)) / 2
+        vvelT_prime = (vvel_prime + vvel_prime.roll(y=1, roll_coords=False)) / 2
+
+        # tke components
+        uvelT_prime_sqmean = (uvelT_prime ** 2).mean(['time_counter'])
+        vvelT_prime_sqmean = (vvelT_prime ** 2).mean(['time_counter'])
+
+        # domain averaged TKE
+        TKE_timeseries = 0.5 * (uvelT_prime_sqmean +
+                                vvelT_prime_sqmean).mean(['x','y'])
+
+        # save
+        TKE_timeseries.to_netcdf(self.preamble + 'TKE_mld.nc')
+       
+
 m = KE('EXP90')
-m.calc_TKE_budget()
+#m.calc_TKE_steadiness()
+m.calc_z_TKE_budget()
 #m.calc_reynolds_terms()
 #m.calc_TKE(save=True)

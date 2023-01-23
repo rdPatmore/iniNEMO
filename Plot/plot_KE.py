@@ -165,30 +165,39 @@ class plot_KE(object):
 
         # load and slice
         ds = xr.open_dataset(self.preamble + 'tke_budget.nc')
+        ds_z = xr.open_dataarray(self.preamble + 'b_flux_mld.nc')
 
         # plot
-        vmin, vmax = -1e-7, 1e-7
-        cmap=cmocean.cm.balance
-        axs[0,0].pcolor(ds.trd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,1].pcolor(ds.trd_spg, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,2].pcolor(ds.trd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,3].pcolor(ds.trd_rvo, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,0].pcolor(ds.trd_pvo, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,1].pcolor(ds.trd_zad, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,2].pcolor(ds.trd_zdf, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,3].pcolor(ds.trd_atf, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[2,0].pcolor(ds.trd_tot, vmin=vmin, vmax=vmax, cmap=cmap)
+        self.vmin, self.vmax = -2e-7, 2e-7
+        self.cmap=cmocean.cm.balance
+        def render(ax, ds, var):
+            #ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var],
+            ax.pcolor(ds[var],
+                      vmin=self.vmin, vmax=self.vmax,
+                      cmap=self.cmap)#, shading='nearest')
+
+        render(axs[0,0], ds, 'trd_hpg')
+        render(axs[0,1], ds, 'trd_spg')
+        render(axs[0,2], ds, 'trd_keg')
+        render(axs[0,3], ds, 'trd_rvo')
+        render(axs[1,0], ds, 'trd_pvo')
+        render(axs[1,1], ds, 'trd_zad')
+        #render(axs[1,2], ds, 'trd_zdf')
+        render(axs[1,3], ds, 'trd_tot')
 
         # sum
         kesum = ds.trd_hpg + ds.trd_spg + ds.trd_keg + ds.trd_rvo +  \
-                ds.trd_pvo + ds.trd_zad# + \
+                ds.trd_pvo + ds.trd_zad - ds_z# + \
                 #ds.trd_zdf 
-        axs[2,1].pcolor(kesum, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2,0].pcolor( kesum,
+                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
 
         # residule
         resid = kesum - ds.trd_tot
-        axs[2,2].pcolor(resid, vmin=vmin, vmax=vmax, cmap=cmap)
-
+        axs[2,1].pcolor(resid,
+                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
+        axs[1,2].pcolor(-ds_z,
+                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
 
         # titles
         axs[0,0].set_title('hyd p')
@@ -197,13 +206,19 @@ class plot_KE(object):
         axs[0,3].set_title('zeta adv')
         axs[1,0].set_title('cori')
         axs[1,1].set_title('v adv')
-        axs[1,2].set_title('zdiff')
-        axs[1,3].set_title('asselin')
-        axs[2,0].set_title('TOT')
-        axs[2,1].set_title('sum of terms')
-        axs[2,2].set_title('residule')
+        axs[1,2].set_title('b flux')
+        axs[1,3].set_title('TOT')
+        axs[2,0].set_title('sum of terms')
+        axs[2,1].set_title('residual')
+        #axs[2,2].set_title('b flux')
+
+        for ax in axs[:-1,:].flatten():
+            ax.set_xticklabels([])
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
 
         plt.savefig(self.case + '_tke_mld_budget.png')
+
 
 
     

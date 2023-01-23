@@ -14,18 +14,19 @@ class mld(object):
         ''' reduce data to the middle of the mixed layer depth '''
          
         # load data
-        kwargs = {'chunks':{'deptht':1, 'x':50, 'y':50},'decode_cf':True} 
-        #self.mld = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
-        #                           ).mldr10_3
-        self.ke = xr.open_dataset(self.nc_preamble + 'KE.nc', **kwargs)
+        kwargs = {'chunks':{'deptht':-1, 'x':-1, 'y':-1}, 'decode_cf':False} 
+        ke = xr.load_dataset(self.nc_preamble + 'KE.nc', **kwargs)
+        mld = xr.load_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).mldr10_3
 
         # conform time
+        mld['time_counter'] = ke.time_counter
         #self.mld = self.mld.interp(time_counter=self.ke.time_counter)
 
-        #yypself.ke = self.ke.sel(deptht=self.ke.mldr10_3/2, method='nearest')
-        self.ke = self.ke.isel(deptht=30)
+        # reduce to mld
+        ke = ke.sel(deptht=mld/2, method='nearest').load()
 
-        self.ke.to_netcdf(self.nc_preamble + 'KE_mld.nc')
+        ke.to_netcdf(self.nc_preamble + 'KE_mld.nc')
 
     def find_uvel_at_middepth(self):
         ''' reduce data to the middle of the mixed layer depth '''
@@ -63,6 +64,47 @@ class mld(object):
 
         # save
         vvel.to_netcdf(self.nc_preamble + 'vvel_mld.nc')
+
+    def find_wvel_at_middepth(self):
+        ''' reduce data to the middle of the mixed layer depth '''
+         
+        # load data
+        kwargs = {'chunks':{'depthw':1}, 'decode_cf':False} 
+        wvel = xr.open_dataset(self.nc_preamble + 'grid_W.nc', **kwargs).wo
+        kwargs = {'decode_cf':False} 
+        deptht = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).deptht.load()
+        mld = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).mldr10_3.load()
+
+        # interp to t-pts
+        wvel = wvel.interp(depthw=deptht)
+        wvel = wvel.drop('depthw')
+
+        # conform time
+        mld['time_counter'] = wvel.time_counter
+
+        # reduce to mld
+        wvel = wvel.sel(deptht=mld/2, method='nearest').load()
+
+        # save
+        wvel.to_netcdf(self.nc_preamble + 'wvel_mld.nc')
+
+    def find_rho_at_middepth(self):
+        ''' reduce data to the middle of the mixed layer depth '''
+         
+        # load data
+        kwargs = {'decode_cf':False} 
+        rho = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).rhop.load()
+        mld = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).mldr10_3.load()
+
+        # reduce to mld
+        rho = rho.sel(deptht=mld/2, method='nearest').load()
+
+        # save
+        rho.to_netcdf(self.nc_preamble + 'rho_mld.nc')
 
     def find_momu_at_middepth(self):
         ''' reduce data to the middle of the mixed layer depth '''
@@ -112,7 +154,13 @@ if __name__=='__main__':
      
     nc_preamble = 'SOCHIC_PATCH_1h_20121209_20121211_'
     m = mld('EXP90', nc_preamble)
-    m.find_momv_at_middepth()
+    #m.find_KE_at_middepth()
+    #m.find_uvel_at_middepth()
+    #m.find_vvel_at_middepth()
+    #m.find_momu_at_middepth()
+    #m.find_momv_at_middepth()
+    m.find_wvel_at_middepth()
+    m.find_rho_at_middepth()
 
     end = time.time()
     print('time elapsed (minutes): ', (end - start)/60)
