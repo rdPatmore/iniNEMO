@@ -179,6 +179,43 @@ class KE(object):
         # save
         tke_budg.to_netcdf(self.preamble + 'tke_budget.nc')
 
+    def calc_MKE_budget(self):
+        # load and slice
+        umom = xr.open_dataset(self.preamble + 'momu_mld.nc')
+        vmom = xr.open_dataset(self.preamble + 'momv_mld.nc')
+        uvel = xr.open_dataset(self.preamble + 'uvel_mld.nc').uo
+        vvel = xr.open_dataset(self.preamble + 'vvel_mld.nc').vo
+
+        # drop time
+        umom = umom.drop_vars(['time_instant','time_instant_bounds',
+                              'time_counter_bounds'])
+        vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
+                              'time_counter_bounds'])
+
+        # regrid to t-pts
+        uT_mom = (umom + umom.roll(x=1, roll_coords=False)) / 2
+        vT_mom = (vmom + vmom.roll(y=1, roll_coords=False)) / 2
+        uT_vel = (uvel + uvel.roll(x=1, roll_coords=False)) / 2
+        vT_vel = (vvel + vvel.roll(y=1, roll_coords=False)) / 2
+
+        for var in uT_mom.data_vars:
+            uT_mom = uT_mom.rename({var:var.lstrip('u')})
+        for var in vT_mom.data_vars:
+            vT_mom = vT_mom.rename({var:var.lstrip('v')})
+
+        # means
+        umom_mean = uT_mom.mean('time_counter')
+        vmom_mean = vT_mom.mean('time_counter')
+        uvel_mean = uvel.mean('time_counter')
+        vvel_mean = vvel.mean('time_counter')
+
+        # mean KE
+        MKE = 0.5 * ( ( uvel_mean * umom_mean ) +
+                      ( vvel_mean * vmom_mean ) )
+
+        # save
+        MKE.to_netcdf(self.preamble + 'MKE_mld_budget.nc')
+
     def calc_z_TKE_budget(self):
 
         # load
@@ -230,8 +267,9 @@ class KE(object):
         TKE_timeseries.to_netcdf(self.preamble + 'TKE_mld.nc')
        
 
-m = KE('EXP90')
+m = KE('TRD00')
+m.calc_MKE_budget()
 #m.calc_TKE_steadiness()
-m.calc_z_TKE_budget()
+#m.calc_z_TKE_budget()
 #m.calc_reynolds_terms()
 #m.calc_TKE(save=True)
