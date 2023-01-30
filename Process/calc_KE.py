@@ -7,6 +7,7 @@ class KE(object):
     def __init__(self, case):
         self.file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
         self.preamble = config.data_path() + case +  self.file_id
+        self.path = config.data_path() + case + '/'
 
     def get_basic_vars(self):
         kwargs = {'chunks':{'time_counter':100} ,'decode_cf':False} 
@@ -216,6 +217,96 @@ class KE(object):
         # save
         MKE.to_netcdf(self.preamble + 'MKE_mld_budget.nc')
 
+    def calc_KE_budget(self, depth_str='mld'):
+        # load and slice
+        umom = xr.open_dataset(self.preamble + 'momu_' + depth_str + '.nc')
+        vmom = xr.open_dataset(self.preamble + 'momv_' + depth_str + '.nc')
+        uvel = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc').uo
+        vvel = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc').vo
+
+        # drop time
+        umom = umom.drop_vars(['time_instant','time_instant_bounds',
+                              'time_counter_bounds'])
+        vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
+                              'time_counter_bounds'])
+
+        # regrid to t-pts
+        uT_mom = (umom + umom.roll(x=1, roll_coords=False)) / 2
+        vT_mom = (vmom + vmom.roll(y=1, roll_coords=False)) / 2
+        uT_vel = (uvel + uvel.roll(x=1, roll_coords=False)) / 2
+        vT_vel = (vvel + vvel.roll(y=1, roll_coords=False)) / 2
+
+        for var in uT_mom.data_vars:
+            uT_mom = uT_mom.rename({var:var.lstrip('u')})
+        for var in vT_mom.data_vars:
+            vT_mom = vT_mom.rename({var:var.lstrip('v')})
+
+        # means
+        umom_snap = uT_mom.isel(time_counter=1)
+        vmom_snap = vT_mom.isel(time_counter=1)
+        uvel_snap = uvel.isel(time_counter=1)
+        vvel_snap = vvel.isel(time_counter=1)
+
+        # mean KE
+        KE = 0.5 * ( ( uvel_snap * umom_snap ) +
+                     ( vvel_snap * vmom_snap ) )
+
+        # save
+        KE.to_netcdf(self.preamble + 'KE_' + depth_str + '_budget.nc')
+
+    def im1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(x=-1, roll_coords=False)
+
+    def ip1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(x=1, roll_coords=False)
+
+    def jm1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(y=-1, roll_coords=False)
+
+    def jp1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(y=1, roll_coords=False)
+
+    def calc_cori_err(self):
+        ''' calculate the gridding error arrising due to cori gridding'''
+
+        uvel = xr.open_dataset(self.preamble + 'grid_U.nc').uo
+        vvel = xr.open_dataset(self.preamble + 'grid_V.nc').vo
+        e3u = xr.open_dataset(self.preamble + 'grid_U.nc').uo
+        e3v = xr.open_dataset(self.preamble + 'grid_V.nc').vo
+        cfg = xr.open_dataset(self.path + 'domain_cfg.nc')
+        ff_f = xr.open_dataset(self.path + 'domain_cfg.nc').ff_f
+
+        uflux = uvel * cfg.e2u * e3u
+        vflux = vvel * cfg.e1v * e3v
+
+        f3_ne = (         ff_f  + self.im1(ff_f) + self.jm1(ff_f))
+        f3_nw = (         ff_f  + self.im1(ff_f) + self.im1(self.jm1(ff_f))) 
+        f3_se = (         ff_f  + self.jm1(ff_f) + self.im1(self.jm1(ff_f))) 
+        f3_sw = (self.im1(ff_f) + self.jm1(ff_f) + self.im1(self.jm1(ff_f))) 
+        
+        uPVO = (1/12.0)*(1/cfg.e1u)*(1/e3u)*( 
+                                                 f3_ne      * vflux 
+                                      + self.ip1(f3_nw) * self.ip1(vflux)
+                                      +          f3_se  * self.jm1(vflux)
+                                      + self.ip1(f3_sw) * self.ip1(self.jm1(vflux)) )
+        
+        vPVO = -(1/12.0)*(1/cfg.e2v)*(1/e3v)*(
+                                          self.jp1(f3_sw) * self.im1(jp1(uflux))
+                                        + self.jp1(f3_se) * self.jp1(uflux)
+                                        +          f3_nw  * self.im1(uflux)
+                                        +          f3_ne  * uflux )
+
+        uPVO.to_netcdf(self.preamble + 'utrd_pvo_bta.nc')
+        vPVO.to_netcdf(self.preamble + 'vtrd_pvo_bta.nc')
+
     def calc_z_TKE_budget(self):
 
         # load
@@ -268,7 +359,8 @@ class KE(object):
        
 
 m = KE('TRD00')
-m.calc_MKE_budget()
+m.calc_cori_err()
+#m.calc_KE_budget(depth_str='30')
 #m.calc_TKE_steadiness()
 #m.calc_z_TKE_budget()
 #m.calc_reynolds_terms()
