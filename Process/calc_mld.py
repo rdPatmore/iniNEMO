@@ -95,7 +95,7 @@ class mld(object):
         # save
         wvel.to_netcdf(self.nc_preamble + 'wvel_mld.nc')
 
-    def find_rho_at_middepth(self):
+    def find_rho_at_middepth(self, depth=30):
         ''' reduce data to the middle of the mixed layer depth '''
          
         # load data
@@ -176,10 +176,10 @@ if __name__=='__main__':
     #print ('4')
     #m.find_momv_at_middepth(depth=30)
     #print ('5')
-    #m.find_wvel_at_middepth()
-    #print ('6')
-    #m.find_rho_at_middepth()
-    #print ('7')
+    m.find_wvel_at_middepth(depth=30)
+    print ('6')
+    m.find_rho_at_middepth(depth=30)
+    print ('7')
 
     end = time.time()
     print('time elapsed (minutes): ', (end - start)/60)

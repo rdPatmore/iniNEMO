@@ -274,6 +274,16 @@ class KE(object):
 
         return var.roll(y=1, roll_coords=False)
 
+    def km1(self, var):
+        ''' rolling opperations: roll down '''
+
+        return var.roll(z=-1, roll_coords=False)
+
+    def kp1(self, var):
+        ''' rolling opperations: roll up '''
+
+        return var.roll(z=1, roll_coords=False)
+
     def calc_cori_err(self):
         ''' calculate the gridding error arrising due to cori gridding'''
 
@@ -293,10 +303,10 @@ class KE(object):
         f3_sw = (self.im1(ff_f) + self.jm1(ff_f) + self.im1(self.jm1(ff_f))) 
         
         uPVO = (1/12.0)*(1/cfg.e1u)*(1/e3u)*( 
-                                                 f3_ne      * vflux 
-                                      + self.ip1(f3_nw) * self.ip1(vflux)
-                                      +          f3_se  * self.jm1(vflux)
-                                      + self.ip1(f3_sw) * self.ip1(self.jm1(vflux)) )
+                                            f3_ne      * vflux 
+                                 + self.ip1(f3_nw) * self.ip1(vflux)
+                                 +          f3_se  * self.jm1(vflux)
+                                 + self.ip1(f3_sw) * self.ip1(self.jm1(vflux)) )
         
         vPVO = -(1/12.0)*(1/cfg.e2v)*(1/e3v)*(
                                           self.jp1(f3_sw) * self.im1(jp1(uflux))
@@ -307,12 +317,35 @@ class KE(object):
         uPVO.to_netcdf(self.preamble + 'utrd_pvo_bta.nc')
         vPVO.to_netcdf(self.preamble + 'vtrd_pvo_bta.nc')
 
+    def calc_z_KE_budget(self):
+        ''' calculate the vertical buoyancy flux '''
+        
+        # get variables
+        rho  = xr.open_dataset(self.preamble + 'grid_T.nc').rhop
+        e3t  = xr.open_dataset(self.preamble + 'grid_T.nc').e3t
+        wvel = xr.open_dataarray(self.preamble + 'grid_W.nc').wo
+        e3w = xr.open_dataarray(self.preamble + 'grid_W.nc').e3u
+
+        # calc buoyancy flux on w-pts
+        rho0 = 1026
+        g = 9.81
+        z_conv = rho0 * g * 0.5 * (rho * self.km1) * wvel * e3w
+
+        # shift to t-pts
+        z_coeff = 1 / (2 * e3t)
+        b_flux = z_coeff * ( z_conv + self.kp1(z_conv) )
+
+        # save
+        b_flux.to_netcdf(self.preamble + 'b_flux.nc')
+
     def calc_z_TKE_budget(self):
 
         # load
         kwargs = {'decode_cf':True} 
-        wvel_prime = xr.open_dataarray(self.preamble + 'wvel_mld_rey.nc', **kwargs).load()
-        rho_prime = xr.open_dataset(self.preamble + 'rho_mld_rey.nc', **kwargs).rhop.load()
+        wvel_prime = xr.open_dataarray(self.preamble + 'wvel_mld_rey.nc',
+        **kwargs).load()
+        rho_prime = xr.open_dataset(self.preamble + 'rho_mld_rey.nc',
+        **kwargs).rhop.load()
         #rho = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs).rhop.load()
         rho_prime['time_counter'] = wvel_prime.time_counter
 
@@ -359,7 +392,7 @@ class KE(object):
        
 
 m = KE('TRD00')
-m.calc_cori_err()
+m.calc_z_KE_budget()
 #m.calc_KE_budget(depth_str='30')
 #m.calc_TKE_steadiness()
 #m.calc_z_TKE_budget()

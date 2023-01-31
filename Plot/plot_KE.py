@@ -91,7 +91,7 @@ class plot_KE(object):
     def plot_KE_cori_balance(self):
 
         # ini figure
-        fig, axs = plt.subplots(5, 2, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(2, 4, figsize=(5.5,5.5))
 
         # load and slice
         uf = xr.open_dataset(self.preamble + 'momu_30.nc').utrd_pvo
@@ -119,42 +119,50 @@ class plot_KE(object):
 
         u_pvo_bta = u_pvo_bta.squeeze().isel(time_counter=1)
         v_pvo_bta = v_pvo_bta.squeeze().isel(time_counter=1)
-        print (u_pvo_bta)
 
         u_cori_corrected = uvel_snap * u_pvo_bta
         v_cori_corrected = vvel_snap * v_pvo_bta
       
 
-        # plotting params
-        self.vmin, self.vmax = -2e-5, 2e-5
+        self.vmin, self.vmax = -1e-5, 1e-5
         self.cmap = cmocean.cm.balance
-        axs[0,0].pcolor(uf, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-        axs[0,1].pcolor(vf, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-        self.vmin, self.vmax = -5e-1, 5e-1
-        axs[1,0].pcolor(uvel_snap, vmin=self.vmin, vmax=self.vmax,
-                        cmap=self.cmap)
-        axs[1,1].pcolor(vvel_snap, vmin=self.vmin, vmax=self.vmax,
-                        cmap=self.cmap)
-        self.vmin, self.vmax = -5e-6, 5e-6
-        axs[2,0].pcolor(u_KE, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-        axs[2,1].pcolor(v_KE, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-        #axs[4,0].pcolor(u_KE+v_KE, vmin=self.vmin, vmax=self.vmax, 
-        #               cmap=self.cmap)
-        #axs[4,1].pcolor((uvel_snap * u_pvo_bta) +
-        #                (vvel_snap * v_pvo_bta),
-        #                vmin=self.vmin, vmax=self.vmax, 
-        #                cmap=self.cmap)
-        axs[4,0].pcolor(u_KE-u_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
+
+        # plot model Cori
+        axs[0,0].pcolor(u_KE, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
+        axs[1,0].pcolor(v_KE, vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
+        axs[0,0].set_title(r'$u \cdot u_{cori}$ (full term)')
+        axs[1,0].set_title(r'$v \cdot v_{cori}$ (full term)')
+
+        # plot gridding error 
+        axs[0,1].pcolor(u_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
                        cmap=self.cmap)
-        axs[4,1].pcolor(v_KE-v_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
+        axs[1,1].pcolor(v_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
                        cmap=self.cmap)
-        axs[3,0].pcolor(u_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
+        axs[0,1].set_title(r'$u \cdot u_{cori}$ (grid err)')
+        axs[1,1].set_title(r'$v \cdot v_{cori}$ (grid err)')
+
+        # plot residual
+        axs[0,2].pcolor(u_KE-u_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
                        cmap=self.cmap)
-        axs[3,1].pcolor(v_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
+        axs[1,2].pcolor(v_KE-v_cori_corrected, vmin=self.vmin, vmax=self.vmax, 
+                       cmap=self.cmap)
+        axs[0,2].set_title(r'$u \cdot u_{cori}$ (residual)')
+        axs[1,2].set_title(r'$v \cdot v_{cori}$ (residual)')
+
+        # plot sum of residual
+        axs[0,3].pcolor((u_KE-u_cori_corrected)
+                       +(v_KE-v_cori_corrected), vmin=self.vmin, vmax=self.vmax, 
                        cmap=self.cmap)
 
-        axs[2,0].set_title('u')
-        axs[2,1].set_title('v')
+        for ax in axs.flatten():
+            ax.set_aspect('equal')
+        for ax in axs.flatten():
+            ax.set_aspect('equal')
+
+        for ax in axs[:-1,:].flatten():
+            ax.set_xticklabels([])
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
 
         #plt.colorbar(p)
 
