@@ -21,9 +21,11 @@ class plot_KE(object):
 
         # load and slice
         ds = xr.open_dataset(self.preamble + 'KE_30_budget.nc')
+        b_flux = xr.open_dataset(self.preamble + 'b_flux_30.nc').isel(time_counter=1)
+        print (b_flux)
 
         # plot
-        self.vmin, self.vmax = -2e-7, 2e-7
+        self.vmin, self.vmax = -5e-6, 5e-6
         self.cmap=cmocean.cm.balance
         def render(ax, ds, var):
             #ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var],
@@ -38,6 +40,10 @@ class plot_KE(object):
         render(axs[1,0], ds, 'trd_zad')
         render(axs[1,1], ds, 'trd_ldf')
         render(axs[1,2], ds, 'trd_zdf')
+        #render(axs[1,3], b_flux, 'b_flux')
+        axs[1,3].pcolor(b_flux['b_flux'],
+                  vmin=-5e-6, vmax=5e-6,
+                  cmap=self.cmap)#, shading='nearest')
 
         # titles
         axs[0,0].set_title('hyd p')
@@ -47,6 +53,7 @@ class plot_KE(object):
         axs[1,0].set_title('v adv')
         axs[1,1].set_title('lat diff')
         axs[1,2].set_title('vert diff')
+        axs[1,3].set_title('b_flux')
 
         for ax in axs[:-1,:].flatten():
             ax.set_xticklabels([])
@@ -172,6 +179,6 @@ class plot_KE(object):
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_KE_cori_balance()
-#ke.plot_KE_budget_mld()
+##ke.plot_KE_cori_balance()
+ke.plot_KE_budget_mld()
 #ke.plot_KE_residual_mld()

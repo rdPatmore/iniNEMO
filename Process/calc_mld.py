@@ -152,6 +152,27 @@ class mld(object):
             momv = momv.sel(depthv=mld/2, method='nearest').load()
             momv.to_netcdf(self.nc_preamble + 'momv_mld.nc')
 
+    def find_var_at_middepth(self, f_name, depth_var, depth=30):
+        ''' reduce data to the middle of the mixed layer depth '''
+         
+        # load data
+        kwargs = {'decode_cf':False} 
+        var =  xr.load_dataset(self.nc_preamble + f_name + '.nc', **kwargs)
+
+        # reduce to mld
+        if depth:
+            var = var.sel({depth_var:depth}, method='nearest').load()
+            var.to_netcdf(self.nc_preamble + f_name + '_' + str(depth) + '.nc')
+        else:
+            kwargs = {'chunks':{'deptht':-1, 'x':-1, 'y':-1}, 'decode_cf':False}
+            mld = xr.load_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                                 ).mldr10_3
+            # conform time
+            mld['time_counter'] = var.time_counter
+
+            var = var.sel(depthv=mld/2, method='nearest').load()
+            var.to_netcdf(self.nc_preamble + f_name + '_mld.nc')
+
 if __name__=='__main__':
     import time
     start = time.time()
@@ -164,6 +185,7 @@ if __name__=='__main__':
     nc_preamble = 'SOCHIC_PATCH_1h_20121209_20121211_'
     m = mld('TRD00', nc_preamble)
     print ('start')
+    m.find_var_at_middepth('b_flux', 'deptht', depth=30)
     #m.find_KE_at_middepth()
     #print ('0')
     #m.find_KE_at_middepth()
@@ -176,10 +198,10 @@ if __name__=='__main__':
     #print ('4')
     #m.find_momv_at_middepth(depth=30)
     #print ('5')
-    m.find_wvel_at_middepth(depth=30)
-    print ('6')
-    m.find_rho_at_middepth(depth=30)
-    print ('7')
+    #m.find_wvel_at_middepth(depth=30)
+    #print ('6')
+    #m.find_rho_at_middepth(depth=30)
+    #print ('7')
 
     end = time.time()
     print('time elapsed (minutes): ', (end - start)/60)

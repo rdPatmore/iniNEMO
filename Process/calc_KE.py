@@ -1,6 +1,7 @@
 import xarray as xr
 import config
 import matplotlib.pyplot as plt
+import numpy as np
 
 class KE(object):
 
@@ -274,15 +275,15 @@ class KE(object):
 
         return var.roll(y=1, roll_coords=False)
 
-    def km1(self, var):
+    def km1(self, var, dvar='deptht'):
         ''' rolling opperations: roll down '''
 
-        return var.roll(z=-1, roll_coords=False)
+        return var.roll({dvar:-1}, roll_coords=False)
 
-    def kp1(self, var):
+    def kp1(self, var, dvar='deptht'):
         ''' rolling opperations: roll up '''
 
-        return var.roll(z=1, roll_coords=False)
+        return var.roll({dvar:1}, roll_coords=False)
 
     def calc_cori_err(self):
         ''' calculate the gridding error arrising due to cori gridding'''
@@ -317,25 +318,82 @@ class KE(object):
         uPVO.to_netcdf(self.preamble + 'utrd_pvo_bta.nc')
         vPVO.to_netcdf(self.preamble + 'vtrd_pvo_bta.nc')
 
+    def calc_rhoW(self):
+        ''' get rho on w-pts '''
+
+        # get variables
+        T_path = self.preamble + 'grid_T.nc'
+        W_path = self.preamble + 'grid_W.nc'
+        rho    = xr.open_dataset(T_path, decode_times=False).rhd
+        depthw = xr.open_dataset(W_path, decode_times=False).depthw
+
+        # shift to w-pts
+        rhoW = 0.5 * (rho + self.km1(rho)) 
+
+        # mask bottom layer
+        bot_T = rho.deptht.isel(deptht=-1)
+        rhoW = rhoW.where(rhoW.deptht != bot_T)
+
+        # switch to w coords
+        rhoW = rhoW.swap_dims({'deptht':'depthw'})
+        rhoW = rhoW.assign_coords({'depthw':depthw})
+
+        # use time that is consistent with grid_W
+        rhoW['time_counter'] = rhoW.time_instant
+
+        # save
+        rhoW.to_netcdf(self.preamble + 'rhoW.nc')
+
     def calc_z_KE_budget(self):
         ''' calculate the vertical buoyancy flux '''
         
         # get variables
-        rho  = xr.open_dataset(self.preamble + 'grid_T.nc').rhop
-        e3t  = xr.open_dataset(self.preamble + 'grid_T.nc').e3t
-        wvel = xr.open_dataarray(self.preamble + 'grid_W.nc').wo
-        e3w = xr.open_dataarray(self.preamble + 'grid_W.nc').e3u
+        chunk = {'time_counter':1}
+        rhoW  = xr.open_dataset(self.preamble + 'rhoW.nc', chunks=chunk).rhd
+        e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
+        wvel = xr.open_dataset(self.preamble + 'grid_W.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.preamble + 'grid_W.nc', chunks=chunk).e3w
+        print (e3t.values)
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (' ')
+        print (e3w.values)
+        print (jkhsfd)
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
         g = 9.81
-        z_conv = rho0 * g * 0.5 * (rho * self.km1) * wvel * e3w
-
+        # for rhop
+        # z_conv = g * (rhoW - rho0) * wvel * e3w / rho0 
+        # for rhd
+        z_conv = g * rhoW * wvel * e3w 
+        # final answer should not have "/ rho0"
+     
         # shift to t-pts
-        z_coeff = 1 / (2 * e3t)
-        b_flux = z_coeff * ( z_conv + self.kp1(z_conv) )
+        z_convT = 0.5 * ( z_conv + self.kp1(z_conv, dvar='depthw') )
+
+        # mask surface layer
+        surf_W = z_convT.depthw.isel(depthw=0)
+        z_convT = z_convT.where(z_conv.depthw != surf_W)
+
+        # switch to t coords
+        z_convT = z_convT.swap_dims({'depthw':'deptht'})
+        z_convT = z_convT.assign_coords({'deptht':e3t.deptht}) 
+
+        # use time that is consistent with grid_W
+        e3t['time_counter'] = e3t.time_instant
+
+        # buoyancy flux
+        b_flux = z_convT / e3t
 
         # save
+        print (b_flux)
+        b_flux.name = 'b_flux'
         b_flux.to_netcdf(self.preamble + 'b_flux.nc')
 
     def calc_z_TKE_budget(self):
@@ -393,6 +451,7 @@ class KE(object):
 
 m = KE('TRD00')
 m.calc_z_KE_budget()
+#m.calc_rhoW()
 #m.calc_KE_budget(depth_str='30')
 #m.calc_TKE_steadiness()
 #m.calc_z_TKE_budget()
