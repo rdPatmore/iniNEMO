@@ -157,72 +157,84 @@ class plot_KE(object):
 
         plt.savefig(self.case + '_ke_mld_budget.png')
 
-    def plot_TKE_budget_mld(self):
+    def plot_TKE_budget_30(self):
         ''' plot budget of TKE at middepth of the mixed layer '''
         
         # ini figure
-        fig, axs = plt.subplots(3, 4, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(2, 4, figsize=(5.5,5.5))
+        plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1,
+                            wspace=0.10, hspace=0.11)
+        axs[-1,-1].axis('off')
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'tke_budget.nc')
-        ds_z = xr.open_dataarray(self.preamble + 'b_flux_mld.nc')
+        ds = xr.open_dataset(self.preamble + 'TKE_30_budget.nc')
+        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
+        b_flux = b_flux.sel(deptht=30, method='nearest')
+        b_flux = b_flux.drop(['nav_lon','nav_lat'])
+
+        cut=slice(10,-10)
+        ds     = ds.isel(x=cut,y=cut)
+        b_flux = b_flux.isel(x=cut,y=cut)
+
+        ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+        print (ds.trd_hpg)
+        print (b_flux)
+        ds['trd_hpg'] = ds.trd_hpg + b_flux
 
         # plot
         self.vmin, self.vmax = -2e-7, 2e-7
         self.cmap=cmocean.cm.balance
         def render(ax, ds, var):
-            #ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var],
             ax.pcolor(ds[var],
                       vmin=self.vmin, vmax=self.vmax,
-                      cmap=self.cmap)#, shading='nearest')
+                      cmap=self.cmap)
 
         render(axs[0,0], ds, 'trd_hpg')
-        render(axs[0,1], ds, 'trd_spg')
-        render(axs[0,2], ds, 'trd_keg')
-        render(axs[0,3], ds, 'trd_rvo')
-        render(axs[1,0], ds, 'trd_pvo')
-        render(axs[1,1], ds, 'trd_zad')
-        #render(axs[1,2], ds, 'trd_zdf')
-        render(axs[1,3], ds, 'trd_tot')
-
-        # sum
-        kesum = ds.trd_hpg + ds.trd_spg + ds.trd_keg + ds.trd_rvo +  \
-                ds.trd_pvo + ds.trd_zad - ds_z# + \
-                #ds.trd_zdf 
-        axs[2,0].pcolor( kesum,
-                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-
-        # residule
-        resid = kesum - ds.trd_tot
-        axs[2,1].pcolor(resid,
-                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
-        axs[1,2].pcolor(-ds_z,
-                        vmin=self.vmin, vmax=self.vmax, cmap=self.cmap)
+        render(axs[0,1], ds, 'trd_adv')
+        render(axs[0,2], ds, 'trd_pvo')
+        render(axs[0,3], ds, 'trd_zad')
+        render(axs[1,0], ds, 'trd_zdf')
+        p = axs[1,1].pcolor(-b_flux, vmin=self.vmin, vmax=self.vmax,
+                        cmap=self.cmap)
+        render(axs[1,2], ds, 'trd_tot')
 
         # titles
-        axs[0,0].set_title('hyd p')
-        axs[0,1].set_title('surf p')
-        axs[0,2].set_title('ke adv')
-        axs[0,3].set_title('zeta adv')
-        axs[1,0].set_title('cori')
-        axs[1,1].set_title('v adv')
-        axs[1,2].set_title('b flux')
-        axs[1,3].set_title('TOT')
-        axs[2,0].set_title('sum of terms')
-        axs[2,1].set_title('residual')
-        #axs[2,2].set_title('b flux')
+
+        # titles
+        titles = ['pressure grad',
+                  'lateral\n advection ',
+                  'Coriolis',               'vertical\nadvection',
+                  'vertical\ndiffusion','vertical\nbuoyancy flux',
+                  'tendency' ]
+
+        for i, ax in enumerate(axs.flatten()[:-1]):
+            ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
+                    transform=ax.transAxes, fontsize=8)
+            ax.set_aspect('equal')
 
         for ax in axs[:-1,:].flatten():
             ax.set_xticklabels([])
         for ax in axs[:,1:].flatten():
             ax.set_yticklabels([])
+        for ax in axs[-1,:].flatten():
+            ax.set_xlabel('x')
+        for ax in axs[:,0].flatten():
+            ax.set_ylabel('y')
 
-        plt.savefig(self.case + '_tke_mld_budget.png')
+        pos0 = axs[0,-1].get_position()
+        pos1 = axs[-1,-1].get_position()
+        cbar_ax = fig.add_axes([0.86, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(6.0, 0.5, 'TKE Tendency', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='right')
+
+        plt.savefig(self.case + '_tke_30_budget.png')
 
 
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
-ke = plot_KE('EXP90', file_id)
-ke.plot_TKE_budget_mld()
+ke = plot_KE('TRD00', file_id)
+ke.plot_TKE_budget_30()
