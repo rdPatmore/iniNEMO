@@ -63,27 +63,32 @@ class paper_hydrog(object):
         lon_y, dep_y = np.meshgrid(lon, dep)
         lat_x, dep_x = np.meshgrid(lat, dep)
 
-        side_levs = np.linspace(vmin, vmax, 12)
+        side_levs = np.linspace(-1.0, 1.5, 11)
+        #side_levs = np.linspace(vmin, vmax, 12)
         up_lin = np.linspace(-0.3, 0.3, 12)
+        up_lin = np.array([-0.275,-0.225,-0.175,-0.125,-0.075,-0.025,
+                  0.025,0.075, 0.125, 0.175, 0.225, 0.275])
+        #print (up_lin)
+        #print (kjsfh)
         up_levs = up_lin #- (up_lin[1] - up_lin[0])/2
         ice_levs = np.linspace(0,1,12)
 
         # x face
         p = axs.contourf(lon_y, t.isel(y=0).values, dep_y, cmap=cmap,
                         levels=side_levs, zdir='y',
-                        offset=lat[0], zorder=1)
+                        offset=lat[0], zorder=1, extend='both')
 
         # y face
         pt = axs.contourf(t.isel(x=-1).values, lat_x, dep_x, cmap=cmap,
                               levels=side_levs, zdir='x',
-                              offset=lon[-1], zorder=1)
+                              offset=lon[-1], zorder=1, extend='both')
 
         # plot z - Ro
         pRo = axs.contourf(Ro.nav_lon.values, Ro.nav_lat.values,
                                Ro.isel(depth=0).values,
                                levels=up_levs,
                                cmap=cmocean.cm.balance, zdir='z',
-                               offset=dep[0])
+                               offset=dep[0], extend='both')
         # extend matplotlib bug, fixed oct 21, extend='both')
 
         # x topog
@@ -91,6 +96,7 @@ class paper_hydrog(object):
         #                levels=np.linspace(vmin,vmax,11), zdir='y',
         #                offset=lat[0], zorder=1)
         
+        # Removed based on Seb's suggestions
         domain = t48_domain.isel(x=slice(1*halo, -1*halo),
                                  y=slice(1*halo, -1*halo))
         z_x = -domain.bathy_meter.isel(t=0,y=0)
@@ -138,7 +144,7 @@ class paper_hydrog(object):
 
         cbar_ax = fig.add_axes([0.85, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
         cbar = fig.colorbar(pRo, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(4.8, 0.5, r'$\zeta / f (-)$', rotation=90,
+        cbar.ax.text(4.8, 0.5, r'$\zeta / f$ (-)', rotation=90,
                      transform=cbar.ax.transAxes, va='center', ha='left')
         cbar.set_ticks((up_levs[0] - up_levs[1]) /2 + up_levs[1::2])
         print(up_levs)
@@ -176,8 +182,9 @@ class paper_hydrog(object):
         p1.set_clip_on(False)
         p2.set_clip_on(False)
 
+        # Removed based on Seb's suggestions
         plt.text(0.43, 0.20, 'Maud Rise', transform=axs.transAxes,
-                     va='center', ha='left', rotation=-30, fontsize=6)
+                    va='center', ha='left', rotation=-30, fontsize=6)
 
         plt.text(-0.05, 0.85, '(a)', transform=axs.transAxes,
                  va='top', ha='left', fontsize=8)
@@ -238,8 +245,8 @@ class paper_hydrog(object):
                        bbox_to_anchor=(0.25, 1.10, 0.5, 0.3), ncol=3)
 
         # axes formatting
-        date_lims = (self.dr.stats.time_counter.min(), 
-                     self.dr.stats.time_counter.max())
+        date_lims = (self.dr.stats.time_counter.min().values, 
+                     self.dr.stats.time_counter.max().values)
         
         for ax in axs:
             ax.set_xlim(date_lims)

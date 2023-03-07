@@ -2004,6 +2004,11 @@ class bootstrap_plotting(object):
         p = []
         for i, num in enumerate(nums):
             b_x = b_x_full.sel(glider_quantity=num)
+            print ('')
+            print ('')
+            print ('')
+            print ('')
+            print (b_x.rmse_mean.max().values)
             l = axs0[3].bar(b_x.bin_left, 
                         b_x.rmse_mean, 
                         color=colours[i],
@@ -2022,6 +2027,8 @@ class bootstrap_plotting(object):
             for j, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
                 b_x = b_x_roll.sel(glider_quantity=num, rolling=roll)
                 b_x = b_x.mean('time_counter')
+                print (b_x.rmse_mean.max().values)
+                print ('')
                 axs0[j].bar(b_x.bin_left, 
                              b_x.rmse_mean, 
                              color=colours[i],
@@ -2036,6 +2043,10 @@ class bootstrap_plotting(object):
                              width=bg_norm.bin_right - bg_norm.bin_left,
                              align='edge')
 
+        print ('')
+        print ('')
+        print ('')
+        print ('')
         fig.legend(p, ['1 Glider', '4 Gliders', '20 Gliders'],
                        loc='lower center', bbox_to_anchor=(0.555, 0.95), 
                        ncol=4, fontsize=8)
@@ -2636,8 +2647,8 @@ def plot_hist(by_time=None):
     
     else:
         boot = bootstrap_plotting()
-        boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
-        #boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
+        boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
             #m.plot_histogram_buoyancy_gradients_and_samples()
