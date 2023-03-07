@@ -162,7 +162,13 @@ class mld(object):
             split = [0,30]
             f = f.isel(time_counter=ds.time_counter.dt.minute.isin(split))
 
-    def find_var_at_middepth(self, var, depth_var, depth=30):
+    def find_var_at_middepth(self, var, depth=30):
+
+        # find name of depth dimension
+        dims = list(var.dims.keys())
+        for dim in dims:
+            if dim[:5] == 'depth':
+                depth_var = dim
 
         # reduce to mld
         if depth:
@@ -177,16 +183,25 @@ class mld(object):
             var = var.sel(depthv=mld/2, method='nearest').load()
         return var
 
-    def save_var_at_middepth(self, f_name, depth_var, depth=30):
+    def save_var_at_middepth(self, f_name, depth=30,
+                             vars=None):
         ''' reduce data to the middle of the mixed layer depth '''
          
         # load data
         kwargs = {'decode_cf':False} 
-        var =  xr.open_dataset(self.nc_preamble + f_name + '.nc', **kwargs)
+        ds =  xr.open_dataset(self.nc_preamble + f_name + '.nc', **kwargs)
+        if vars:
+            ds = ds[vars]
+
+        # find name of depth dimension
+        dims = list(var.dims.keys())
+        for dim in dims:
+            if dim[:5] == 'depth':
+                depth_var = dim
 
         # reduce to mld
-        var = self.find_var_at_middepth(var, depth_var, depth)
-        var.to_netcdf(self.nc_preamble + f_name + '_' + str(depth) + '.nc')
+        ds = self.find_var_at_middepth(ds, depth_var, depth)
+        ds.to_netcdf(self.nc_preamble + f_name + '_' + str(depth) + '.nc')
         #if depth:
         #    var = var.sel({depth_var:depth}, method='nearest').load()
         #else:
@@ -198,7 +213,8 @@ class mld(object):
 
         #    var = var.sel(depthv=mld/2, method='nearest').load()
 
-    def reduce_depth_and_time_dims(self, f_name, depth_var, depth=30, ts='1h'):
+    def reduce_depth_and_time_dims(self, f_name, depth_var, depth=30, ts='1h',
+                                   vars=None):
         '''
         reduce data 
           - get vertical slice
@@ -207,15 +223,79 @@ class mld(object):
 
         # load data
         kwargs = {'decode_cf':False} 
-        var = xr.open_dataset(self.nc_preamble + f_name + '.nc', **kwargs)
+        ds = xr.open_dataset(self.nc_preamble + f_name + '.nc', **kwargs)
+        if vars:
+            ds = ds[vars]
 
         # reduce
-        var = self.find_var_at_middepth(var, depth_var, depth
-        self.reduce_temporal_resolution(self, interval):
+        ds = self.find_var_at_middepth(ds, depth_var, depth)
+        ds = self.reduce_temporal_resolution(ts)
 
         # save
         nc_preamble = 'SOCHIC_PATCH_' + ts + '_20121209_20121211_'
-        var.to_netcdf(nc_preamble + f_name + 'dep_' + str(depth) + '.nc')
+        ds.to_netcdf(nc_preamble + f_name + 'dep_' + str(depth) + '.nc')
+
+    def reduce_uvel_vars(self):
+        ''' get vels and e3u from grid_U'''
+
+        # load data
+        kwargs = {'decode_cf':False} 
+        ds = xr.open_dataset(self.nc_preamble + 'grid_U.nc', **kwargs)
+
+        # reduce
+        ds = ds[['uo','e3u']]
+
+        # save
+        ds.to_netcdf(self.nc_preamble + 'uvel.nc')
+
+    def reduce_vvel_vars(self):
+        ''' get vels and e3v from grid_V'''
+
+        # load data
+        kwargs = {'decode_cf':False} 
+        ds = xr.open_dataset(self.nc_preamble + 'grid_V.nc', **kwargs)
+
+        # reduce
+        ds = ds[['vo','e3v']]
+
+        # save
+        ds.to_netcdf(self.nc_preamble + 'vvel.nc')
+
+    def reduce_wvel_vars(self):
+        ''' get vels and e3w from grid_W'''
+
+        # load data
+        kwargs = {'decode_cf':False} 
+        ds = xr.open_dataset(self.nc_preamble + 'grid_W.nc', **kwargs)
+
+        # reduce
+        ds = ds[['wo','e3w']]
+
+        # save
+        ds.to_netcdf(self.nc_preamble + 'wvel.nc')
+
+    def get_all(self):
+        ''' get reductions in time and depth for all TKE variables '''
+
+        files = ['grid_T','momu','momv']
+        for f in files:
+            self.save_var_at_middepth(f, depth=30)
+            self.reduce_depth_and_time_dims(f, depth=30, ts='30mi')
+            self.reduce_depth_and_time_dims(f, depth=30, ts='1h')
+
+        v_list = ['uo','e3u']
+        self.save_var_at_middepth('grid_U', depth=30, vars=vlist)
+        self.reduce_depth_and_time_dims('grid_U', depth=30, ts='30mi',
+                                        vars=vlist)
+        self.reduce_depth_and_time_dims('grid_U', depth=30, ts='1h', 
+                                        vars=vlist)
+
+        v_list = ['vo','e3v']
+        self.save_var_at_middepth('grid_V', depth=30, vars=v_list)
+        self.reduce_depth_and_time_dims('grid_V', depth=30, ts='30mi',
+                                        vars=v_list)
+        self.reduce_depth_and_time_dims('grid_V', depth=30, ts='1h',
+                                        vars=v_list)
 
 if __name__=='__main__':
     import time
@@ -226,11 +306,14 @@ if __name__=='__main__':
      #client = Client(cluster)
      #client = Client(n_workers=5, memory_limit='64GB') # deals with memory issues
      
-    nc_preamble = 'SOCHIC_PATCH_1h_20121209_20121211_'
+    nc_preamble = 'SOCHIC_PATCH_15mi_20121209_20121211_'
     m = mld('TRD00', nc_preamble)
     print ('start')
 #    m.find_var_at_middepth('b_flux', 'deptht', depth=30)
-    m.find_var_at_middepth('grid_T', 'deptht', depth=30)
+    #m.find_var_at_middepth('grid_T', 'deptht', depth=30)
+    #m.reduce_uvel_vars()
+    #m.reduce_vvel_vars()
+    m.reduce_wvel_vars()
 #    m.find_var_at_middepth('momu', 'depthu', depth=30)
 #    print ('0')
 #    m.find_KE_at_middepth(depth=30)

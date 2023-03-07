@@ -3,6 +3,7 @@
 *.png
 *.slurm
 *.out
+*.err
 *core
 *__pycache__
 *myout.txt

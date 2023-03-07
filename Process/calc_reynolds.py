@@ -6,7 +6,7 @@ import dask
 class reynolds(object):
 
     def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
+        self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
         self.nc_preamble = config.data_path() + case +  self.file_id
 
     def get_time_mean_lat_vels(self):
@@ -133,16 +133,6 @@ class reynolds(object):
         # save
         rho_prime.to_netcdf(self.nc_preamble + 'rho_mld_rey.nc')
 
-    def reduce_time_resolution(self):
-        ''' reduce time interval of data '''
-
-            if interval == '1h':
-                split = [0]
-                f = f.isel(time_counter=ds.time_counter.dt.minute.isin(split))
-            elif interval == '30mi':
-                split = [0,30]
-                f = f.isel(time_counter=ds.time_counter.dt.minute.isin(split))
-
     def get_time_mean(self, fname, fname_out, var=None):
         ''' general routine for finding means '''
 
@@ -163,12 +153,15 @@ class reynolds(object):
         ''' general routine for finding primes '''
 
         # load
-        kwargs = {'decode_cf':False} 
-        f = xr.open_dataset(self.nc_preamble + fname + '.nc')
+        kwargs = {'decode_cf':False, 'chunks':{'time_counter':20}}
+        f = xr.open_dataset(self.nc_preamble + fname + '.nc', **kwargs)
         f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
         if fname in ['grid_T_30','grid_T']:
            f = f.set_coords('time_instant')
 
+        if fname in ['momu','momv']:
+            f = f.drop(['time_counter_bounds','time_instant_bounds'])
+            f_mean = f_mean.drop(['time_counter_bounds','time_instant_bounds'])
         # reynolds
         f_prime = f - f_mean
 
@@ -209,7 +202,20 @@ if __name__ == '__main__':
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
-    m.get_primes('grid_T_30', 'grid_T_30')
+    #m.get_primes('momv', 'momv')
+
+    #m.get_time_mean('uvel', 'uvel')
+    #m.get_time_mean('vvel', 'vvel')
+
+    #m.get_primes('uvel', 'uvel')
+    #m.get_primes('vvel', 'vvel')
+
+    #m.get_time_mean('rhoW', 'rhoW')
+    #m.get_time_mean('wvel', 'wvel')
+
+    m.get_primes('rhoW', 'rhoW')
+    m.get_primes('wvel', 'wvel')
+
     #m.get_primes_all()
 
     #m.get_lateral_vel_primes()

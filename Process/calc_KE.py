@@ -6,7 +6,7 @@ import numpy as np
 class KE(object):
 
     def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
+        self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
         self.preamble = config.data_path() + case +  self.file_id
         self.path = config.data_path() + case + '/'
 
@@ -144,80 +144,6 @@ class KE(object):
         if save:
             TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
-#    def calc_TKE_budget(self):
-#        ''' calculate terms of the tubulent kinetic energy tendency '''
-#
-#        # load primes
-#        kwargs = {'decode_cf':False} 
-#        uvel_prime = xr.open_dataarray(self.preamble + 'uvel_mld_rey.nc', **kwargs)
-#        umom_prime = xr.open_dataset(self.preamble + 'momu_mld_rey.nc', **kwargs)
-#        kwargs = {'decode_cf':False} 
-#        vvel_prime = xr.open_dataarray(self.preamble + 'vvel_mld_rey.nc', **kwargs)
-#        vmom_prime = xr.open_dataset(self.preamble + 'momv_mld_rey.nc', **kwargs)
-#
-#        # get products
-#        u_tke = uvel_prime * umom_prime
-#        #u_tke.to_netcdf(self.preamble + 'u_tke.nc')
-#        v_tke = vvel_prime * vmom_prime
-#
-#        # regrid to t-pts
-#        uT_tke = (u_tke + u_tke.roll(x=1, roll_coords=False)) / 2
-#        vT_tke = (v_tke + v_tke.roll(y=1, roll_coords=False)) / 2
-#
-#        for var in uT_tke.data_vars:
-#            uT_tke = uT_tke.rename({var:var.lstrip('u')})
-#        for var in vT_tke.data_vars:
-#            vT_tke = vT_tke.rename({var:var.lstrip('v')})
-#        print (uT_tke)
-#        print (' ')
-#        print (vT_tke)
-#
-#        uT_tke = uT_tke.mean('time_counter')
-#        vT_tke = vT_tke.mean('time_counter')
-#        #uT_tke.to_netcdf(self.preamble + 'uT_tke.nc')
-#        # tke budget
-#        tke_budg = 0.5 * ( uT_tke + vT_tke ).load()
-#
-#        # save
-#        tke_budg.to_netcdf(self.preamble + 'tke_budget.nc')
-
-#    def calc_MKE_budget(self):
-#        # load and slice
-#        umom = xr.open_dataset(self.preamble + 'momu_mld.nc')
-#        vmom = xr.open_dataset(self.preamble + 'momv_mld.nc')
-#        uvel = xr.open_dataset(self.preamble + 'uvel_mld.nc').uo
-#        vvel = xr.open_dataset(self.preamble + 'vvel_mld.nc').vo
-#
-#        # drop time
-#        umom = umom.drop_vars(['time_instant','time_instant_bounds',
-#                              'time_counter_bounds'])
-#        vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
-#                              'time_counter_bounds'])
-#
-#        # regrid to t-pts
-#        uT_mom = (umom + umom.roll(x=1, roll_coords=False)) / 2
-#        vT_mom = (vmom + vmom.roll(y=1, roll_coords=False)) / 2
-#        uT_vel = (uvel + uvel.roll(x=1, roll_coords=False)) / 2
-#        vT_vel = (vvel + vvel.roll(y=1, roll_coords=False)) / 2
-#
-#        for var in uT_mom.data_vars:
-#            uT_mom = uT_mom.rename({var:var.lstrip('u')})
-#        for var in vT_mom.data_vars:
-#            vT_mom = vT_mom.rename({var:var.lstrip('v')})
-#
-#        # means
-#        umom_mean = uT_mom.mean('time_counter')
-#        vmom_mean = vT_mom.mean('time_counter')
-#        uvel_mean = uvel.mean('time_counter')
-#        vvel_mean = vvel.mean('time_counter')
-#
-#        # mean KE
-#        MKE = 0.5 * ( ( uvel_mean * umom_mean ) +
-#                      ( vvel_mean * vmom_mean ) )
-#
-#        # save
-#        MKE.to_netcdf(self.preamble + 'MKE_mld_budget.nc')
-
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
 
         # load and slice
@@ -332,7 +258,6 @@ class KE(object):
 
         return KE
 
-
     def im1(self, var):
         ''' rolling opperations: roll west '''
 
@@ -429,8 +354,8 @@ class KE(object):
         chunk = {'time_counter':1}
         rhoW  = xr.open_dataset(self.preamble + 'rhoW.nc', chunks=chunk).rhd
         e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.preamble + 'grid_W.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.preamble + 'grid_W.nc', chunks=chunk).e3w
+        wvel = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -465,8 +390,8 @@ class KE(object):
         chunk = {'time_counter':1}
         rhoW  = xr.open_dataset(self.preamble + 'rhoW_rey.nc', chunks=chunk).rhd
         e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.preamble + 'grid_W_rey.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.preamble + 'grid_W.nc', chunks=chunk).e3w
+        wvel = xr.open_dataset(self.preamble + 'wvel_rey.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -555,11 +480,11 @@ class KE(object):
 
 m = KE('TRD00')
 #m.calc_z_KE_budget()
-#m.calc_rhoW()
+m.calc_rhoW()
 #m.calc_KE_budget(depth_str='30')
 #m.calc_TKE_budget(depth_str='30')
 #m.calc_MKE_budget(depth_str='30')
-m.calc_z_TKE_budget()
+#m.calc_z_TKE_budget()
 #m.calc_z_MKE_budget()
 #m.calc_TKE_steadiness()
 #m.calc_z_TKE_budget()
