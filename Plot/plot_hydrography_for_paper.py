@@ -96,7 +96,6 @@ class paper_hydrog(object):
         #                levels=np.linspace(vmin,vmax,11), zdir='y',
         #                offset=lat[0], zorder=1)
         
-        # Removed based on Seb's suggestions
         domain = t48_domain.isel(x=slice(1*halo, -1*halo),
                                  y=slice(1*halo, -1*halo))
         z_x = -domain.bathy_meter.isel(t=0,y=0)
@@ -131,32 +130,54 @@ class paper_hydrog(object):
         axs.zaxis.set_rotate_label(False)  # disable automatic rotation
         axs.set_zlabel('Depth (m)' , fontsize=8, rotation=90)
 
+#        # colour bar
+#        fig = plt.gcf()
+#        pos = axs.get_position()
+#
+#        cbar_ax = fig.add_axes([0.70, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
+#        cbar = fig.colorbar(pt, cax=cbar_ax, orientation='vertical')
+#        cbar.ax.text(4.8, 0.5, r'Potential Temperature ($^{\circ}$C)',
+#                     rotation=90,
+#                     transform=cbar.ax.transAxes, va='center', ha='left')
+#        cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+#
+#        cbar_ax = fig.add_axes([0.85, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
+#        cbar = fig.colorbar(pRo, cax=cbar_ax, orientation='vertical')
+#        cbar.ax.text(4.8, 0.5, r'$\zeta / f$ (-)', rotation=90,
+#                     transform=cbar.ax.transAxes, va='center', ha='left')
+#        cbar.set_ticks((up_levs[0] - up_levs[1]) /2 + up_levs[1::2])
+#        print(up_levs)
+#        print(up_levs[1::2])
+#        print(up_levs[0] + up_levs[1::2])
+#          
+#        cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+#        #cbar.set_ticks([-0.04,-0.02,0, 0.02, 0.04])
+
         # colour bar
         fig = plt.gcf()
         pos = axs.get_position()
 
-        cbar_ax = fig.add_axes([0.70, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
-        cbar = fig.colorbar(pt, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(4.8, 0.5, r'Potential Temperature ($^{\circ}$C)',
-                     rotation=90,
-                     transform=cbar.ax.transAxes, va='center', ha='left')
+        #cbar_ax = fig.add_axes([0.15, 0.62, (pos.x1 - pos.x0), 0.02])
+        cbar_ax = fig.add_axes([0.03, 0.59, 0.30, 0.02])
+        cbar = fig.colorbar(pt, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.8, r'Potential Temperature ($^{\circ}$C)',
+                     rotation=0,
+                     transform=cbar.ax.transAxes, va='bottom', ha='center')
         cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
 
-        cbar_ax = fig.add_axes([0.85, pos.y0+0.05, 0.02, (pos.y1 - pos.y0)*0.7])
-        cbar = fig.colorbar(pRo, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(4.8, 0.5, r'$\zeta / f$ (-)', rotation=90,
-                     transform=cbar.ax.transAxes, va='center', ha='left')
-        cbar.set_ticks((up_levs[0] - up_levs[1]) /2 + up_levs[1::2])
-        print(up_levs)
-        print(up_levs[1::2])
-        print(up_levs[0] + up_levs[1::2])
+        #cbar_ax = fig.add_axes([0.15, 0.55, (pos.x1 - pos.x0), 0.02])
+        cbar_ax = fig.add_axes([0.34, 0.59, 0.30, 0.02])
+        cbar = fig.colorbar(pRo, cax=cbar_ax, orientation='horizontal')
+        cbar.ax.text(0.5, -2.8, r'$\zeta / f$ (-)', rotation=0,
+                     transform=cbar.ax.transAxes, va='bottom', ha='center')
+        #cbar.set_ticks((up_levs[0] - up_levs[1]) /2 + up_levs[1::2])
+        cbar.set_ticks([-0.2, -0.1, 0.0, 0.1, 0.2])
           
-        cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-        #cbar.set_ticks([-0.04,-0.02,0, 0.02, 0.04])
+        cbar.ax.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
 
         # add subset lines
         x0 = Ro.nav_lon.min()  - 0.5
-        x1 = Ro.nav_lon.min()  - 1.5
+        x1 = Ro.nav_lon.min()  - 1.7
         y = [Ro.nav_lat.min(), Ro.nav_lat.max()]
         y_mid = np.mean(y)
         d = dep[0]
@@ -205,7 +226,10 @@ class paper_hydrog(object):
             ax.fill_between(upper.time_counter, 1, upper,
                             edgecolor=None, color='tab:red')
 
-  
+        for ax in axs:
+            ax.axvline(np.datetime64('2012-12-30 00:00:00'),
+                       color='grey', lw=0.8, ls='--')
+
         l = []
         #colours = ['orange', 'purple', 'green']
         colours = ['#dad1d1', '#7e9aa5', '#55475a']
@@ -244,6 +268,7 @@ class paper_hydrog(object):
         axs[0].legend(l, ['Full', 'North', 'South'], loc='upper center',
                        bbox_to_anchor=(0.25, 1.10, 0.5, 0.3), ncol=3)
 
+
         # axes formatting
         date_lims = (self.dr.stats.time_counter.min().values, 
                      self.dr.stats.time_counter.max().values)
@@ -276,10 +301,48 @@ class paper_hydrog(object):
         axs[-1].set_xlabel('Date')
 
         # letters
-        letters = ['(b)','(c)','(d)']
+        letters = ['(c)','(d)','(e)']
         for i, ax in enumerate(axs):
             ax.text(0.015, 0.96, letters[i], transform=ax.transAxes,
                     va='top', ha='left', fontsize=8)
+
+    def render_buoyancy_gradient_directional_bias(self, ax):
+        '''
+        render histogram of the meridional and zonal components of the 
+        buoyancy gradiets
+        '''
+
+        # load
+        bg_hist = xr.open_dataset(config.data_path() + self.case +
+                                  self.file_id + 'bg_model_hist.nc').load()
+
+        # get step boundaries
+        stair_edges = np.unique(np.concatenate((bg_hist.bin_left.values, \
+                                               bg_hist.bin_right.values)))
+
+        # plot
+        c1 = '#f18b00'
+        colours=[c1, 'purple', 'green']
+        ax.stairs(bg_hist.hist_norm, stair_edges, orientation='horizontal',
+                  label=r'$|\nabla b|$', color='grey', lw=0.8)
+        ax.stairs(bg_hist.hist_x, stair_edges, orientation='horizontal',
+                  label=r'$db/dx$', color=colours[2], lw=0.8)
+        ax.stairs(bg_hist.hist_y, stair_edges, orientation='horizontal',
+                  label=r'$db/dy$', color=colours[0], lw=0.8)
+
+        # x params
+        ax.xaxis.get_offset_text().set_visible(False)
+        ax.set_xlabel(r'PDF ($\times 10 ^{8}$)')
+
+        # x params
+        ax.yaxis.get_offset_text().set_visible(False)
+        ax.set_ylabel(r'Buoyancy Gradient ($\times 10^{-8}$ s$^{-2}$)')
+        ax.set_ylim(stair_edges[0],stair_edges[-1])
+
+        ax.text(0.01, 0.99, '(b)', transform=ax.transAxes,
+                 va='top', ha='left', fontsize=8)
+
+        ax.legend()
 
     def plot_hydrography(self):
         '''
@@ -314,8 +377,52 @@ class paper_hydrog(object):
 
         plt.savefig('hydrography.png', dpi=600)
 
+    def plot_hydrography_alt_cfg(self):
+        '''
+        alternative format with bg bias
+
+        a) plot over time - buoyancy gradient mean (n,s,all)
+                          - buoyancy gradient std (n,s,all)
+                          - fresh water fluxes and wfo (n,s,all)
+                          - density ratio
+        b) plot box - Temperature and Ro
+        c) plot bg bias
+
+        plot
+        GridSpec
+         (a) 1 x 1
+         (b) 1 x 1
+         (c) 4 x 1
+        '''
+        
+        fig = plt.figure(figsize=(5.5, 6.0))
+
+        lonmin, lonmax = -4,4
+        latmin, latmax = -64,-56
+
+        gs0 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs2 = gridspec.GridSpec(ncols=1, nrows=3)
+        gs0.update(top=1.03, bottom=0.64, left=0.00, right=0.73, wspace=0.05)
+        gs1.update(top=0.98, bottom=0.60, left=0.75, right=0.98, wspace=0.05)
+        gs2.update(top=0.48, bottom=0.07,  left=0.15, right=0.98, hspace=0.17)
+
+        #axs0, axs1, axs2 = [], [], []
+        axs0 = fig.add_subplot(gs0[0], projection='3d')
+        axs1 = fig.add_subplot(gs1[0])
+
+        axs2 = []
+        for i in range(3):
+            axs2.append(fig.add_subplot(gs2[i]))
+
+        self.render_box_3d(axs0)
+        self.render_buoyancy_gradient_directional_bias(axs1)
+        self.render_timeseries(axs2)
+
+        plt.savefig('hydrography_alt_cfg.png', dpi=600)
+
 def plot():
     m = paper_hydrog('EXP10')
-    m.plot_hydrography()
+    m.plot_hydrography_alt_cfg()
 
 plot()
