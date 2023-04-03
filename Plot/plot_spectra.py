@@ -589,8 +589,8 @@ class plot_power_spectrum(object):
             names = ['interp_1000_every_' + str(i) + '_and_climb_pre_transect' \
                      for i in freq]
         #pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb']
-        pl = ['every 2 and climb', 'every 3 and climb', 'every 4 and climb',
-              'every 8 and climb']
+        pl = ['every 2 and dive', 'every 3 and dive', 'every 4 and dive',
+              'every 8 and dive']
 
         if post_transect:
             num=4

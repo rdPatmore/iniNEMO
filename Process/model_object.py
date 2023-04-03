@@ -413,8 +413,10 @@ class model(object):
                              (lon_dist * np.random.random())).values
             self.lat_shift = (- bottom_space +
                              (lat_dist * np.random.random())).values
-    
-    def resample_original_raw_glider_path(self, sample_dist):
+
+    def get_distance_from_lat_lon(self):
+        ''' retrive distance along path and set as dim '''
+
         self.giddy_raw['distance'] = xr.DataArray( 
                  gt.utils.distance(self.giddy_raw.lon,
                                    self.giddy_raw.lat).cumsum(),
@@ -422,6 +424,14 @@ class model(object):
         self.giddy_raw = self.giddy_raw.set_coords('distance')
         self.giddy_raw = self.giddy_raw.swap_dims(
                                                  {'ctd_data_point': 'distance'})
+
+        # remove duplicate index values
+        _, index = np.unique(self.giddy_raw['distance'], return_index=True)
+    
+    def resample_original_raw_glider_path(self, sample_dist):
+
+        # get distance dimension
+        self.get_distance_from_lat_lon()
 
         # remove duplicate index values
         _, index = np.unique(self.giddy_raw['distance'], return_index=True)
@@ -1127,6 +1137,19 @@ if __name__ == '__main__':
         print (' ')
         print ('successfully ended')
         print (' ')
+
+    def show_dive_climb_removal(case):
+        ''' test removal of dives/climbs and plot path '''
+        
+        m = model(case)
+        m.load_gridT_and_giddy(bg=True)
+        m.giddy_raw = m.giddy_raw.isel(ctd_data_point=slice(0,10000))
+        m.prep_remove_dives(remove='every_2_and_climb')
+        m.get_distance_from_lat_lon()
+        print (m.giddy_raw)
+        plt.scatter(m.giddy_raw.distance, -m.giddy_raw.ctd_depth)
+        plt.show()
+    show_dive_climb_removal('EXP10')
     #glider_sampling('EXP10', interp_dist=1000, transects=False)
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
@@ -1150,8 +1173,8 @@ if __name__ == '__main__':
     # not done
     #glider_sampling('EXP10', remove='every_4_and_climb',
     #                interp_dist=1000, transects=False)
-    glider_sampling('EXP10', remove='every_8_and_climb',
-                    interp_dist=1000, transects=False)
+    #glider_sampling('EXP10', remove='every_8_and_climb',
+    #                interp_dist=1000, transects=False)
 
     #glider_sampling('EXP10', remove='every_3',
     #                interp_dist=1000, transects=False)

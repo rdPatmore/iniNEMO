@@ -341,7 +341,10 @@ class glider_nemo(object):
 
 
 m = glider_nemo('EXP02')
-m.histogram_buoyancy_gradient()
+m.load_giddy()
+print (m.giddy)
+#m.histogram_buoyancy_gradient()
+
 
 # this is for creating nemo_bg for bg plotting
 # histogram buoyancy gradient!

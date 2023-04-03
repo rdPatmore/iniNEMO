@@ -14,7 +14,7 @@ import scipy.stats as stats
 #import itertools
 from get_transects import get_transects
 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
 #matplotlib.rc('text', usetex=True)
 #matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
@@ -1107,6 +1107,7 @@ class bootstrap_glider_samples(object):
         end = m_ts.isel(time_counter=-1)
 
         # add model labels
+        print (end)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                  end.bg_norm_ts_quant.sel(quantile=0.1),
                  'Lower Decile', ha='left',va='center', fontsize=6, c=c)
@@ -1195,13 +1196,13 @@ class bootstrap_glider_samples(object):
         c_mm = 'orange'
         c_mm = 'lightseagreen'
         c_mm = '#f18b00'
-        axs0.hlines(m0_median, m0.day - np.timedelta64(84, 'h'), 
-                   m0.day + np.timedelta64(84, 'h'),
+        axs0.hlines(m0_median, m0.day.values - np.timedelta64(84, 'h'), 
+                   m0.day.values + np.timedelta64(84, 'h'),
                    transform=axs0.transData, colors=c_mm, zorder=10)
-        axs0.hlines(m1_median, m1.day - np.timedelta64(84, 'h'), 
-                    m1.day + np.timedelta64(84, 'h'),
+        axs0.hlines(m1_median, m1.day.values - np.timedelta64(84, 'h'), 
+                    m1.day.values + np.timedelta64(84, 'h'),
                     transform=axs0.transData, colors=c_mm, zorder=10)
-        axs0.hlines(m0_median, m0.day, m1.day,
+        axs0.hlines(m0_median, m0.day.values, m1.day.values,
                     transform=axs0.transData, colors=c_mm, lw=0.5,
                     zorder=0)
 
@@ -1247,8 +1248,8 @@ class bootstrap_glider_samples(object):
                        #ncol=4, fontsize=8)
  
         # axis limits
-        axs0.set_xlim(e.time_counter.min(skipna=True),
-                         e.time_counter.max(skipna=True))
+        axs0.set_xlim(e.time_counter.min(skipna=True).values,
+                      e.time_counter.max(skipna=True).values)
         axs0.set_ylim(0,1.3e-7)
 
         # add labels
@@ -1298,9 +1299,9 @@ class bootstrap_glider_samples(object):
         leg = render(axs1[1], deltaG_std_stats, deltaM_std_stats)
 
         # add legend
-        axs1[1].legend(leg, ['Gliders (98%)', 'Gliders (95%)',
-                             'Gliders (80%)', 'Model'],
-                   loc='upper left', bbox_to_anchor=(1.00,1.01))
+        axs1[1].legend(leg, ['Gliders 98% CI', 'Gliders 95% CI',
+                             'Gliders 80% CI', 'Model'],
+                   loc='upper left', bbox_to_anchor=(1.00,1.01), fontsize=8)
 
 
         # labels 
@@ -1335,6 +1336,11 @@ class bootstrap_glider_samples(object):
         axs1[1].text(0.02, 1.01, '(c)',
                      transform=axs1[1].transAxes, ha='left', va='bottom')
 
+        print ('')
+        print ('')
+        print (t0)
+        print ('')
+        print ('')
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '_'+ t0 + '_' + t1, dpi=600)
 
@@ -1952,6 +1958,46 @@ class bootstrap_plotting(object):
 
         plt.savefig(case + '_bg_sampling_skill_time_mean_multi_var_' +
                      self.append + norm_str + interp_str + '.png', dpi=600)
+
+    def print_bg_rmse_averaged_weekly_samples_multi_var(self,case):
+        ''' print rmse error for paper table '''
+
+        # data paths
+        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
+        self.path = self.data_path + case 
+        self.preamble = self.path + file_id
+
+        # get data
+        b_x_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_b_x_ml.nc')
+        bg_norm_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_bg_norm_ml.nc')
+        b_x_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_b_x_ml.nc')
+        bg_norm_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_bg_norm_ml.nc')
+
+        # select rmse
+        b_x_roll     = b_x_roll.rmse_mean
+        bg_norm_roll = bg_norm_roll.rmse_mean
+        b_x_full     = b_x_full.rmse_mean
+        bg_norm_full = bg_norm_full.rmse_mean
+
+        # restict to 1-5 gliders
+        b_x_roll     = b_x_roll.sel(glider_quantity=slice(1,5))
+        bg_norm_roll = bg_norm_roll.sel(glider_quantity=slice(1,5))
+        b_x_full     = b_x_full.sel(glider_quantity=slice(1,5))
+        bg_norm_full = bg_norm_full.sel(glider_quantity=slice(1,5))
+
+        # mean
+        b_x_f_mean = b_x_full.mean('bin_centers')
+        bg_norm_f_mean = bg_norm_full.mean('bin_centers')
+        b_x_r_mean = b_x_roll.mean(['bin_centers','time_counter'])
+        bg_norm_r_mean = bg_norm_roll.mean(['bin_centers','time_counter'])
+        print (b_x_f_mean.round(0))
+        print (bg_norm_f_mean.round(0))
+        print (b_x_r_mean.round(0))
+        print (bg_norm_r_mean.round(0))
     
     def plot_histogram_bg_rmse_averaged_weekly_samples_multi_var(self, case):
         '''
@@ -1997,7 +2043,7 @@ class bootstrap_plotting(object):
                  + self.interp + self.append + '_full_time_b_x_ml.nc')
         bg_norm_full = xr.open_dataset(self.preamble + 'hist' 
                  + self.interp + self.append + '_full_time_bg_norm_ml.nc')
-        print (bg_norm_full.bin_centers)
+        
 
         # plot rmse across bg
         nums = [1,4,20]
@@ -2649,7 +2695,8 @@ def plot_hist(by_time=None):
     else:
         boot = bootstrap_plotting()
         #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
-        boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        boot.print_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        #boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
             #m.plot_histogram_buoyancy_gradients_and_samples()
@@ -2712,7 +2759,7 @@ def plot_quantify_delta_bg(subset=''):
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
                                      subset=subset)
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
-#plot_quantify_delta_bg()
+#plot_quantify_delta_bg(subset='south')
 ##plot_quantify_delta_bg(subset='north')
 
 # -------- paper plot --------- #
@@ -2740,13 +2787,13 @@ def plot_quantify_delta_bg(subset=''):
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-#prep_hist(by_time='2W_rolling')
+plot_hist()
 #prep_hist(by_time='3W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
 #prep_hist(by_time='2W_rolling', interp='1000')
 #prep_hist(by_time='3W_rolling', interp='1000')
 #prep_hist(interp='1000')
-plot_hist()
+#plot_hist()
 #prep_timeseries()
 #plot_timeseries()
 #plot_quantify_delta_bg()
