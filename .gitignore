@@ -4,6 +4,7 @@
 *.slurm
 *.out
 *core
+*.err
 *__pycache__
 *myout.txt
 Plot/weekly_test.txt
@@ -12,3 +13,4 @@ Process/Scratch/
 Plot/myout_08.txt
 Process/myout_combine.txt
 Movie/myout_08.txt
+Process/dask-worker-space/
