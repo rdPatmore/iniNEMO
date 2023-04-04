@@ -9,6 +9,7 @@ import dask
 import matplotlib
 from get_transects import get_transects
 import matplotlib.dates as mdates
+import iniNEMO.Plot.utils as utils
 
 dask.config.set({"array.slicing.split_large_chunks": True})
 
@@ -282,7 +283,45 @@ class plot_buoyancy_gradients(object):
 
         plt.savefig('bg_means.png', dpi=600)
 
+    def plot_buoyancy_gradient_directional_bias(self):
+        '''
+        plot histogram of the meridional and zonal components of the 
+        buoyancy gradiets
+        '''
+
+        # load
+        bg_hist = xr.open_dataset(config.data_path() + self.case +
+                                  self.file_id + 'bg_model_hist.nc').load()
+
+        # get step boundaries
+        stair_edges = np.unique(np.concatenate((bg_hist.bin_left.values, \
+                                               bg_hist.bin_right.values)))
+
+        # plot
+        c1 = '#f18b00'
+        colours=[c1, 'purple', 'green']# 'navy','turquoise']
+        fig, ax = plt.subplots(1, figsize=(3.2,4))
+        ax.stairs(bg_hist.hist_norm, stair_edges, orientation='horizontal',
+                  label=r'$|\nabla b|$', color='grey', lw=2)
+        ax.stairs(bg_hist.hist_x, stair_edges, orientation='horizontal',
+                  label=r'$db/dx$', color=colours[1], lw=2)
+        ax.stairs(bg_hist.hist_y, stair_edges, orientation='horizontal',
+                  label=r'$db/dy$', color=colours[0], lw=2)
+
+        # axis params
+        ax.xaxis.get_offset_text().set_visible(False)
+        ax.set_ylabel(r'buoyancy gradient ($\times 10^{-8}$ s$^{-2}$)')
+        ax.yaxis.get_offset_text().set_visible(False)
+        ax.set_xlabel(r'PDF ($\times 10 ^{-8}$)')
+        ax.set_ylim(stair_edges[0],stair_edges[-1])
+
+        ax.legend()
+
+
+        plt.show()
+
 p = plot_buoyancy_gradients('EXP10')
 #p.plot_bg_timeseries_with_north_south()
-p.plot_bg_timeseries_full_model()
+#p.plot_bg_timeseries_full_model()
 #p.plot_time_mean_bg()
+p.plot_buoyancy_gradient_directional_bias()

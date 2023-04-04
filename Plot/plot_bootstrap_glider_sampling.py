@@ -14,7 +14,7 @@ import scipy.stats as stats
 #import itertools
 from get_transects import get_transects
 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
 #matplotlib.rc('text', usetex=True)
 #matplotlib.rcParams['text.latex.preamble']=[r'\usepackage{amsmath}']matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath}')
@@ -625,6 +625,35 @@ class bootstrap_glider_samples(object):
 
         return mean, quant, std
 
+    def get_bg_z_hist(self, bg, bins=20):
+        ''' calculate histogram and assign to xarray dataset '''
+
+        # stack dimensions
+        stacked_bgx = bg.bx.stack(z=('time_counter','x','y'))
+        stacked_bgy = bg.by.stack(z=('time_counter','x','y'))
+
+        # bg norm - warning: not gridded appropriately on T-pts
+        stacked_bg_norm = (stacked_bgx**2 + stacked_bgy**2)**0.5
+
+        # histogram
+        hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
+                            range=self.hist_range, density=True, bins=bins)
+        hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
+                            range=self.hist_range, density=True, bins=bins)
+        hist_norm, bins = np.histogram(
+                            stacked_bg_norm.dropna('z', how='all'),
+                            range=self.hist_range, density=True, bins=bins)
+        bin_centers = (bins[:-1] + bins[1:]) / 2
+
+        # assign to dataset
+        hist_ds = xr.Dataset({'hist_x':(['bin_centers'], hist_x),
+                              'hist_y':(['bin_centers'], hist_y),
+                              'hist_norm':(['bin_centers'], hist_norm)},
+                   coords={'bin_centers': (['bin_centers'], bin_centers),
+                           'bin_left'   : (['bin_centers'], bins[:-1]),
+                           'bin_right'  : (['bin_centers'], bins[1:])})
+        return hist_ds
+
     def get_full_model_hist(self, save=False, subset='', by_time=None):
         '''
         make histgram of buoyancy gradients for full model domain
@@ -645,34 +674,6 @@ class bootstrap_glider_samples(object):
         if self.subset=='south':
             self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
 
-        def get_hist(bg):
-            ''' calculate histogram and assign to xarray dataset '''
-
-            # stack dimensions
-            stacked_bgx = bg.bx.stack(z=('time_counter','x','y'))
-            stacked_bgy = bg.by.stack(z=('time_counter','x','y'))
-
-            # bg norm
-            stacked_bg_norm = (stacked_bgx**2 + stacked_bgy**2)**0.5
-
-            # histogram
-            hist_x, bins = np.histogram(stacked_bgx.dropna('z', how='all'),
-                                   range=self.hist_range, density=True, bins=20)
-            hist_y, bins = np.histogram(stacked_bgy.dropna('z', how='all'),
-                                   range=self.hist_range, density=True, bins=20)
-            hist_norm, bins = np.histogram(
-                                   stacked_bg_norm.dropna('z', how='all'),
-                                   range=self.hist_range, density=True, bins=20)
-            bin_centers = (bins[:-1] + bins[1:]) / 2
-
-            # assign to dataset
-            hist_ds = xr.Dataset({'hist_x':(['bin_centers'], hist_x),
-                                  'hist_y':(['bin_centers'], hist_y),
-                                  'hist_norm':(['bin_centers'], hist_norm)},
-                       coords={'bin_centers': (['bin_centers'], bin_centers),
-                               'bin_left'   : (['bin_centers'], bins[:-1]),
-                               'bin_right'  : (['bin_centers'], bins[1:])})
-            return hist_ds
 
         def get_rolling_hists(ts):
             '''
@@ -694,7 +695,7 @@ class bootstrap_glider_samples(object):
             rolled = rolled.rename_dims({by_time:'time_counter'})
 
             # caculate histograms
-            hist_ds = rolled.groupby('time').map(get_hist)
+            hist_ds = rolled.groupby('time').map(self.get_bg_z_hist)
 
             # return labels
             hist_ds = hist_ds.rename({'time':'time_counter'})
@@ -709,11 +710,11 @@ class bootstrap_glider_samples(object):
         if by_time == 'weekly':
             # split into groups of weeks
             hist_ds = self.bg.resample(time_counter='1W', skipna=True).map(
-                                                         get_hist)
+                                                         self.get_bg_z_hist)
         elif by_time == '1W_rolling':
             # split into 1 week samples, sampled by week
             hist_ds = self.bg.groupby_bins('time_counter', date_list,
-                                    labels=mid_date).map(get_hist)
+                                    labels=mid_date).map(self.get_bg_z_hist)
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
         elif by_time == '2W_rolling':
             # split into 2 week samples, sampled by week
@@ -721,11 +722,11 @@ class bootstrap_glider_samples(object):
             l_dl = date_list[::2] + np.timedelta64(84, 'h')
             l_label = mid_date[::2]
             hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
-                         labels=l_label).map(get_hist)
+                         labels=l_label).map(self.get_bg_z_hist)
             u_dl = date_list[1:-1:2] + np.timedelta64(84, 'h')
             u_label = mid_date[1:-1:2]# + np.timedelta64(1, 'W')
             hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
-                         labels=u_label).map(get_hist)
+                         labels=u_label).map(self.get_bg_z_hist)
             hist_ds = xr.merge([hist_ds_u, hist_ds_l])
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
         elif by_time == '3W_rolling':
@@ -734,20 +735,20 @@ class bootstrap_glider_samples(object):
             l_dl = date_list[::3]
             l_label = mid_date[::3]
             hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
-                         labels=l_label).map(get_hist)
+                         labels=l_label).map(self.get_bg_z_hist)
             m_dl = date_list[1:-1:3]
             m_label = mid_date[1:-1:3]
             hist_ds_m = self.bg.groupby_bins('time_counter', m_dl,
-                         labels=m_label).map(get_hist)
+                         labels=m_label).map(self.get_bg_z_hist)
             u_dl = date_list[2:-1:3]
             u_label = mid_date[2:-1:3]
             hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
-                         labels=u_label).map(get_hist)
+                         labels=u_label).map(self.get_bg_z_hist)
             hist_ds = xr.merge([hist_ds_u, hist_ds_m, hist_ds_l])
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
         else:
             # entire timeseries
-            hist_ds = get_hist(self.bg)
+            hist_ds = self.get_bg_z_hist(self.bg)
 
         if save:
             hist_ds.to_netcdf(self.data_path + 
@@ -1106,6 +1107,7 @@ class bootstrap_glider_samples(object):
         end = m_ts.isel(time_counter=-1)
 
         # add model labels
+        print (end)
         axs0.text(end.time_counter + np.timedelta64(12, 'h'),
                  end.bg_norm_ts_quant.sel(quantile=0.1),
                  'Lower Decile', ha='left',va='center', fontsize=6, c=c)
@@ -1194,13 +1196,13 @@ class bootstrap_glider_samples(object):
         c_mm = 'orange'
         c_mm = 'lightseagreen'
         c_mm = '#f18b00'
-        axs0.hlines(m0_median, m0.day - np.timedelta64(84, 'h'), 
-                   m0.day + np.timedelta64(84, 'h'),
+        axs0.hlines(m0_median, m0.day.values - np.timedelta64(84, 'h'), 
+                   m0.day.values + np.timedelta64(84, 'h'),
                    transform=axs0.transData, colors=c_mm, zorder=10)
-        axs0.hlines(m1_median, m1.day - np.timedelta64(84, 'h'), 
-                    m1.day + np.timedelta64(84, 'h'),
+        axs0.hlines(m1_median, m1.day.values - np.timedelta64(84, 'h'), 
+                    m1.day.values + np.timedelta64(84, 'h'),
                     transform=axs0.transData, colors=c_mm, zorder=10)
-        axs0.hlines(m0_median, m0.day, m1.day,
+        axs0.hlines(m0_median, m0.day.values, m1.day.values,
                     transform=axs0.transData, colors=c_mm, lw=0.5,
                     zorder=0)
 
@@ -1246,13 +1248,13 @@ class bootstrap_glider_samples(object):
                        #ncol=4, fontsize=8)
  
         # axis limits
-        axs0.set_xlim(e.time_counter.min(skipna=True),
-                         e.time_counter.max(skipna=True))
+        axs0.set_xlim(e.time_counter.min(skipna=True).values,
+                      e.time_counter.max(skipna=True).values)
         axs0.set_ylim(0,1.3e-7)
 
         # add labels
         axs0.set_ylabel(r'$|\nabla b|$' + '\n' + 
-                        r' [$\times 10^{-7}$ s$^{-2}$]')
+                        r' ($\times 10^{-7}$ s$^{-2}$)')
         axs0.yaxis.get_offset_text().set_visible(False)
 
 
@@ -1297,20 +1299,20 @@ class bootstrap_glider_samples(object):
         leg = render(axs1[1], deltaG_std_stats, deltaM_std_stats)
 
         # add legend
-        axs1[1].legend(leg, ['Gliders (98%)', 'Gliders (95%)',
-                             'Gliders (80%)', 'Model'],
-                   loc='upper left', bbox_to_anchor=(1.00,1.01))
+        axs1[1].legend(leg, ['Gliders 98% CI', 'Gliders 95% CI',
+                             'Gliders 80% CI', 'Model'],
+                   loc='upper left', bbox_to_anchor=(1.00,1.01), fontsize=8)
 
 
         # labels 
         axs1[0].set_ylabel(r'Detected Change in $|\nabla b|$' + '\n' +
-                           r' [$\times 10^{-8}$ s$^{-2}$]')
+                           r' ($\times 10^{-8}$ s$^{-2}$)')
         axs1[1].set_yticklabels([])
 
         # set ax1 titles
         axs1[0].text(0.5, 1.01, 'Temporal Mean',
                   transform=axs1[0].transAxes, ha='center', va='bottom')
-        axs1[1].text(0.5, 1.01, 'Standard Deviation',
+        axs1[1].text(0.5, 1.01, 'Temporal Standard Deviation',
                   transform=axs1[1].transAxes, ha='center', va='bottom')
 
         axs1[0].set_ylim(-2e-8,9.0e-8)
@@ -1334,6 +1336,11 @@ class bootstrap_glider_samples(object):
         axs1[1].text(0.02, 1.01, '(c)',
                      transform=axs1[1].transAxes, ha='left', va='bottom')
 
+        print ('')
+        print ('')
+        print (t0)
+        print ('')
+        print ('')
         plt.savefig(self.case + '_bg_change_err_estimate' + self.append +
                    '_'+ t0 + '_' + t1, dpi=600)
 
@@ -1951,6 +1958,46 @@ class bootstrap_plotting(object):
 
         plt.savefig(case + '_bg_sampling_skill_time_mean_multi_var_' +
                      self.append + norm_str + interp_str + '.png', dpi=600)
+
+    def print_bg_rmse_averaged_weekly_samples_multi_var(self,case):
+        ''' print rmse error for paper table '''
+
+        # data paths
+        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
+        self.path = self.data_path + case 
+        self.preamble = self.path + file_id
+
+        # get data
+        b_x_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_b_x_ml.nc')
+        bg_norm_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_bg_norm_ml.nc')
+        b_x_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_b_x_ml.nc')
+        bg_norm_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_bg_norm_ml.nc')
+
+        # select rmse
+        b_x_roll     = b_x_roll.rmse_mean
+        bg_norm_roll = bg_norm_roll.rmse_mean
+        b_x_full     = b_x_full.rmse_mean
+        bg_norm_full = bg_norm_full.rmse_mean
+
+        # restict to 1-5 gliders
+        b_x_roll     = b_x_roll.sel(glider_quantity=slice(1,5))
+        bg_norm_roll = bg_norm_roll.sel(glider_quantity=slice(1,5))
+        b_x_full     = b_x_full.sel(glider_quantity=slice(1,5))
+        bg_norm_full = bg_norm_full.sel(glider_quantity=slice(1,5))
+
+        # mean
+        b_x_f_mean = b_x_full.mean('bin_centers')
+        bg_norm_f_mean = bg_norm_full.mean('bin_centers')
+        b_x_r_mean = b_x_roll.mean(['bin_centers','time_counter'])
+        bg_norm_r_mean = bg_norm_roll.mean(['bin_centers','time_counter'])
+        print (b_x_f_mean.round(0))
+        print (bg_norm_f_mean.round(0))
+        print (b_x_r_mean.round(0))
+        print (bg_norm_r_mean.round(0))
     
     def plot_histogram_bg_rmse_averaged_weekly_samples_multi_var(self, case):
         '''
@@ -1996,7 +2043,7 @@ class bootstrap_plotting(object):
                  + self.interp + self.append + '_full_time_b_x_ml.nc')
         bg_norm_full = xr.open_dataset(self.preamble + 'hist' 
                  + self.interp + self.append + '_full_time_bg_norm_ml.nc')
-        print (bg_norm_full.bin_centers)
+        
 
         # plot rmse across bg
         nums = [1,4,20]
@@ -2004,6 +2051,11 @@ class bootstrap_plotting(object):
         p = []
         for i, num in enumerate(nums):
             b_x = b_x_full.sel(glider_quantity=num)
+            print ('')
+            print ('')
+            print ('')
+            print ('')
+            print (b_x.rmse_mean.max().values)
             l = axs0[3].bar(b_x.bin_left, 
                         b_x.rmse_mean, 
                         color=colours[i],
@@ -2022,6 +2074,8 @@ class bootstrap_plotting(object):
             for j, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
                 b_x = b_x_roll.sel(glider_quantity=num, rolling=roll)
                 b_x = b_x.mean('time_counter')
+                print (b_x.rmse_mean.max().values)
+                print ('')
                 axs0[j].bar(b_x.bin_left, 
                              b_x.rmse_mean, 
                              color=colours[i],
@@ -2036,6 +2090,10 @@ class bootstrap_plotting(object):
                              width=bg_norm.bin_right - bg_norm.bin_left,
                              align='edge')
 
+        print ('')
+        print ('')
+        print ('')
+        print ('')
         fig.legend(p, ['1 Glider', '4 Gliders', '20 Gliders'],
                        loc='lower center', bbox_to_anchor=(0.555, 0.95), 
                        ncol=4, fontsize=8)
@@ -2636,7 +2694,8 @@ def plot_hist(by_time=None):
     
     else:
         boot = bootstrap_plotting()
-        boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
+        #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
+        boot.print_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
         #boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
@@ -2700,7 +2759,7 @@ def plot_quantify_delta_bg(subset=''):
         m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
                                      subset=subset)
         m.plot_quantify_delta_bg(t0 = '2013-01-01', t1 = '2013-03-01')
-#plot_quantify_delta_bg()
+#plot_quantify_delta_bg(subset='south')
 ##plot_quantify_delta_bg(subset='north')
 
 # -------- paper plot --------- #
@@ -2728,7 +2787,7 @@ def plot_quantify_delta_bg(subset=''):
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-#prep_hist(by_time='2W_rolling')
+plot_hist()
 #prep_hist(by_time='3W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
 #prep_hist(by_time='2W_rolling', interp='1000')

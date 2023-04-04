@@ -5,6 +5,7 @@
 *.out
 *.err
 *core
+*.err
 *__pycache__
 *myout.txt
 Plot/weekly_test.txt
