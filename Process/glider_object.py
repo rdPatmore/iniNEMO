@@ -42,5 +42,8 @@ class glider(object):
         mld_ds = self.giddy.assign(mld=mld).drop(['salt','temp','dens'])
         mld_ds.to_netcdf(self.root + 'Giddy_2020/giddy_mld.nc')
 
+
+
 m = glider()
+print (m.giddy)
 m.save_mld()
