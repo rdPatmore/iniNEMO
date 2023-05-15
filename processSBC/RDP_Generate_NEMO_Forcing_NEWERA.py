@@ -67,44 +67,64 @@ def Read_NetCDF_Concatenate( fname, KeyVar ) :
     print (fname)
     lfiles = sorted( glob.glob( fname ) )
     print (lfiles)
-    for iF, myfile in enumerate(lfiles) :
-        print (' ')
-        print (' ')
-        print (' ')
-        print ('RDP', iF)
-        print (' ')
-        print (' ')
-        print (' ')
-        print (' ')
-        ds = xr.open_dataset(myfile)
-        print (ds)
-        nc = Dataset( myfile, 'r' )
-        ## Get time using the time variable
-        Time_Var = nc.variables[ 'time']
-        dt = Time_Var[:][1] - Time_Var[:][0]
-        Time_H   = np.arange( Time_Var[:][0], Time_Var[:][0]+dt*Time_Var[:].size, dt )
-        print (Time_H)
-        print (Time_Var.units)
-        print (Time_Var)
-        Time = np.datetime64(Time_H)
-        ## Get Coordinates
-        if iF == 0:
-           try :
-             Lon = nc.variables[ 'longitude' ][:]
-             Lat = nc.variables[ 'latitude' ][:]
-             LON, LAT = np.meshgrid( Lon, Lat )
-           except :
-             LON = nc.variables[ 'lon' ][:]
-             LAT = nc.variables[ 'lat' ][:]
-        ## Get Variable
-        dum = nc.variables[ KeyVar ]
-        Var = dum[:]; ind = ( Var == dum._FillValue ); Var[ind] = np.nan
-        ## save
-        if iF == 0 : out = Var; tout = Time
-        else       : out = np.concatenate( [out,Var], axis=0 ); tout = np.concatenate( [tout,Time], axis=0 )
+    ds = xr.open_mfdataset(lfiles, chunks={'time':10})
+    try:
+        Lon = ds.longitude
+        Lat = ds.latitude
+        LON, LAT = np.meshgrid( Lon, Lat )
+    except:
+        LON = ds.lon
+        LAT = ds.lat
+    #for iF, myfile in enumerate(lfiles) :
+    #    print (' ')
+    #    print (' ')
+    #    print (' ')
+    #    print ('RDP', iF)
+    #    print (' ')
+    #    print (' ')
+    #    print (' ')
+    #    print (' ')
+    #    print (ds)
+    #    Time = ds.time
+    #    #print (ds)
+    #    #nc = Dataset( myfile, 'r' )
+    #    ### Get time using the time variable
+    #    #time_Var = nc.variables[ 'time']
+    #    #dt = Time_Var[:][1] - Time_Var[:][0]
+    #    #Time_H   = np.arange( Time_Var[:][0], Time_Var[:][0]+dt*Time_Var[:].size, dt )
+    #    #print (Time_H)
+    #    #print (Time_Var.units)
+    #    #print (Time_Var)
+    #    #Time = np.datetime64(Time_H)
+    #    ## Get Coordinates
+    #    if iF == 0:
+    #       try :
+    #         #Lon = nc.variables[ 'longitude' ][:]
+    #         #Lat = nc.variables[ 'latitude' ][:]
+    #         Lon = ds.longitude
+    #         Lat = ds.latitude
+    #         LON, LAT = np.meshgrid( Lon, Lat )
+    #       except :
+    #         #LON = nc.variables[ 'lon' ][:]
+    #         #LAT = nc.variables[ 'lat' ][:]
+    #         Lon = ds.lon
+    #         Lat = ds.lat
+    #    ## Get Variable
+    #    #dum = nc.variables[ KeyVar ]
+    #    dum = ds[KeyVar]
+    #    print (ds.attrs)
+    #    print (dum._FillValue)
+    #    print (sadfkl)
+    #    Var = dum[:]; ind = ( Var == dum._FillValue ); Var[ind] = np.nan
+    #    ## save
+    #    if iF == 0 : out = Var; tout = Time
+    #    else       : out = np.concatenate( [out,Var], axis=0 ); tout = np.concatenate( [tout,Time], axis=0 )
+    out = ds[KeyVar]
+    tout = ds[KeyVar].time.values
+    
     print (tout[0], tout[-1], tout.shape, out.shape, LON.shape)
-    try    : return tout, LON, LAT, out, dum.units, dum.long_name
-    except : return tout, LON, LAT, out, dum.units, dum.standard_name
+    try    : return tout, LON, LAT, out, out.units, out.long_name
+    except : return tout, LON, LAT, out, out.units, out.standard_name
 
 
 def Read_NetCDF( fname, KeyVar ) : 
@@ -242,41 +262,46 @@ for dirVar, nameVar in var_path.items() :
     Time, Lon, Lat, dum, Units, Name = Read_NetCDF_Concatenate( "{1}/{0}_*.nc".format( nameVar, path_EXTRACT ), nameVar )
     print ("Time" , Time)
 
-    dt  = Time[1] - Time[0]   ## assume to be constant in time
-    dt2 = datetime.timedelta( seconds=dt.total_seconds() / 2. )
+    ## assume to be constant in time
+    dt  = (Time[1] - Time[0]).astype('timedelta64[s]') 
+    dt2 = dt / 2
     print ("dt", dt, dt2)
 
     ##---------- SOME PREPROCESSING -------------------------
     ## Add time step for last hour - copy the last input
-    dumA  = np.concatenate( [  dum,  dum[-1][np.newaxis,...] ], axis = 0 )
-    TimeA = np.array( Time.tolist() + [Time[-1],]  )
-
-    print ("Time" , Time)
-    print ("TimeA", TimeA)
-    ## instantaneous field every hour. we center it in mid-time step (00:30) as it
+    ## instantaneous field every hour. we center 
+    ## it in mid-time step (00:30) as it
     ## is what NEMO assumes according to documentation
-    dumC  = ( dumA[0:-1] + dumA[1::] ) / 2.0   
-    TimeC =  TimeA[0:-1] + dt2           ## shift half time step positively due to averaging
+    dumC = dum.interp(time=dum.time.values + dt2)
+    TimeC = dumC.time
     suffix = ''
 
     print ("TimeC", TimeC)
 
     ##---------- OUTPUT A FILE PER YEAR ---------------------
-    for iY in range( Year_init, Year_end+1 ) :
-
-        print (datetime.datetime( iY  ,1,1 ), datetime.datetime( iY+1,1,1 ))
-        indT = ( np.array(TimeC) >= datetime.datetime( iY  ,1,1,0,0,0 ) ) \
-             * ( np.array(TimeC) <  datetime.datetime( iY+1,1,1,0,0,0 ) )
-        print ("indT",np.sum(indT))
- 
+    for ind, year in dumC.groupby('time.year'):
         if nameVar in [ "d2m", "sp" ] :
-               Fout = "./{2}/forSPH_ERA5_{0}_y{1}.nc".format( nameVar.upper(), iY, path_FORCING )
-        else : Fout = "./{2}/ERA5_{0}_y{1}.nc".format( nameVar.upper(), iY, path_FORCING )
-        nc = Dataset( Fout, 'w', format='NETCDF4_CLASSIC')
-        Create_Dimensions ( nc, 'nLon', Lon.shape[1], 'nLat' , Lat.shape[0] )
-        Create_NetCDF_core( nc, ('time'), TimeC[indT][0], TimeC[indT], ('nLat', 'nLon'), Lon[::-1,:], Lat[::-1,:] )
-        Add_Variable( nc, nameVar.upper(), ( 'time', 'nLat', 'nLon'), dumC[indT,::-1,:], units=Units+suffix, standard_name=Name, fill_value=-999999 )
-        Create_Attributes( nc )
+               Fout = "{2}/forSPH_ERA5_{0}_y{1}.nc".format( nameVar.upper(), ind, path_FORCING )
+        else : Fout = "{2}/ERA5_{0}_y{1}.nc".format( nameVar.upper(), ind, path_FORCING )
+        try:
+            year.load().to_netcdf(Fout, mode='a')
+        except:
+            year.load().to_netcdf(Fout)
+    #for iY in range( Year_init, Year_end+1 ) :
+
+    #    print (datetime.datetime( iY  ,1,1 ), datetime.datetime( iY+1,1,1 ))
+    #    indT = ( np.array(TimeC) >= datetime.datetime( iY  ,1,1,0,0,0 ) ) \
+    #         * ( np.array(TimeC) <  datetime.datetime( iY+1,1,1,0,0,0 ) )
+    #    print ("indT",np.sum(indT))
+ 
+    #    if nameVar in [ "d2m", "sp" ] :
+    #           Fout = "./{2}/forSPH_ERA5_{0}_y{1}.nc".format( nameVar.upper(), iY, path_FORCING )
+    #    else : Fout = "./{2}/ERA5_{0}_y{1}.nc".format( nameVar.upper(), iY, path_FORCING )
+    #    nc = Dataset( Fout, 'w', format='NETCDF4_CLASSIC')
+    #    Create_Dimensions ( nc, 'nLon', Lon.shape[1], 'nLat' , Lat.shape[0] )
+    #    Create_NetCDF_core( nc, ('time'), TimeC[indT][0], TimeC[indT], ('nLat', 'nLon'), Lon[::-1,:], Lat[::-1,:] )
+    #    Add_Variable( nc, nameVar.upper(), ( 'time', 'nLat', 'nLon'), dumC[indT,::-1,:], units=Units+suffix, standard_name=Name, fill_value=-999999 )
+    #    Create_Attributes( nc )
 
 
 ##---------- PROCESS SPECIFIC HUMIDITY ----------------------     
