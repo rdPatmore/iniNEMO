@@ -25,6 +25,7 @@ path_EXTRACT = '/projectsa/NEMO/ryapat/Extract' ## WHERE TO EXTRACT YOUR REGION
 path_FORCING = '/projectsa/NEMO/ryapat/Forcing' ## NEMO FORCING
 clean        = False                          ## Clean extraction (longest bit)
 sph_ON       = False                         ## Compute specific humidity or not
+pythonic = False  # use python for interpolation in place of cdo - 4x slow but lower storage 
 
 #================== NEMO DOCUMENTATION =======================
 
@@ -70,18 +71,7 @@ def Read_NetCDF( fname, KeyVar ) :
     else: 
         ds = xr.open_dataset(fname, chunks={'longitude':100,'latitude': 100})
 
-    
-    Lon = ds.longitude
-    Lat = ds.latitude
-    LON, LAT = np.meshgrid( Lon, Lat )
-    #    LON = ds.lon
-    #    LAT = ds.lat
-    out = ds[KeyVar]
-    tout = ds[KeyVar].time.values
-    
-    print (tout[0], tout[-1], tout.shape, out.shape, LON.shape)
-    try    : return tout, LON, LAT, out, out.units, out.long_name
-    except : return tout, LON, LAT, out, out.units, out.standard_name
+    return ds[KeyVar]
 
     ##---------- add attrs --------- ##
 def set_attrs(year):
@@ -109,6 +99,7 @@ def interp_time(ds, fin, fout, clean=True):
     interpolate time to half timestep 
     nco version of interpolation
     """
+    os.system( "module load cdo" ) # load cdo
     if clean : os.system( "rm {0}".format( fout ) )
     if not os.path.exists( fout ) :
        fmt = "%Y-%m-%d"
@@ -121,7 +112,6 @@ def interp_time(ds, fin, fout, clean=True):
 #======================= CORE PROGR ==========================
 ## load NCO
 os.system( "module load nco/gcc/4.4.2.ncwa" )
-os.system( "module load cdo" )
 os.system( "mkdir {0} {1}".format( path_EXTRACT, path_FORCING ) )
 if West < 0 : West = 360.+West
 if East < 0 : East = 360.+East
@@ -129,64 +119,76 @@ if East < 0 : East = 360.+East
 ## Loop over each variable
 for dirVar, nameVar in var_path.items() :
 
-    print ("================== {0} - {1} ==================".format( dirVar, nameVar ))
+    print ("================== {0} - {1} ==================".format(
+            dirVar, nameVar ))
 
     ##---------- EXTRACT ALL DATA FOR DOMAIN ----------------
     for iY in range( Year_init, Year_end+1 ) :
         ## Files
         finput  = "{0}/{1}/{2}_{1}.nc".format( path_ERA5, dirVar, iY )
-        foutput = "{2}/{0}_{1}.nc".format( nameVar, iY, path_EXTRACT )
+        foutput = "{2}/{0}_y{1}.nc".format( nameVar, iY, path_EXTRACT )
         ## Extract the subdomain
         Extract( finput, foutput, clean=clean ) 
 
     ###---------- LOAD FULLL TIME SERIES IN MEMORY -----------
-    pythonic = True
+    foutInterp = "{1}/{0}_all_interpt.nc".format(nameVar, path_EXTRACT)
     t0 = datetime.datetime.now()
-    if pythonic:
-        Time, Lon, Lat, dum, Units, Name = Read_NetCDF(
-                       "{1}/{0}_*.nc".format( nameVar, path_EXTRACT ), nameVar )
-        print ("Time" , Time)
+    if not os.path.exists( foutInterp ) :
+        if pythonic:
+            ds = Read_NetCDF(
+                      "{1}/{0}_y*.nc".format( nameVar, path_EXTRACT ), nameVar )
 
-        ## assume to be constant in time
-        dt  = (Time[1] - Time[0]).astype('timedelta64[s]') 
-        dt2 = dt / 2
-        print ("dt", dt, dt2)
+            ## assume to be constant in time
+            Time = ds.time.values
+            dt  = (Time[1] - Time[0]).astype('timedelta64[s]') 
+            dt2 = dt / 2
+            print ("dt", dt, dt2)
 
-        ##---------- SOME PREPROCESSING -------------------------
-        ## Add time step for last hour - copy the last input
-        ## instantaneous field every hour. we center 
-        ## it in mid-time step (00:30) as it
-        ## is what NEMO assumes according to documentation
+            ##---------- SOME PREPROCESSING -------------------------
+            ## Add time step for last hour - copy the last input
+            ## instantaneous field every hour. we center 
+            ## it in mid-time step (00:30) as it
+            ## is what NEMO assumes according to documentation
 
-        ds = dum.interp(time=dum.time.values + dt2)
-        ds.to_netcdf(path_EXTRACT + '/' + nameVar + '_all.nc')
-        ds.close()
-        ds_all = xr.open_dataset(path_EXTRACT + '/' + nameVar + '_all.nc')
-        TimeC = ds.time
-        suffix = ''
+            ds = ds.interp(time=Time + dt2)
+            ds.to_netcdf(foutInterp)
+            ds.close()
 
-        print ("TimeC", TimeC)
+        else:
+            # under construction
+            # nco is faster than python due to fortran under the hood
+            # currently missing last record of year
 
-    else:
-        # under construction
-        # nco is faster than python due to fortran under the hood
-        # currently missing last record of year
-
-        # merge all years
-        command = "cdo mergetime {1}/{0}_*.nc {1}/{0}_all.nc".format(
+            # merge all years
+            command = "cdo mergetime {1}/{0}_y*.nc {1}/{0}_all.nc".format(
                                                           nameVar, path_EXTRACT)
-        os.system(command)
+            os.system(command)
 
-        # interpolate
-        finput = "{1}/{0}_all.nc".format(nameVar, path_EXTRACT)
-        foutput = "{1}/{0}_all_interpt.nc".format(nameVar, path_EXTRACT)
-        xrds = xr.open_dataset(finput)
-        interp_time(xrds, finput, foutput, clean=clean)
+            # interpolate
+            finput = "{1}/{0}_all.nc".format(nameVar, path_EXTRACT)
+            xrds = xr.open_dataset(finput)
+            interp_time(xrds, finput, foutputInterp, clean=clean)
 
-        # load interpolated
-        ds_all = xr.open_dataset(foutput)
+    # load interpolated
+    ds_all = xr.open_dataset(foutput)
 
     ##---------- OUTPUT A FILE PER YEAR ---------------------
+
+    lon = ds_all.longitude
+    lat = ds_all.latitude
+    mlon, mlat = np.meshgrid(lon, lat)
+    mlon = xr.DataArray(mlon, dims=['Y','X'], attrs={'units':'degrees_east'})
+    mlat = xr.DataArray(mlat, dims=['Y','X'], attrs={'units':'degrees_north'})
+
+    ds_all = ds_all.drop(['longitude','latitude'])
+    ds_all = ds_all.rename({'longitude':'X','latitude':'Y'})
+    ds_all = ds_all.assign_coords({'longitude':mlon,'latiude':mlat})
+
+    ds_all['time'] = ds_all.time.astype(int) * 1e-9
+    ds_all.time.attrs['units'] = 'seconds since 1970-01-01 00:00:00'
+
+    ds_all = set_attrs(ds_all)
+
     for ind, year in ds_all.groupby('time.year'):
         if nameVar in [ "d2m", "sp" ] :
             Fout = "{2}/forSPH_ERA5_{0}_y{1}.nc".format(
@@ -195,7 +197,6 @@ for dirVar, nameVar in var_path.items() :
             Fout = "{2}/ERA5_{0}_y{1}.nc".format(
                                          nameVar.upper(), ind, path_FORCING)
 
-        year = set_attrs(year)
         try:
             year.to_netcdf(Fout, mode='a')
         except:
@@ -204,36 +205,29 @@ for dirVar, nameVar in var_path.items() :
     t_diff = t1-t0
     print ('time difference: ', t_diff)
     
-     
-    #for iY in range( Year_init, Year_end ) :
-    #    fnames = ['{1}/{0}_'.format(nameVar, path_EXTRACT) + str(y) + '.nc' for y in [iY,iY+1]]
-    #    print ('iY >>>>>>>>>>>>>>>>>>>>>>', iY)
-    #    Time, Lon, Lat, dum, Units, Name = Read_NetCDF(fnames, nameVar )
-    #    dumC = dum.interp(time=dum.time.values + dt2)
-    #    TimeC = dumC.time
-    #    Fout = "{2}/ERA5_{0}_y{1}.nc".format(
-    #                                   nameVar.upper(), , path_FORCING)
-    #    year.to_netcdf(Fout)
-   
-
 ##---------- PROCESS SPECIFIC HUMIDITY ----------------------     
 ## Compute Specific Humidity according to ECMWF documentation
 
 if sph_ON : 
 
     for iY in range( Year_init, Year_end+1 ) :
-        Time, Lon, Lat, d2m, dUnits, dName = Read_NetCDF( "{1}/forSPH_ERA5_D2M_y{0}.nc".format( iY, path_FORCING ), 'D2M' )
-        Time, Lon, Lat, sp , dUnits, dName = Read_NetCDF( "{1}/forSPH_ERA5_SP_y{0}.nc" .format( iY, path_FORCING ), 'SP'  )
+
+        # Read
+        d2m = Read_NetCDF(
+        "{1}/forSPH_ERA5_D2M_y{0}.nc".format( iY, path_FORCING ), 'D2M' )
+        sp  = Read_NetCDF( 
+        "{1}/forSPH_ERA5_SP_y{0}.nc" .format( iY, path_FORCING ), 'SP'  )
+
+        # Calculate sph
         esat = 611.21 * np.exp( 17.502 * (d2m-273.16) / (d2m-32.19) )
         dyrvap = 287.0597 / 461.5250
         dVar = dyrvap * esat / ( sp - (1-dyrvap) * esat)
         Units = "1"; Name = "Specific Humidity"
  
+        Time = sp.time.values
         indT = ( Time >= datetime.datetime( iY  ,1,1 ) ) \
              * ( Time <  datetime.datetime( iY+1,1,1 ) )
  
+        # Save
         Fout = "./{1}/ERA5_SPH_y{0}.nc".format( iY, path_FORCING )
-        try:
-            year.to_netcdf(Fout, mode='a')
-        except:
-            year.to_netcdf(Fout)
+        year.to_netcdf(Fout)
