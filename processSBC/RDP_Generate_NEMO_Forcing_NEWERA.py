@@ -34,15 +34,14 @@ class era5(object):
         self.pythonic = True  
         self.chunks={'time':50}
 
-        self.var_path = { "10m_u_component_of_wind" : "u10"}
-        #self.var_path = { "10m_u_component_of_wind" : "u10", \
-        #             "10m_v_component_of_wind" : "v10", \
-        #             "2m_temperature"          : "t2m", \
-        #             "mean_sea_level_pressure" : "msl", \
-        #             "mean_snowfall_rate"      : "msr" , \
-        #         "mean_surface_downward_long_wave_radiation_flux"  : "msdwlwrf", \
-        #         "mean_surface_downward_short_wave_radiation_flux" : "msdwswrf", \
-        #             "mean_total_precipitation_rate" : "mtpr" }
+        self.var_path = { "10m_u_component_of_wind" : "u10", \
+                     "10m_v_component_of_wind" : "v10", \
+                     "2m_temperature"          : "t2m", \
+                     "mean_sea_level_pressure" : "msl", \
+                     "mean_snowfall_rate"      : "msr" , \
+                 "mean_surface_downward_long_wave_radiation_flux"  : "msdwlwrf", \
+                 "mean_surface_downward_short_wave_radiation_flux" : "msdwswrf", \
+                     "mean_total_precipitation_rate" : "mtpr" }
         
         if self.sph_ON :
            self.var_path[ "surface_pressure"  ] = 'sp'
@@ -73,7 +72,7 @@ class era5(object):
     
         return ds[KeyVar]
     
-    def set_attrs(self, ds):
+    def add_global_attrs(self, ds):
         """ set global attributes for netcdf """
     
         fmt = "%Y-%m-%d %H:%M:%S"
@@ -82,20 +81,12 @@ class era5(object):
     
         return ds
     
-    def cf_to_int_time(self, ds):
-        ''' convert time units from cf decoded to int dtype '''
-    
-        ds['time'] = ds.time.astype(int) * 1e-9
-        ds.time.attrs['units'] = 'seconds since 1970-01-01 00:00:00'
-    
-        return ds
-    
-    def extract(self, fin, fout, clean=True ) :
-        if clean : os.system( "rm {0}".format( fout ) )
+    def extract(self, fin, fout) :
+        if self.clean : os.system( "rm {0}".format( fout ) )
         if not os.path.exists( fout ) :
            command = "ncks -d latitude,{0},{1} -d longitude,{2},{3} {4} {5}".format(
-                      np.float(South), np.float(North),
-                      np.float(West), np.float(East), fin, fout )
+                      np.float(self.south), np.float(self.north),
+                      np.float(self.west),  np.float(self.east), fin, fout )
            print (command)
            os.system( command )
     
@@ -113,11 +104,11 @@ class era5(object):
            print (command)
            os.system( command )
           
-    def extract_cut_out(self, nameVar):
+    def extract_cut_out(self, nameVar, dirVar):
         for iY in range( self.year_init, self.year_end+1 ) :
             ## Files
             finput  = "{0}/{1}/{2}_{1}.nc".format(
-              self.path_ERA5, self.dirVar, iY )
+              self.path_ERA5, dirVar, iY )
             foutput = "{2}/{0}_y{1}.nc".format(
               nameVar, iY, self.path_EXTRACT )
             ## Extract the subdomain
@@ -184,9 +175,37 @@ class era5(object):
             # format indexes and coords
             ds = self.format_nc(ds, nameVar)
 
+            # maintain encoding for storage savings
+            scale_factor = ds0.encoding['scale_factor']
+            add_offset   = ds0.encoding['add_offset']
+
             # save
             fout = self.path_FORCING + '/ERA5_' + nameVar + '_y' + str(iY) +'.nc'
-            ds.to_netcdf(fout)
+            ds.to_netcdf(fout, encoding={nameVar: {
+                "dtype": 'int16',
+                "scale_factor": scale_factor,
+                "add_offset": add_offset,
+                "_FillValue": -32767}})
+
+    def compute_scale_and_offset(self, da, n=16):
+        """Calculate offset and scale factor for int conversion
+    
+        Based on Krios101's code above.
+        """
+    
+        vmin = da.min().values#.item()
+        vmax = da.max().values#.item()
+    
+        # stretch/compress data to the available packed range
+        scale_factor = (vmax - vmin) / (2 ** n - 1)
+    
+        # translate the range to be symmetric about zero
+        add_offset = vmin + 2 ** (n - 1) * scale_factor
+
+        print ('scale factor, ', scale_factor)
+        print ('add offset, ', add_offset)
+    
+        return scale_factor, add_offset
 
     def format_nc(self, da, nameVar):
 
@@ -203,11 +222,13 @@ class era5(object):
         da = da.assign_coords({'longitude':mlon,'latiude':mlat})
       
         # format fill values
-        da = da.fillna(-9999999)
-        da.attrs['_FillValue'] = -9999999
+        #da = da.fillna(-9999999)
+        #da.attrs['_FillValue'] = -9999999
+
+        # file information
+        self.add_global_attrs(da)
  
         return da
-      
 
     def split_by_year(self, ds, outpath, var):
         for ind, year in ds_all.groupby('time.year'):
@@ -222,7 +243,7 @@ class era5(object):
             if not os.path.exists( fout ) :
                 year.to_netcdf(fout)
 
-    def process_all(self, step1=True, step2=True, step3=True):
+    def process_all(self, step1=True, step2=True):
         os.system( "mkdir {0} {1}".format( self.path_EXTRACT, self.path_FORCING ) )
         if self.west < 0 : self.west = 360.+self.west
         if self.east < 0 : self.east = 360.+self.east
@@ -236,56 +257,37 @@ class era5(object):
             ## -----------------------------------
             ## -------- step 1: EXTRACT ---------- 
             ## -----------------------------------
-            if step1: self.extract_cut_out(nameVar)
+            if step1: self.extract_cut_out(nameVar, dirVar)
         
             ## -----------------------------------
             #### ------ step 2: INTERPOLATE ------ 
             ## -----------------------------------
             if step2:
-                #foutInterp = "{1}/{0}_all_interpt.nc".format(
-                #nameVar, self.path_EXTRACT)
-                ##@self.timeit
-                #self.interpolate_all(nameVar, foutInterp, pythonic=self.pythonic)
                 self.interpolate_by_year(nameVar)
         
-#            ## -----------------------------------
-#            ## ------ step 3: SPLIT BY YEAR ------ 
-#            ## -----------------------------------
-#
-#            if step3:
-#                # load interpolated
-#                chunks={'time':5}
-#                ds_all = xr.open_dataset(foutInterp, chunks=chunks)
-#        
-#                ds_all = self.set_attrs(ds_all)
-#        
-#                self.split_by_year(ds, self.path_FORCING, nameVar)
-#            
         ##---------- PROCESS SPECIFIC HUMIDITY ----------------------     
         ## Compute Specific Humidity according to ECMWF documentation
         
-        #if self.sph_ON : 
-        #
-        #    for iY in range( Year_init, Year_end+1 ) :
-        #
-        #        # Read
-        #        d2m = self.read_NetCDF(
-        #        "{1}/SPH_ERA5_D2M_y{0}.nc".format( iY, path_FORCING ), 'D2M',
-        #        chunks=self.chunks)
-        #        sp  = self.read_NetCDF( 
-        #        "{1}/SPH_ERA5_SP_y{0}.nc" .format( iY, path_FORCING ), 'SP',
-        #        chunks=self.chunks)
-        #
-        #        # Calculate sph
-        #        esat = 611.21 * np.exp( 17.502 * (d2m-273.16) / (d2m-32.19) )
-        #        dyrvap = 287.0597 / 461.5250
-        #        dVar = dyrvap * esat / ( sp - (1-dyrvap) * esat)
-        #        dvar.attrs = {'units':'1', 'standard_name':'specific humidity'}
-        # 
-        #        # Save
-        #        Fout = "./{1}/ERA5_SPH_y{0}.nc".format( iY, path_FORCING )
-        #        dVar.to_netcdf(Fout)
+        if self.sph_ON : 
+        
+            for iY in range( Year_init, Year_end+1 ) :
+        
+                # read
+                d2m_path = path_FORCING + '/SPH_ERA5_D2M_y' + str(iY) + '.nc'
+                sp_path  = path_FORCING + '/SPH_ERA5_sp_y'  + str(iY) + '.nc'
+                d2m = xr.open_dataarray(d2m_path, chunks=self.chunks)
+                sp  = xr.open_dataarray(sp_path,  chunks=self.chunks) 
+        
+                # calculate sph
+                esat = 611.21 * np.exp( 17.502 * (d2m-273.16) / (d2m-32.19) )
+                dyrvap = 287.0597 / 461.5250
+                sph = dyrvap * esat / ( sp - (1-dyrvap) * esat)
+                sph.attrs = {'units':'1', 'standard_name':'specific humidity'}
+         
+                # save
+                fout = self.path_FORCING + '/ERA5_SPH_y' + str(iY) + '.nc'
+                sph.to_netcdf(fout)
 
 if __name__ == '__main__':
     era = era5()
-    era.process_all(step1=False, step3=False)
+    era.process_all()
