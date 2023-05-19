@@ -181,10 +181,33 @@ class era5(object):
             half_time = (ds.time + dt).sel(time=str(iY)).values
             ds = ds.interp(time=half_time)
 
-            fout = self.path_FORCING + '/ERA5_' + nameVar + '_y' + \
-                   str(iY) +'.nc'
+            # format indexes and coords
+            ds = self.format_nc(ds, nameVar)
+
+            # save
+            fout = self.path_FORCING + '/ERA5_' + nameVar + '_y' + str(iY) +'.nc'
             ds.to_netcdf(fout)
 
+    def format_nc(self, da, nameVar):
+
+        # mesh lat and lon
+        mlon, mlat = np.meshgrid(da.longitude, da.latitude)
+        lon_attrs={'long_name':'longitude','units':'degrees_east'}
+        lat_attrs={'long_name':'latitude', 'units':'degrees_north'}
+        mlon = xr.DataArray(mlon, dims=['Y','X'], attrs=lon_attrs)
+        mlat = xr.DataArray(mlat, dims=['Y','X'], attrs=lat_attrs)
+      
+        # assign X/Y as indexes
+        da = da.drop(['longitude','latitude'])
+        da = da.rename({'longitude':'X','latitude':'Y'})
+        da = da.assign_coords({'longitude':mlon,'latiude':mlat})
+      
+        # format fill values
+        da = da.fillna(-9999999)
+        da.attrs['_FillValue'] = -9999999
+ 
+        return da
+      
 
     def split_by_year(self, ds, outpath, var):
         for ind, year in ds_all.groupby('time.year'):
@@ -219,10 +242,11 @@ class era5(object):
             #### ------ step 2: INTERPOLATE ------ 
             ## -----------------------------------
             if step2:
-                foutInterp = "{1}/{0}_all_interpt.nc".format(
-                nameVar, self.path_EXTRACT)
-                #@self.timeit
-                self.interpolate_all(nameVar, foutInterp, pythonic=self.pythonic)
+                #foutInterp = "{1}/{0}_all_interpt.nc".format(
+                #nameVar, self.path_EXTRACT)
+                ##@self.timeit
+                #self.interpolate_all(nameVar, foutInterp, pythonic=self.pythonic)
+                self.interpolate_by_year(nameVar)
         
 #            ## -----------------------------------
 #            ## ------ step 3: SPLIT BY YEAR ------ 
@@ -232,21 +256,6 @@ class era5(object):
 #                # load interpolated
 #                chunks={'time':5}
 #                ds_all = xr.open_dataset(foutInterp, chunks=chunks)
-#        
-#                lon = ds_all.longitude
-#                lat = ds_all.latitude
-#                mlon, mlat = np.meshgrid(lon, lat)
-#                mlon = xr.DataArray(mlon, dims=['Y','X'],
-#                                    attrs={'units':'degrees_east'})
-#                mlat = xr.DataArray(mlat, dims=['Y','X'],
-#                                    attrs={'units':'degrees_north'})
-#        
-#                ds_all = ds_all.drop(['longitude','latitude'])
-#                ds_all = ds_all.rename({'longitude':'X','latitude':'Y'})
-#                ds_all = ds_all.assign_coords({'longitude':mlon,'latiude':mlat})
-#        
-#                ds_all = ds_all.fillna(-9999999)
-#                ds_all[nameVar].attrs['fill_value'] = -9999999
 #        
 #                ds_all = self.set_attrs(ds_all)
 #        
