@@ -28,10 +28,8 @@ class era5(object):
         self.path_EXTRACT = '/projectsa/NEMO/ryapat/Extract' 
         ## NEMO FORCING
         self.path_FORCING = '/projectsa/NEMO/ryapat/Forcing'
-        self.clean        = False               ## Clean extraction (longest bit)
-        self.sph_ON       = False               ## Compute specific humidity or not
-        # use python for interpolation in place of cdo - 4x slow but lower storage 
-        self.pythonic = True  
+        self.clean        = False            ## Clean extraction (longest bit)
+        self.sph_ON       = False            ## Compute specific humidity or not
         self.chunks={'time':50}
 
         self.var_path = { "10m_u_component_of_wind" : "u10", \
@@ -115,10 +113,20 @@ class era5(object):
             self.extract(finput, foutput) 
 
     def interpolate_all(self, nameVar, foutInterp, pythonic=False):
+        """
+        Interpolate to the half time-step via one of 2 methods:
+            (1) pythonic - uses xarray to lazy loading
+            (2) uses CDO
+
+        (1) 4x slower than (2), but has a lower storage footprint.
+        interpolate_by_year is both fast and has a smaller footprint.
+        ----> this function may need removing RDP 22-05-23.
+        """ 
+
         if not os.path.exists( foutInterp ) :
             if pythonic:
                 ds = self.read_NetCDF(
-                       "{1}/{0}_y*.nc".format(nameVar, self.path_EXTRACT), nameVar,
+                    "{1}/{0}_y*.nc".format(nameVar, self.path_EXTRACT), nameVar,
                           chunks=self.chunks)
     
                 ## assume to be constant in time
@@ -127,24 +135,16 @@ class era5(object):
                 dt2 = dt / 2
                 print ("dt", dt, dt2)
     
-                ##---------- SOME PREPROCESSING -------------------------
-                ## Add time step for last hour - copy the last input
-                ## instantaneous field every hour. we center 
-                ## it in mid-time step (00:30) as it
-                ## is what NEMO assumes according to documentation
-    
+                # Center in mid-time step (00:30)
+                # NEMO assumes this timing according to documentation
                 ds = ds.interp(time=Time + dt2)
                 ds.to_netcdf(foutInterp)
                 ds.close()
     
-            else:
-                # under construction
-                # nco is faster than python due to fortran under the hood
-                # currently missing last record of year
-    
+            else: # cdo
                 # merge all years
                 command = "cdo mergetime {1}/{0}_y*.nc {1}/{0}_all.nc".format(
-                                                         nameVar, self.path_EXTRACT)
+                                                     nameVar, self.path_EXTRACT)
                 os.system(command)
     
                 # interpolate
@@ -153,39 +153,54 @@ class era5(object):
                 interp_time(xrds, finput, foutInterp)
 
     def interpolate_by_year(self, nameVar):
+        """
+        Loop over each extracted year interpolating to the half
+        time-step, saving each year.
+        """
+    
         for iY in range(self.year_init, self.year_end+1) :
-            print (iY)
 
-            path = self.path_EXTRACT + '/' + nameVar + '_y' 
-            f0 = path + str(iY) + '.nc'
-            ds0 = xr.open_dataarray(f0, chunks=self.chunks)
-            if iY != self.year_end+1:
-                f1 = path + str(iY+1) + '.nc'
-                ds1 = xr.open_dataarray(f1, chunks=self.chunks)
-                ds1 = ds1.isel(time=0)
-                ds = xr.concat([ds0,ds1], dim='time')
-            else:
-                ds = ds0
+            # output name
+            fout = self.path_FORCING + '/ERA5_' + nameVar + '_y' + \
+                   str(iY) +'.nc'
 
-            Time = ds.time.values
-            dt = (Time[1] - Time[0]) / 2
-            half_time = (ds.time + dt).sel(time=str(iY)).values
-            ds = ds.interp(time=half_time)
+            if self.clean : os.system( "rm {0}".format( fout ) )
+            if not os.path.exists( fout ) :
+                print (iY)
 
-            # format indexes and coords
-            ds = self.format_nc(ds, nameVar)
+                # open year0 file
+                path = self.path_EXTRACT + '/' + nameVar + '_y' 
+                f0 = path + str(iY) + '.nc'
+                ds0 = xr.open_dataarray(f0, chunks=self.chunks)
 
-            # maintain encoding for storage savings
-            scale_factor = ds0.encoding['scale_factor']
-            add_offset   = ds0.encoding['add_offset']
+                # open year1 file
+                if iY+1 != self.year_end+1:
+                    f1 = path + str(iY+1) + '.nc'
+                    ds1 = xr.open_dataarray(f1, chunks=self.chunks)
+                    ds1 = ds1.isel(time=0)
+                    ds = xr.concat([ds0,ds1], dim='time')
+                else:
+                    ds = ds0
 
-            # save
-            fout = self.path_FORCING + '/ERA5_' + nameVar + '_y' + str(iY) +'.nc'
-            ds.to_netcdf(fout, encoding={nameVar: {
-                "dtype": 'int16',
-                "scale_factor": scale_factor,
-                "add_offset": add_offset,
-                "_FillValue": -32767}})
+                # interpolate to half time-step
+                Time = ds.time.values
+                dt = (Time[1] - Time[0]) / 2
+                half_time = (ds.time + dt).sel(time=str(iY)).values
+                ds = ds.interp(time=half_time)
+
+                # format indexes and coords
+                ds = self.format_nc(ds, nameVar)
+
+                # maintain encoding for storage savings
+                scale_factor = ds0.encoding['scale_factor']
+                add_offset   = ds0.encoding['add_offset']
+
+                # save
+                ds.to_netcdf(fout, encoding={nameVar: {
+                    "dtype": 'int16',
+                    "scale_factor": scale_factor,
+                    "add_offset": add_offset,
+                    "_FillValue": -32767}})
 
     def compute_scale_and_offset(self, da, n=16):
         """Calculate offset and scale factor for int conversion
@@ -244,7 +259,8 @@ class era5(object):
                 year.to_netcdf(fout)
 
     def process_all(self, step1=True, step2=True):
-        os.system( "mkdir {0} {1}".format( self.path_EXTRACT, self.path_FORCING ) )
+        os.system("mkdir {0} {1}".format(
+                  self.path_EXTRACT, self.path_FORCING ) )
         if self.west < 0 : self.west = 360.+self.west
         if self.east < 0 : self.east = 360.+self.east
         
