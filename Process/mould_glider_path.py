@@ -1,5 +1,7 @@
 import xarray as xr
 import model_object
+import glidertools as gt
+import Plot.get_transects as trans
 
 class mould_glider_path(model_object.model):
     """
@@ -10,7 +12,6 @@ class mould_glider_path(model_object.model):
 
         super().__init__(case)
         self.load_obs()
-        print (self.giddy_raw)
 
     def mould_glider_path_to_straight_line(self):
         '''
@@ -25,7 +26,14 @@ class mould_glider_path(model_object.model):
                  gt.utils.distance(self.giddy_raw.lon,
                                    self.giddy_raw.lat).cumsum(),
                                    dims='ctd_data_point')
-        print (self.giddy_raw)
+        self.giddy_raw = self.giddy_raw.set_coords("distance")
+        self.giddy_raw = self.giddy_raw.swap_dims({"ctd_data_point":"distance"})
+        g_trans = trans.get_transects(self.giddy_raw.distance,
+                   concat_dim='distance', 
+                   method='from interp_1000',
+                  shrink=None, drop_trans=[False,False,False,False],
+                  offset=False, rotation=None, cut_meso=False)
+        print (g_trans)
         print (fkdj)
         self.giddy_raw = self.giddy_raw.set_coords('distance')
         self.giddy_raw = self.giddy_raw.swap_dims(
@@ -46,4 +54,5 @@ class mould_glider_path(model_object.model):
     
 if __name__ == "__main__":
     m = mould_glider_path()
+    m.mould_glider_path_to_straight_line()
     
