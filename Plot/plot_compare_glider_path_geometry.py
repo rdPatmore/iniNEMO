@@ -426,7 +426,7 @@ class glider_path_geometry(object):
                   f_append + '_' + str(samples) + '_samples.nc')
 
     def save_glider_samples(self, block=False, rotation=None):
-        ''' get set of 100 glider samples '''
+        ''' collate set of 100 glider samples at 10 m depth '''
 
         # number of glider samples
         n=100

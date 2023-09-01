@@ -30,6 +30,7 @@ def rotate_path(data, theta):
 def get_sampled_path(model, append, post_transect=True, rotation=None,
                      cut_meso=True):
     ''' load single gilder path sampled from model '''
+
     path = config.data_path() + model + '/'
     file_path = path + 'GliderRandomSampling/glider_uniform_' + \
                 append +  '_00.nc'

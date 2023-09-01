@@ -14,7 +14,7 @@ from iniNEMO.Plot.get_transects import get_transects
 class model(object):
     ''' get model object and process '''
  
-    def __init__(self, case):
+    def __init__(self, case, load_obs=False):
         self.case = case
         self.root = config.root()
         self.path = config.data_path()
@@ -25,6 +25,9 @@ class model(object):
         # parameters for reducing nemo domain when glider sampling
         self.south_limit = None
         self.north_limit = None
+
+        if load_obs:
+            self.load_obs()
 
     def load_all(self):
         def drop_coords(ds):
@@ -83,6 +86,7 @@ class model(object):
         #          chunks={'time_counter':1},
         #          decode_cf=False)
 
+    def load_obs(self):
         # load obs
         self.giddy     = xr.open_dataset(self.root + 
                          'Giddy_2020/sg643_grid_density_surfaces.nc')
@@ -452,35 +456,6 @@ class model(object):
         self.giddy_raw = xr.decode_cf(self.giddy_raw)
         self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('distance')
-
-    def mould_glider_path_to_shape(self, sample_dist):
-        '''
-        take distance in glider path reshape the path along distance
-        preserving dives and depth
-        '''
-
-        # first shape is a square
-        length_dist = 4000 # meters
-         
-        self.giddy_raw['distance'] = xr.DataArray( 
-                 gt.utils.distance(self.giddy_raw.lon,
-                                   self.giddy_raw.lat).cumsum(),
-                                   dims='ctd_data_point')
-        self.giddy_raw = self.giddy_raw.set_coords('distance')
-        self.giddy_raw = self.giddy_raw.swap_dims(
-                                                 {'ctd_data_point': 'distance'})
-
-        # remove duplicate index values
-        _, index = np.unique(self.giddy_raw['distance'], return_index=True)
-        self.giddy_raw = self.giddy_raw.isel(distance=index)
-  
-        # iterate over sides
-        for i in int(range(giddy_raw.distance.max()/lenth_dist)):
-            side = self.giddy_raw.sel(distance=slice(
-                         i * length_dist, (i + 1) * length_dist))
-        #    if ns:
-        #         ds = 
-             
 
     def haversine(lon1, lat1, lon2, lat2):
         """
@@ -1075,6 +1050,8 @@ if __name__ == '__main__':
     #from dask.distributed import Client, progress
     #client = Client(threads_per_worker=1, n_workers=10)
 
+
+     
     def get_rho(case):
         m = model(case)
         m.load_gridT_and_giddy()
