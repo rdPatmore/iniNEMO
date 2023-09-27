@@ -57,13 +57,18 @@ class mould_glider_path(model_object.model):
                 da1 = da1[::-1]
         
                 # assert increasing time and distance
-                print (da1.ctd_time_dt64[-1].values)
-                print (np.diff(da1.ctd_time_dt64).shape)
-                print (da1.ctd_time_dt64[-1].values - np.diff(da1.ctd_time_dt64))
-                time = np.concatenate([da1.ctd_time_dt64,
-                           da1.ctd_time_dt64[-1] - np.diff(da1.ctd_time_dt64)])
-                dist = np.concatenate([da.distance,
-                               da1.distance[-1] - np.diff(da1.distance)])
+                #time = np.concatenate((da1.ctd_time_dt64.values,
+                #     da1.ctd_time_dt64[-1].values - np.diff(da1.ctd_time_dt64)))
+                #dist = np.concatenate((da1.distance.values,
+                #               da1.distance[-1].values - np.diff(da1.distance)))
+                time = xr.DataArray(da1.ctd_time_dt64[-1].values -
+                        np.cumsum(np.diff(da1.ctd_time_dt64)), dims=['distance'])
+                dist =  xr.DataArray(
+                         da1.distance[-1].values - np.diff(da1.distance),
+                         dims=['distance'])
+                
+                print (time)
+                print (da1)
                 da1['ctd_time_64'] = time
                 da1['distance'] = dist
 
