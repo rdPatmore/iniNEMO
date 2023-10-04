@@ -215,12 +215,14 @@ def get_transects(da, concat_dim='distance', method='cycle',
         # name mesoscale transects
         # 1 for bow tie, 0 for n-s transects
         meso = xr.where(da.transect>1, 1, 0) # get 1st transect
+
+        # get second mid-mission meso transect
         lat_nan_t0 = da.lat.where(meso) # temp arr with 1st path removed
-        # get second 
         if 'ctd_depth' in da.dims:
             idxmin = lat_nan_t0.idxmin(skipna=True, dim='distance').transect
         else:
-            idxmin = lat_nan_t0.idxmin(skipna=True).transect
+            # load is need when using dask (probable bug)
+            idxmin = lat_nan_t0.load().idxmin(skipna=True).transect
 
         meso = xr.where(da.transect != idxmin, meso, 0)
         da = da.assign_coords({'meso_transect': meso})

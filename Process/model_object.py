@@ -91,7 +91,7 @@ class model(object):
         self.giddy     = xr.open_dataset(self.root + 
                          'Giddy_2020/sg643_grid_density_surfaces.nc')
         self.giddy_raw = xr.open_dataset(self.root + 
-                         'Giddy_2020/merged_raw.nc')
+                         'Giddy_2020/merged_raw.nc', chunks='auto')
         self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
                                                 'latitude': 'lat'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
