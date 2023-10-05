@@ -1,8 +1,10 @@
 import model_object
+import numpy as np
 
 def glider_sampling(case, remove=False, append='', interp_dist=1000,
                     transects=False, south_limit=None, north_limit=None,
                     rotate=False, rotation=np.pi/2):
+
     m = model_object.model(case)
     m.interp_dist=interp_dist
     #m.transects=transects
@@ -12,6 +14,7 @@ def glider_sampling(case, remove=False, append='', interp_dist=1000,
     if transects:
         m.save_append = m.save_append + '_pre_transect'
     m.load_gridT_and_giddy(bg=True)
+    print (sklf)
 
     # reductions of nemo domain
     m.south_limit = south_limit
@@ -83,7 +86,7 @@ def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)
-    #glider_sampling('EXP10', interp_dist=1000, transects=False)
+glider_sampling('EXP10', interp_dist=1000, transects=False)
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)

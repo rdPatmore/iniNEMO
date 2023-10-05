@@ -9,6 +9,7 @@ from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 import itertools
 from iniNEMO.Plot.get_transects import get_transects
+from dask.diagnostics import ProgressBar
 
 
 class model(object):
@@ -134,7 +135,7 @@ class model(object):
         if load:
             bg_norm = xr.open_dataarray(config.data_path() + self.case + '/' +
                                       self.file_id + 'bg_mod2.nc',
-                                      chunks='auto') ** 0.5
+                                      chunks={'time_counter':10}) ** 0.5
             bg_norm = bg_norm.assign_coords({'x': bg_norm.x.values + 1,
                                              'y': bg_norm.y.values + 1})
             bg_norm.name = 'bg_norm'
@@ -172,40 +173,46 @@ class model(object):
 
         return bg_norm
 
-    def load_gridT_and_giddy(self, bg=False):
+    def save_simplified_gridT(self):
+        ''' save simplified grid_T file for glider sampling of model '''
+
+        # open grid T
+        self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        path = self.data_path + self.file_id + 'grid_T.nc'
+        ds = xr.open_dataset(path, chunks={'time_counter':10})
+        ds = ds.isel(x=slice(1,-1), y=slice(1,-1))
+
+        # drop variables
+        ds = ds.drop(['tos', 'sos', 'zos',
+                      'wfo', 'qsr_oce', 'qns_oce',
+                      'qt_oce', 'sfx', 'taum', 'windsp',
+                      'precip', 'snowpre', 'bounds_nav_lon',
+                      'bounds_nav_lat', 'deptht_bounds',
+                      'area', 'e3t','time_centered_bounds',
+                      'time_counter_bounds', 'time_centered',
+                      'mldr10_3', 'time_instant',
+                      'time_instant_bounds'])#.isel(x=slice(0,50),
+                                                   #      y=slice(0,50)).load()
+        ds = ds.assign_coords({'x': ds.x.values,'y': ds.y.values})
+
+        # add model normed buoyancy gradient
+        ds = xr.merge([ds, self.get_normed_buoyancy_gradients()])
+
+        with ProgressBar():
+            ds.to_netcdf(self.data_path + self.file_id + 
+                                                'grid_T_for_glider_sampling.nc')
+
+    def load_gridT_and_giddy(self, g_fn='merged_raw.nc'):
         ''' minimal loading for glider sampling of model '''
 
         # grid T
         self.ds = {}
         self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-        path = self.data_path + self.file_id + 'grid_T.nc'
+        path = self.data_path + self.file_id + 'grid_T_for_glider_sampling.nc'
         self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':10})
-        self.ds['grid_T'] = self.ds['grid_T'].isel(x=slice(1,-1), y=slice(1,-1))
-
-        # drop variables
-        self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
-                            'wfo', 'qsr_oce', 'qns_oce',
-                            'qt_oce', 'sfx', 'taum', 'windsp',
-                            'precip', 'snowpre', 'bounds_nav_lon',
-                            'bounds_nav_lat', 'deptht_bounds',
-                            'area', 'e3t','time_centered_bounds',
-                            'time_counter_bounds', 'time_centered',
-                            'mldr10_3', 'time_instant',
-                            'time_instant_bounds'])#.isel(x=slice(0,50),
-                                                   #      y=slice(0,50)).load()
-        self.ds['grid_T'] = self.ds['grid_T'].assign_coords(
-                                        {'x': self.ds['grid_T'].x.values,
-                                         'y': self.ds['grid_T'].y.values})
-
-
-        # add model normed buoyancy gradient
-        if bg:
-            self.ds['grid_T'] = xr.merge([self.ds['grid_T'],
-                                          self.get_normed_buoyancy_gradients()])
 
         # glider
-        self.giddy_raw = xr.open_dataset(self.root + 
-                         'Giddy_2020/merged_raw.nc')
+        self.giddy_raw = xr.open_dataset(self.root + 'Giddy_2020/' + g_fn)
         self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
                                                 'latitude': 'lat'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
@@ -822,7 +829,7 @@ if __name__ == '__main__':
         print (m.giddy_raw)
         plt.scatter(m.giddy_raw.distance, -m.giddy_raw.ctd_depth)
         plt.show()
-    show_dive_climb_removal('EXP10')
+    #show_dive_climb_removal('EXP10')
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
@@ -846,3 +853,6 @@ if __name__ == '__main__':
             m.save_append = m.save_append + '_pre_transect'
 
         m.restrict_bg_norm_to_mld()
+
+    m = model('EXP10')
+    m.save_simplified_gridT()
