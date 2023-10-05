@@ -286,6 +286,22 @@ class model(object):
 
         # remove duplicate index values
         _, index = np.unique(self.giddy_raw['distance'], return_index=True)
+
+    def haversine(self, lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance in kilometers between two points 
+        on the earth (specified in decimal degrees)
+        """
+        # convert decimal degrees to radians 
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+        # haversine formula 
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a)) 
+        r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
+        return c * r
     
     def resample_original_raw_glider_path(self, sample_dist):
 
@@ -311,23 +327,6 @@ class model(object):
         self.giddy_raw = xr.decode_cf(self.giddy_raw)
         self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('distance')
-
-    def haversine(lon1, lat1, lon2, lat2):
-        """
-        Calculate the great circle distance in kilometers between two points 
-        on the earth (specified in decimal degrees)
-        """
-        # convert decimal degrees to radians 
-        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    
-        # haversine formula 
-        dlon = lon2 - lon1 
-        dlat = lat2 - lat1 
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-        c = 2 * asin(sqrt(a)) 
-        r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
-        return c * r
-        
 
         distance_interp = np.arange(0,self.giddy_raw.distance.max(),
                                     sample_dist)
