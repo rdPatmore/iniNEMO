@@ -14,6 +14,53 @@ class mould_glider_path(model_object.model):
         super().__init__(case)
         self.load_obs()
 
+        # transect sequence for concatenation
+        self.direction_sequence = [False,True] * 8
+
+    def assert_ascending_coord(self, da, coord):
+        ''' reverse coordinate in case of descending order '''
+
+        # get first two indicies and coordinate delta 
+        ascending_delta_c = - np.cumsum(np.diff(da[coord]))
+        c_0 = da[coord][0].values
+        c_1 = da[coord][1].values
+
+        # make ascending coordinate
+        ascending = np.concatenate(([c_0],(c_1 + ascending_delta_c)))
+
+        # assign data to xarray da
+        da[coord] = xr.DataArray(ascending, dims=['distance'])
+
+    def concat_transect(self, da0, da1, dim='distance', reverse=True):
+        ''' concatented long north-south transect '''
+        
+        # reverse direction of appended data
+        if reverse:
+            da1 = da1[::-1]
+
+            # assert ascending coordinates
+            self.assert_ascending_coord(da1, 'ctd_time_dt64')
+            self.assert_ascending_coord(da1, 'distance')
+            self.assert_ascending_coord(da1, 'dives')
+            self.assert_ascending_coord(da1, 'ctd_data_point')
+
+        # shift dates to end of da0
+        tdiff =  da0[-1].ctd_time_dt64 - da1[0].ctd_time_dt64
+        da1['ctd_time_dt64'] = da1.ctd_time_dt64 + tdiff
+
+        # shift distance to end of da0
+        ddiff =  da0[-1].distance - da1[0].distance
+        da1['distance'] = da1.distance + ddiff
+
+        # label transect
+        transect = np.full(da1.shape, da0.transect[-1] + 1)
+        da1['transect'] = xr.DataArray(transect, dims=da1.dims)
+        
+        # append
+        joined = xr.concat([da0, da1], dim=dim)
+
+        return joined
+
     def mould_glider_path_to_straight_line(self):
         '''
         take distance in glider path reshape the path along distance
@@ -44,53 +91,32 @@ class mould_glider_path(model_object.model):
         # shift start time to that of full deployment
         tdiff = subset[0].ctd_time_dt64 - g_trans[0].ctd_time_dt64
         subset['ctd_time_dt64'] = subset.ctd_time_dt64 - tdiff
+        
+        # set initial transect to 0
+        transect0 = xr.DataArray(np.full(subset.shape, 0), dims=subset.dims)
+        subset0 = subset.assign_coords(transect=transect0)
 
-        def assert_ascending_coord(da, coord):
-            ''' reverse coordinate in case of descending order '''
+        # concatenate repeating transects
+        da = self.concat_transect(subset0, subset, reverse=True)
+        for boolean in self.direction_sequence:
+            da = self.concat_transect(da, subset, reverse=boolean)
 
-            # get first two indicies and coordinate delta 
-            ascending_delta_c = - np.cumsum(np.diff(da[coord]))
-            c_0 = da[coord][0].values
-            c_1 = da[coord][1].values
+        # shift coords to start at 0
+        da['ctd_data_point'] = da.ctd_data_point - da.ctd_data_point[0]
+        da['dives'] = da.dives - da.dives[0]
 
-            # make ascending coordinate
-            ascending = np.concatenate(([c_0],(c_1 + ascending_delta_c)))
+        # drop irrelevant coords
+        drop_c = ['meso_transect', 'vertex']
+        self.deployment = da.drop(drop_c)
 
-            # assign data to xarray da
-            da[coord] = xr.DataArray(ascending, dims=['distance'])
+    def save_deployment(self):
+        ''' save new moulded glider path '''
 
-        def concat_transect(da0, da1, dim='distance', reverse=True):
-            ''' concatented long north-south transect '''
-            
-            # reverse direction of appended data
-            if reverse:
-                da1 = da1[::-1]
-
-                # assert ascending distance and time
-                assert_ascending_coord(da1, 'ctd_time_dt64')
-                assert_ascending_coord(da1, 'distance')
-
-            # shift dates to end of da0
-            tdiff =  da0[-1].ctd_time_dt64 - da1[0].ctd_time_dt64
-            da1['ctd_time_dt64'] = da1.ctd_time_dt64 + tdiff
-
-            # shift distance to end of da0
-            ddiff =  da0[-1].distance - da1[0].distance
-            da1['distance'] = da1.distance + ddiff
-            
-            # append
-            joined = xr.concat([da0, da1], dim=dim)
-    
-            return joined
-
-        direction_sequence = [False,True] * 8
-
-        da = concat_transect(subset, subset, reverse=True)
-        for boolean in direction_sequence:
-            da = concat_transect(da, subset, reverse=boolean)
-
-        return da
+        print (self.deployment)
+        f_path = 'Giddy_2020/artificial_straight_line_transects.nc'
+        self.deployment.to_netcdf(self.root + f_path)
     
 if __name__ == "__main__":
     m = mould_glider_path()
-    da = m.mould_glider_path_to_straight_line()
+    m.mould_glider_path_to_straight_line()
+    m.save_deployment()
