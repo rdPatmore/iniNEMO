@@ -253,8 +253,6 @@ class paper_hydrog(object):
 
             # get stats
             self.dr.get_bg_and_surface_flux_stats(load=True)
-            self.dr.get_density_ratio(load=True)
-            Tu_compen, Tu_constr, Tu_sal, Tu_tem = self.dr.get_Tu_frac()
             self.dr.get_sea_ice_presence_stats()
 
             # render 

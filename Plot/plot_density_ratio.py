@@ -470,7 +470,7 @@ class plot_buoyancy_ratio(object):
 
         return Tu_compen, Tu_constr, Tu_sal, Tu_tem
 
-    def get_sea_ice_presence_stats(self):
+    def get_sea_ice_presence_stats(self, save=False):
         ''' load sea ice and subset '''
 
         # load ice
@@ -481,6 +481,10 @@ class plot_buoyancy_ratio(object):
             self.si = self.subset_n_s(self.si, loc=self.subset)
 
         self.si = self.get_stats(self.si)
+
+        if save:
+            f = self.f_path + 'sea_ice_presence_stats' + self.subset_var + '.nc'
+            self.si.to_netcdf(f)
 
 
     def plot_density_ratio(self):
@@ -899,20 +903,23 @@ if __name__ == '__main__':
         for subset in [None, 'north', 'south']:
             m = plot_buoyancy_ratio('EXP10', subset=subset)
             m.load_basics()
-    #        m.get_grad_T_and_S(save=True)  # first round
+        #    m.get_grad_T_and_S(save=True)  # first round
         #    m.load_surface_fluxes()
         #    m.get_bg_and_surface_flux_stats(save=True)
             m.get_grad_T_and_S(load=True)
             m.get_density_ratio(save=True)
             #m.get_T_S_bg_stats(save=True) # second round
-    #prep_data()
     
     def plot():
         m = plot_buoyancy_ratio('EXP10')
         #m.plot_density_ratio_slice()
         m.plot_density_ratio_with_SI_Ro_and_bg_time_series()
     
+    def save_sea_ice_stats():
+            m = plot_buoyancy_ratio('EXP10', subset='south')
+            m.load_basics()
+            m.get_sea_ice_presence_stats(save=True)
+    save_sea_ice_stats()
     #m = plot_buoyancy_ratio('EXP10')
     #m.load_basics()
     #m.get_grad_T_and_S()
-    plot()
