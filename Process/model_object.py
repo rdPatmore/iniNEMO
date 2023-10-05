@@ -43,14 +43,7 @@ class model(object):
         self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
         self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
                            '/SOCHIC_PATCH_3h_20130101_20140101_']
-        #self.file_names = ['/SOCHIC_PATCH_24h_20120101_20121231_']
-        #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
-        #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
         for pos in self.grid_keys:
-        #    self.ds[pos] = xr.open_mfdataset(self.data_path +
-        #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
-        #              chunks={'time_counter':100}, decode_cf=False)
-        #                #compat='different', coords='all',
             data_set = []
             for file_name in self.file_names:
                 data = xr.open_dataset(self.data_path +
@@ -77,14 +70,6 @@ class model(object):
                                                coords='minimal')
             self.ds[pos] = xr.decode_cf(self.ds[pos])
             self.ds[pos] = self.ds[pos].isel(x=slice(1,-1), y=slice(1,-1))
-        #self.ds = self.ds.drop_vars('time_instant')
-        #self.ds = xr.open_mfdataset(self.data_path + '/SOCHIC_201201_T.nc',
-        #                            #compat='override',coords='minimal',
-        #                            chunks={'time_counter':10})#, 'x':10,'y':10})
-        #self.data = xr.open_dataset(self.data_path +
-        #            self.file_names[0] + 'grid_T.nc',
-        #          chunks={'time_counter':1},
-        #          decode_cf=False)
 
     def load_obs(self):
         # load obs
@@ -533,20 +518,12 @@ class model(object):
                                                 deptht=slice(None,1100),
                                                 time_counter=slice(time0,time1))
 
-
         # alter path to test sampling methods
         if resample_path:
             self.resample_original_raw_glider_path(sample_dist)
 
         if rotate:
             self.rotate_original_raw_glider_path(rotation)
-
-        
-        ## get glider lat-lons
-        #self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
-        #                      dims='ctd_data_point')
-        #self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
-        #                      dims='ctd_data_point')
 
         # add lat-lat lon to grid_T dimentions
         self.x_y_to_lat_lon('grid_T')
@@ -631,75 +608,12 @@ class model(object):
 
         self.giddy_raw = self.giddy_raw.assign_coords(
                          {'remove_index': remove_index})
-        #self.giddy_raw = self.giddy_raw.set_index(
-        #         ctd_data_point=['ctd_data_point','dive_direction','ctd_time'])
         self.giddy_raw = self.giddy_raw.swap_dims(
                                             {'ctd_data_point':'remove_index'})
         self.giddy_raw = self.giddy_raw.sel(remove_index=token)
         self.giddy_raw = self.giddy_raw.swap_dims(
                                             {'remove_index':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('remove_index')
-
-
-    #def get_transects(self, concat_dim='ctd_data_point', method='cycle',
-    #                  shrink=None):
-    #    '''
-    #        split path into transects
-    #        NB: the get_transects script in /Plots is more robust
-    #    '''
-
-    #    data = self.giddy_raw
-    #    if method == '2nd grad':
-    #        a = np.abs(np.diff(data.lat, 
-    #        append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-    #        idx = np.where(a>0.006)[0]
-    #    crit = [0,1,2,3]
-    #    if method == 'cycle':
-    #        #data = data.isel(distance=slice(0,400))
-    #        #data['orig_lon'] = data.lon - data.lon_offset
-    #        #data['orig_lat'] = data.lat - data.lat_offset
-    #        idx=[]
-    #        crit_iter = itertools.cycle(crit)
-    #        start = True
-    #        a = next(crit_iter)
-    #        for i in range(data[concat_dim].size)[::shrink]:
-    #            da = data.isel({concat_dim:i})
-    #            print (i)
-    #            if (a == 0) and (start == True):
-    #                test = ((da.lat < -60.10) and (da.lon > 0.176))
-    #            elif a == 0:
-    #                test = (da.lon > 0.176)
-    #            elif a == 1:
-    #                test = (da.lat > -59.93)
-    #            elif a == 2:
-    #                test = (da.lon < -0.173)
-    #            elif a == 3:
-    #                test = (da.lat > -59.93)
-    #            if test: 
-    #                start = False
-    #                idx.append(i)
-    #                a = next(crit_iter)
-    #                print (idx)
-    #    var_list = []
-    #    for da in list(data.keys()):
-    #        da = np.split(data[da], idx)
-    #        transect = np.arange(len(da))
-    #        pop_list=[]
-    #        for i, arr in enumerate(da):
-    #            if len(da[i]) < 1:
-    #                pop_list.append(i) 
-    #            else:
-    #                da[i] = da[i].assign_coords({'transect':i})
-    #        for i in pop_list:
-    #            da.pop(i)
-    #        var_list.append(xr.concat(da, dim=concat_dim))
-    #    da = xr.merge(var_list)
-    #    print (da)
-    #    # remove initial and mid path excursions
-    #    da = da.where(da.transect>1, drop=True)
-    #    da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-    #    self.giddy_raw = da.load()
-    #    print (self.giddy_raw)
 
     def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
                                append='', load_offset=False):
@@ -766,10 +680,6 @@ class model(object):
            following giddy (2021)
         '''
 
-        #glider_raw = xr.open_dataset(self.data_path +
-        #                             'GliderRandomSampling/glider_raw_nemo_' + 
-        #                             ind + '.nc')
-                                    #chunks={'ctd_data_point': 1000})
         glider_raw = self.glider_nemo.load()
         glider_raw['distance'] = xr.DataArray( 
                  gt.utils.distance(glider_raw.lon,
@@ -996,9 +906,6 @@ class model(object):
     def save_glider_nemo_state(self):
         ''' save nemo data on glider path '''
         
-        #state = xr.merge([self.glider_nemo.votemper,
-        #                  self.glider_nemo.vosaline,
-        #                  self.glider_nemo.mldr10_3])
         self.glider_nemo.to_netcdf(self.data_path + 'glider_nemo.nc')
 
     def save_area_mean_all(self):
@@ -1012,15 +919,6 @@ class model(object):
             ds = ds.drop('area_mean')
             ds.to_netcdf(self.data_path +
                          'Stats/SOCHIC_PATCH_mean_' + grid + '.nc')
-
-    #def save_area_mean_all_test(self):
-    #    ''' save lateral mean of all data '''
-#
-#        ds = self.data.mean(['x','y']).load()
-#        for key in ds.keys():
-#            ds = ds.rename({key: key + '_mean'})
-#        ds.to_netcdf(self.data_path +
-#                     'Stats/SOCHIC_PATCH_mean_grid_T.nc')
 
     def save_area_std_all(self):
         ''' save lateral standard deviation of all data '''
