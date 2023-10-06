@@ -14,7 +14,6 @@ def glider_sampling(case, remove=False, append='', interp_dist=1000,
     if transects:
         m.save_append = m.save_append + '_pre_transect'
     m.load_gridT_and_giddy(bg=True)
-    print (sklf)
 
     # reductions of nemo domain
     m.south_limit = south_limit
@@ -51,6 +50,25 @@ def glider_sampling(case, remove=False, append='', interp_dist=1000,
     print (' ')
     print ('successfully ended')
     print (' ')
+
+def glider_sample_parallel_straight_line_paths():
+    ''' get 100 samples of model with 2 parallel transects '''
+
+    # initialise object
+    m = model_object.model('EXP10')
+
+    # get data and set file naming
+    m.load_gridT_and_giddy(bg=True)
+    m.save_append = 'interp_' + str(interp_dist) + '_parallel_transects'
+
+    for ind in range(0,100):
+
+        m.ind = ind
+        print ('ind: ', ind)
+
+        # interpolate to uniform grid
+        m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+        m.interp_raw_obs_path_to_uniform_grid(ind=ind)
 
 def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
                     transects=False, south_limit=None, north_limit=None,

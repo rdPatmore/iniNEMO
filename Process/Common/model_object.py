@@ -135,14 +135,14 @@ class model(object):
         if load:
             bg_norm = xr.open_dataarray(config.data_path() + self.case + '/' +
                                       self.file_id + 'bg_mod2.nc',
-                                      chunks={'time_counter':10}) ** 0.5
+                                      chunks={'time_counter':1}) ** 0.5
             bg_norm = bg_norm.assign_coords({'x': bg_norm.x.values + 1,
                                              'y': bg_norm.y.values + 1})
             bg_norm.name = 'bg_norm'
 
         else:
             mesh_mask = xr.open_dataset(config.data_path() + self.case + 
-                                     '/mesh_mask.nc').squeeze('time_counter')
+                         '/mesh_mask.nc', chunks='auto').squeeze('time_counter')
  
             # remove halo
             mesh_mask = mesh_mask.isel(x=slice(1,-1), y=slice(1,-1))
@@ -179,7 +179,8 @@ class model(object):
         # open grid T
         self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
         path = self.data_path + self.file_id + 'grid_T.nc'
-        ds = xr.open_dataset(path, chunks={'time_counter':10})
+        #ds = xr.open_dataset(path, chunks={'x':100,'y':100})
+        ds = xr.open_dataset(path, chunks={'time_counter':1})
         ds = ds.isel(x=slice(1,-1), y=slice(1,-1))
 
         # drop variables
@@ -198,6 +199,7 @@ class model(object):
         # add model normed buoyancy gradient
         ds = xr.merge([ds, self.get_normed_buoyancy_gradients()])
 
+        print (ds)
         with ProgressBar():
             ds.to_netcdf(self.data_path + self.file_id + 
                                                 'grid_T_for_glider_sampling.nc')
