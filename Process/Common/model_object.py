@@ -156,7 +156,6 @@ class model(object):
             dy = mesh_mask.e2t.isel(y=slice(1,None))
 
             # buoyancy gradient
-            print (self.ds)
             buoyancy = g * (1 - self.ds['grid_T'].rho / rho_0)
             bg_x = buoyancy.diff('x') / dx
             bg_y = buoyancy.diff('y') / dy
@@ -203,7 +202,6 @@ class model(object):
         # add model normed buoyancy gradient and rho
         ds = xr.merge([ds, self.get_normed_buoyancy_gradients(), rho])
 
-        print (ds)
         with ProgressBar():
             ds.to_netcdf(self.data_path + self.file_id + 
                                                 'grid_T_for_glider_sampling.nc')
@@ -536,7 +534,7 @@ class model(object):
         grid_T_redu = self.ds['grid_T'].sel(lon=slice(xmin,xmax),
                                             lat=slice(ymin,ymax),
                                             time_counter=slice(tmin,tmax),
-                                            deptht=slice(None,dmax))
+                                            deptht=slice(None,dmax)).load()
 
         # interpolate
         #grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
@@ -571,8 +569,7 @@ class model(object):
         if open:
             glider_raw =  xr.open_dataset(self.data_path
                                        + 'GliderRandomSampling/glider_raw_nemo_'
-                     + self.save_append + '_' + str(self.ind).zfill(2) + '.nc',
-                                         chunks='auto')
+                     + self.save_append + '_' + str(self.ind).zfill(2) + '.nc')
         else:
             glider_raw = self.glider_nemo.load()
 
@@ -583,7 +580,7 @@ class model(object):
                                        dims='ctd_data_point')
             glider_raw = glider_raw.set_coords('distance')
 
-        # make time a variable so it doesn't dissapear on interp
+        # make time a variable so it doesn't disapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
         #glider_raw = glider_raw.isel(ctd_data_point=slice(0,100))
 
@@ -608,17 +605,20 @@ class model(object):
             group = group.isel(ctd_depth=index)
         
             # interpolate
-            depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
+            depth_uniform = group.interp(ctd_depth=np.arange(1.0,999.0,1))
 
             uniform = depth_uniform.expand_dims(dives=[label])
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='dives')
-
+        #glider_uniform = glider_uniform.chunk({'dives':-1})
 
         # interpolate to 1 km horzontal grid
         glider_uniform_i = []
         for (label, group) in glider_uniform.groupby('ctd_depth'):
+            # time interferes with dropna
+            group = group.set_coords('time_counter') 
+
             group = group.swap_dims({'dives': 'distance'})
                 
             group = group.sortby('distance')
@@ -630,7 +630,7 @@ class model(object):
 
             if group.sizes['distance'] < 2:
                 continue
-
+            
             group = group.interpolate_na('distance')
            
             uniform = group.interp(distance=uniform_distance)
@@ -691,8 +691,6 @@ class model(object):
 
         # buoyancy gradient
         b = g * (1 - glider_sample.rho / rho_0)
-        print (b)
-        print (b.distance.diff('distance'))
         b_x = b.diff('distance') / dx
 
         # buoyancy within mixed layer
@@ -716,7 +714,6 @@ class model(object):
                            backend_kwargs=kwargs)
 
             # bg_norm within mixed layer
-            print (g)
             g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
 
             # drop fill depth bg_norm

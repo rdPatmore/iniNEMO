@@ -108,6 +108,10 @@ class mould_glider_path(model_object.model):
         da['ctd_data_point'] = xr.DataArray(np.arange(da.sizes['distance']),
                                             dims='distance')
 
+        # remove duplicate index values
+        _, index = np.unique(da['distance'], return_index=True)
+        da = da.isel(distance=index)
+
         # drop irrelevant coords
         drop_c = ['meso_transect', 'vertex']
         self.deployment = da.drop(drop_c)
