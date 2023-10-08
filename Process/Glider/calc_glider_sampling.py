@@ -1,5 +1,6 @@
-import model_object
+import iniNEMO.Process.Common.model_object as model_object
 import numpy as np
+import dask
 
 def glider_sampling(case, remove=False, append='', interp_dist=1000,
                     transects=False, south_limit=None, north_limit=None,
@@ -13,7 +14,7 @@ def glider_sampling(case, remove=False, append='', interp_dist=1000,
         m.save_append = m.save_append + '_' + remove
     if transects:
         m.save_append = m.save_append + '_pre_transect'
-    m.load_gridT_and_giddy(bg=True)
+    m.load_gridT_and_giddy()
 
     # reductions of nemo domain
     m.south_limit = south_limit
@@ -54,12 +55,18 @@ def glider_sampling(case, remove=False, append='', interp_dist=1000,
 def glider_sample_parallel_straight_line_paths():
     ''' get 100 samples of model with 2 parallel transects '''
 
+    # offset in parallel transects
+    lon_shift = 1/12.
+
     # initialise object
     m = model_object.model('EXP10')
 
     # get data and set file naming
-    m.load_gridT_and_giddy(bg=True)
-    m.save_append = 'interp_' + str(interp_dist) + '_parallel_transects'
+    m.interp_dist=1000
+    m.save_append = 'interp_' + str(m.interp_dist) + '_parallel_transects'
+    m.load_gridT_and_giddy(g_fn='artificial_straight_line_transects.nc')
+    m.prep_interp_to_raw_obs()
+    print (m.save_append)
 
     for ind in range(0,100):
 
@@ -67,8 +74,20 @@ def glider_sample_parallel_straight_line_paths():
         print ('ind: ', ind)
 
         # interpolate to uniform grid
-        m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
-        m.interp_raw_obs_path_to_uniform_grid(ind=ind)
+        m.interp_to_raw_obs_path(random_offset=True, load_offset=True, save=True)
+        m.interp_raw_obs_path_to_uniform_grid(open=True)
+
+    # parallel save name
+    m.save_append = m.save_append + '_shift_' + str(lon_shift)
+    for ind in range(0,100):
+
+        m.ind = ind
+        print ('ind: ', ind)
+
+        # interpolate to uniform grid
+        m.interp_to_raw_obs_path(random_offset=True, load_offset=True,
+                                 parallel_offset=lon_shift, save=True)
+        m.interp_raw_obs_path_to_uniform_grid(ind=ind, open=True)
 
 def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
                     transects=False, south_limit=None, north_limit=None,
@@ -104,7 +123,12 @@ def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
     #combine_glider_samples('EXP10', remove=False,
     #                       append='interp_1000_north_patch', 
     #                       interp_dist=1000, transects=False, rotate=False)
-glider_sampling('EXP10', interp_dist=1000, transects=False)
+#glider_sampling('EXP10', interp_dist=1000, transects=False)
+if __name__ == '__main__':
+  
+    dask.config.set(scheduler='single-threaded')
+
+    glider_sample_parallel_straight_line_paths()
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)

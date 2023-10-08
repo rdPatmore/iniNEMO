@@ -1,5 +1,5 @@
 import xarray as xr
-import model_object
+import iniNEMO.Process.Common.model_object as model_object
 import glidertools as gt
 import iniNEMO.Plot.get_transects as trans
 import numpy as np
@@ -42,7 +42,6 @@ class mould_glider_path(model_object.model):
             self.assert_ascending_coord(da1, 'ctd_time_dt64')
             self.assert_ascending_coord(da1, 'distance')
             self.assert_ascending_coord(da1, 'dives')
-            self.assert_ascending_coord(da1, 'ctd_data_point')
 
         # shift dates to end of da0
         tdiff =  da0[-1].ctd_time_dt64 - da1[0].ctd_time_dt64
@@ -88,6 +87,7 @@ class mould_glider_path(model_object.model):
         meso_trans = meso_trans.swap_dims({'ctd_data_point':'distance'})
         subset = meso_trans.sel(distance=slice(1.37e6, 1.49e6))
 
+
         # shift start time to that of full deployment
         tdiff = subset[0].ctd_time_dt64 - g_trans[0].ctd_time_dt64
         subset['ctd_time_dt64'] = subset.ctd_time_dt64 - tdiff
@@ -102,8 +102,11 @@ class mould_glider_path(model_object.model):
             da = self.concat_transect(da, subset, reverse=boolean)
 
         # shift coords to start at 0
-        da['ctd_data_point'] = da.ctd_data_point - da.ctd_data_point[0]
         da['dives'] = da.dives - da.dives[0]
+
+        # overwrite ctd_data_point
+        da['ctd_data_point'] = xr.DataArray(np.arange(da.sizes['distance']),
+                                            dims='distance')
 
         # drop irrelevant coords
         drop_c = ['meso_transect', 'vertex']

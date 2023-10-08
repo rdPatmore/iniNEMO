@@ -196,8 +196,12 @@ class model(object):
                                                    #      y=slice(0,50)).load()
         ds = ds.assign_coords({'x': ds.x.values,'y': ds.y.values})
 
-        # add model normed buoyancy gradient
-        ds = xr.merge([ds, self.get_normed_buoyancy_gradients()])
+        # get rho
+        rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc',
+                                chunks={'time_counter':1})
+
+        # add model normed buoyancy gradient and rho
+        ds = xr.merge([ds, self.get_normed_buoyancy_gradients(), rho])
 
         print (ds)
         with ProgressBar():
@@ -211,12 +215,15 @@ class model(object):
         self.ds = {}
         self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
         path = self.data_path + self.file_id + 'grid_T_for_glider_sampling.nc'
-        self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':10})
+        self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':1})
 
         # glider
         self.giddy_raw = xr.open_dataset(self.root + 'Giddy_2020/' + g_fn)
-        self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
-                                                'latitude': 'lat'})
+        #self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
+        #                                        'latitude': 'lat'})
+        # straight transct specific
+        self.giddy_raw = self.giddy_raw.rename({'ctd_time_dt64': 'ctd_time'})
+        self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
@@ -378,10 +385,6 @@ class model(object):
         preliminary processing for sampling model like a glider
         '''
         
-        # add rho
-        rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc')
-        self.ds['grid_T'] = xr.merge([self.ds['grid_T'], rho])
-
         # shift glider time to nemo time
         time_delta = (np.datetime64('2018') 
                     - np.datetime64('2012')).astype('timedelta64[ns]')
@@ -493,8 +496,8 @@ class model(object):
                                             {'remove_index':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('remove_index')
 
-    def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
-                               append='', load_offset=False):
+    def interp_to_raw_obs_path(self, random_offset=False, save=False,
+                            append='', load_offset=False, parallel_offset=None):
         '''
         sample model along glider's raw path
         using giddy (2021)
@@ -517,22 +520,26 @@ class model(object):
             self.x = self.x + self.lon_shift
             self.y = self.y + self.lat_shift
 
+        if parallel_offset:
+            # longitudinal offset for parallel glider deployments
+            self.x = self.x + self.parallel_offset
 
         # lon lat gets overriden if these remain
         self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])
 
-        # reduce computational load - local reduction of time and space
+        ## reduce computational load - local reduction of time and space
         xmin, xmax = self.x.min(), self.x.max()
         ymin, ymax = self.y.min(), self.y.max()
         tmin = self.giddy_raw.ctd_time.min()
         tmax = self.giddy_raw.ctd_time.max()
         dmax = self.giddy_raw.ctd_depth.max()
         grid_T_redu = self.ds['grid_T'].sel(lon=slice(xmin,xmax),
-                                            lat=slice(ymin,xmax),
+                                            lat=slice(ymin,ymax),
                                             time_counter=slice(tmin,tmax),
                                             deptht=slice(None,dmax))
+
         # interpolate
-        grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
+        #grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
         self.glider_nemo = grid_T_redu.interp(lon=self.x, lat=self.y,
                                      deptht=self.giddy_raw_no_ll.ctd_depth,
                                      time_counter=self.giddy_raw_no_ll.ctd_time)
@@ -547,23 +554,34 @@ class model(object):
                                                        'nav_lat'])
 
         if save:
-            self.glider_nemo.to_netcdf(self.data_path +
-                                     'GliderRandomSampling/glider_raw_nemo_' + 
-                                      append + '_' + ind + '.nc')
+            with ProgressBar():
+                self.glider_nemo.to_netcdf(self.data_path +
+                                     'GliderRandomSampling/glider_raw_nemo_' 
+                                      + self.save_append
+                                      + '_' + str(self.ind).zfill(2) + '.nc')
+            self.glider_nemo.close()
 
-    def interp_raw_obs_path_to_uniform_grid(self, ind=''):
+    def interp_raw_obs_path_to_uniform_grid(self, open=False):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
            following giddy (2021)
         '''
 
-        glider_raw = self.glider_nemo.load()
-        glider_raw['distance'] = xr.DataArray( 
-                 gt.utils.distance(glider_raw.lon,
-                                   glider_raw.lat).cumsum(),
-                                   dims='ctd_data_point')
-        glider_raw = glider_raw.set_coords('distance')
+        if open:
+            glider_raw =  xr.open_dataset(self.data_path
+                                       + 'GliderRandomSampling/glider_raw_nemo_'
+                     + self.save_append + '_' + str(self.ind).zfill(2) + '.nc',
+                                         chunks='auto')
+        else:
+            glider_raw = self.glider_nemo.load()
+
+        if 'distance' not in list(glider_raw.coords):
+            glider_raw['distance'] = xr.DataArray( 
+                     gt.utils.distance(glider_raw.lon,
+                                       glider_raw.lat).cumsum(),
+                                       dims='ctd_data_point')
+            glider_raw = glider_raw.set_coords('distance')
 
         # make time a variable so it doesn't dissapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
@@ -634,9 +652,10 @@ class model(object):
                               glider_uniform)
 
 
-        glider_uniform.to_netcdf(self.data_path + 
-                                 'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
+        with ProgressBar():
+            glider_uniform.to_netcdf(self.data_path + 
+                                     'GliderRandomSampling/glider_uniform_'
+                      + self.save_append + '_' + str(self.ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):
