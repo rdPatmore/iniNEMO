@@ -520,7 +520,7 @@ class model(object):
 
         if parallel_offset:
             # longitudinal offset for parallel glider deployments
-            self.x = self.x + self.parallel_offset
+            self.x = self.x + parallel_offset
 
         # lon lat gets overriden if these remain
         self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])

@@ -68,14 +68,14 @@ def glider_sample_parallel_straight_line_paths():
     m.prep_interp_to_raw_obs()
     print (m.save_append)
 
-    for ind in range(0,100):
+    #for ind in range(80,100):
 
-        m.ind = ind
-        print ('ind: ', ind)
+    #    m.ind = ind
+    #    print ('ind: ', ind)
 
-        # interpolate to uniform grid
-        m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
-        m.interp_raw_obs_path_to_uniform_grid()
+    #    # interpolate to uniform grid
+    #    m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+    #    m.interp_raw_obs_path_to_uniform_grid()
 
     # parallel save name
     m.save_append = m.save_append + '_shift_' + str(lon_shift)
