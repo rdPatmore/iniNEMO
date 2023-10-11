@@ -50,37 +50,6 @@ ax0.text(0.02, 1.01, '(b)', transform=ax0.transAxes, ha='left', va='bottom',
          fontsize=8)
 ax1.text(0.02, 1.01, '(a)', transform=ax1.transAxes, ha='left', va='bottom',
          fontsize=8)
-#print (glider_data.lon.min().values - glider_data.lon_offset)
-#print (glider_data.lon.max().values - glider_data.lon_offset)
-#print (glider_data.lat.min().values - glider_data.lat_offset)
-#print (glider_data.lat.max().values - glider_data.lat_offset)
-#ax0.set_xticks(np.linspace( -0.2,   0.2, 5), crs=proj)
-#ax0.set_yticks(np.linspace(-60.1, -59.9, 5), crs=proj)
-#lon_formatter = LongitudeFormatter(zero_direction_label=True)
-#lat_formatter = LatitudeFormatter()
-#ax0.xaxis.set_major_formatter(lon_formatter)
-#ax0.yaxis.set_major_formatter(lat_formatter)
-#xticks = np.linspace( -0.2,   0.2, 5)
-#yticks = np.linspace(-60.1, -59.9, 5)
-#gl = ax0.gridlines(xlocs=xticks, ylocs=yticks, draw_labels=True)
-#gl.xlines=False
-#gl.ylines=False
-#gl.xlabel_top=False
-#gl.ylabel_right=False
-##print (LongitudeFormatter.__doc__)
-#lon_formatter = LongitudeFormatter(number_format='.1f',
-#                                   degree_symbol='')
-###                                   #direction_label=False)
-#lat_formatter = LatitudeFormatter(number_format='.1f',
-#                                  degree_symbol='')
-##                                  #direction_label=False)
-##ax0.xaxis.set_major_formatter(lon_formatter)
-##ax0.yaxis.set_major_formatter(lat_formatter)
-#
-##gl.ylocator = mticker.FixedLocator(yticks)
-##gl.xlocator = mticker.FixedLocator(xticks)
-#ax0.tick_params(axis='both',labelsize=6,direction='out',right=False,top=False)
-#:wqax0.axes.spines['geo'].xaxis.set_tick_params(direction="out", length=8)
 
                        # ~~~ depth path ~~~ #
 
@@ -100,9 +69,4 @@ ax1.set_xlabel('Distance (km)')
 ax1.set_ylabel('Depth (m)')
 ax1.set_title('Dive Pattern', fontsize=8)
 
-#ax0.spines['right'].set_visible(False)
-#ax1.spines['right'].set_visible(False)
-#ax0.spines['top'].set_visible(False)
-#ax1.spines['top'].set_visible(False)
-
-plt.savefig('giddy_path.png', dpi=600)
+plt.savefig('Plots/giddy_path.png', dpi=600)
