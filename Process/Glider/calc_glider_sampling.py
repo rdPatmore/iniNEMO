@@ -1,6 +1,8 @@
 import iniNEMO.Process.Common.model_object as model_object
 import numpy as np
 import dask
+import config
+import xarray as xr
 
 def glider_sampling(case, remove=False, append='', interp_dist=1000,
                     transects=False, south_limit=None, north_limit=None,
@@ -68,17 +70,18 @@ def glider_sample_parallel_straight_line_paths():
     m.prep_interp_to_raw_obs()
     print (m.save_append)
 
-    #for ind in range(80,100):
+    for ind in range(0,100):
 
-    #    m.ind = ind
-    #    print ('ind: ', ind)
+        m.ind = ind
+        print ('ind: ', ind)
 
-    #    # interpolate to uniform grid
-    #    m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
-    #    m.interp_raw_obs_path_to_uniform_grid()
+        # interpolate to uniform grid
+        m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
+        m.interp_raw_obs_path_to_uniform_grid()
 
     # parallel save name
-    m.save_append = m.save_append + '_shift_' + str(lon_shift)
+    m.save_append = m.save_append + '_shift_' + str(int(1/lon_shift))
+    print (m.save_append)
     for ind in range(0,100):
 
         m.ind = ind
@@ -87,11 +90,10 @@ def glider_sample_parallel_straight_line_paths():
         # interpolate to uniform grid
         m.interp_to_raw_obs_path(random_offset=True, load_offset=True,
                                  parallel_offset=lon_shift)
-        m.interp_raw_obs_path_to_uniform_grid(ind=ind)
+        m.interp_raw_obs_path_to_uniform_grid()
 
-def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
-                    transects=False, south_limit=None, north_limit=None,
-                    rotate=False, rotation=np.pi/2):
+def save_interpolated_transects_to_one_file(case, fn, n=100, rotation=None,
+                                            add_transects=False):
     '''
     this needs adjusting
     currently has a conditional statement for get_transects that is
@@ -105,30 +107,58 @@ def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
     include the mesoscale transect.
     '''
 
-    m = model(case)
-    m.interp_dist=interp_dist
-    m.transects=transects
-    #m.load_gridT_and_giddy()
-    m.append = append
+    # set paths
+    prep = 'GliderRandomSampling/' + fn
+    data_path = config.data_path() + case + '/' + prep 
 
-    # reductions of nemo domain
-    m.south_limit = south_limit
-    m.north_limit = north_limit
 
-    m.save_interpolated_transects_to_one_file(n=100, rotation=None)
+    if rotation:
+        rotation_label = 'rotate_' + str(rotation) + '_' 
+        rotation_rad = np.radians(rotation)
+    else:
+        rotation_label = ''
+        rotation_rad = rotation # None type 
 
-#    combine_glider_samples('EXP10',
-#                           append='interp_1000', 
-#                           interp_dist=1000, transects=False)
-    #combine_glider_samples('EXP10', remove=False,
-    #                       append='interp_1000_north_patch', 
-    #                       interp_dist=1000, transects=False, rotate=False)
-#glider_sampling('EXP10', interp_dist=1000, transects=False)
+    sample_list = [data_path + '_' + rotation_label +
+                   str(i).zfill(2) + '.nc' for i in range(n)]
+
+    sample_set = []
+    for i in range(n):
+        print ('sample: ', i)
+        sample = xr.open_dataset(sample_list[i],
+                                 decode_times=False)
+        sample['lon_offset'] = sample.attrs['lon_offset']
+        sample['lat_offset'] = sample.attrs['lat_offset']
+        sample = sample.set_coords(['lon_offset','lat_offset',
+                                    'time_counter'])
+        sample = sample.assign_coords({'sample': i + 1})
+
+        if add_transects:
+        # this removes n-s transect!
+        # hack because transect doesn't currently take 2d-ds (1d-da only)
+            b_x_ml_transect = get_transects(
+                               sample.b_x_ml.isel(ctd_depth=10),
+                               offset=True, rotation=rotation_rad,
+                               method='find e-w')
+            sample = sample.assign_coords(
+              {'transect': b_x_ml_transect.transect.reset_coords(drop=True),
+               'vertex'  : b_x_ml_transect.vertex.reset_coords(drop=True)})
+
+        sample_set.append(sample.expand_dims('sample'))
+    samples=xr.concat(sample_set, dim='sample')
+    samples.to_netcdf(data_path + rotation_label.rstrip('_') + '.nc')
+
 if __name__ == '__main__':
+
   
     dask.config.set(scheduler='single-threaded')
 
     glider_sample_parallel_straight_line_paths()
+
+    #case='EXP10'
+    #fn = 'glider_uniform_interp_1000_parallel_transects'
+    #save_interpolated_transects_to_one_file(case, fn)
+
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',
     ######                interp_dist=1000, transects=True)

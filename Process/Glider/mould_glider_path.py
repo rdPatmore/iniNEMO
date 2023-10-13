@@ -3,6 +3,7 @@ import iniNEMO.Process.Common.model_object as model_object
 import glidertools as gt
 import iniNEMO.Plot.get_transects as trans
 import numpy as np
+import matplotlib.pyplot as plt
 
 class mould_glider_path(model_object.model):
     """
@@ -51,6 +52,10 @@ class mould_glider_path(model_object.model):
         ddiff =  da0[-1].distance - da1[0].distance
         da1['distance'] = da1.distance + ddiff
 
+        # shift distance to end of da0
+        ddiff =  da0[-1].dives - da1[0].dives
+        da1['dives'] = da1.dives + ddiff
+
         # label transect
         transect = np.full(da1.shape, da0.transect[-1] + 1)
         da1['transect'] = xr.DataArray(transect, dims=da1.dims)
@@ -86,8 +91,7 @@ class mould_glider_path(model_object.model):
         # subset straight section of transect
         meso_trans = meso_trans.swap_dims({'ctd_data_point':'distance'})
         subset = meso_trans.sel(distance=slice(1.37e6, 1.49e6))
-
-
+        
         # shift start time to that of full deployment
         tdiff = subset[0].ctd_time_dt64 - g_trans[0].ctd_time_dt64
         subset['ctd_time_dt64'] = subset.ctd_time_dt64 - tdiff
@@ -103,6 +107,7 @@ class mould_glider_path(model_object.model):
 
         # shift coords to start at 0
         da['dives'] = da.dives - da.dives[0]
+        da['distance'] = da.distance - da.distance[0]
 
         # overwrite ctd_data_point
         da['ctd_data_point'] = xr.DataArray(np.arange(da.sizes['distance']),

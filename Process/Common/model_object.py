@@ -83,46 +83,6 @@ class model(object):
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
 
-    def save_interpolated_transects_to_one_file(self, n=100, rotation=None,
-                                                add_transects=False):
-        ''' get set of 100 glider samples '''
-
-        # load samples
-        prep = 'GliderRandomSampling/glider_uniform_' + self.append + '_'
-        if rotation:
-            rotation_label = 'rotate_' + str(rotation) + '_' 
-            rotation_rad = np.radians(rotation)
-        else:
-            rotation_label = ''
-            rotation_rad = rotation # None type 
-        sample_list = [self.data_path + prep + rotation_label +
-                       str(i).zfill(2) + '.nc' for i in range(n)]
-
-        sample_set = []
-        for i in range(n):
-            print ('sample: ', i)
-            sample = xr.open_dataset(sample_list[i],
-                                     decode_times=False)
-            sample['lon_offset'] = sample.attrs['lon_offset']
-            sample['lat_offset'] = sample.attrs['lat_offset']
-            sample = sample.set_coords(['lon_offset','lat_offset',
-                                        'time_counter'])
-
-            if add_transects:
-            # this removes n-s transect!
-            # hack because transect doesn't currently take 2d-ds (1d-da only)
-                b_x_ml_transect = get_transects(
-                                   sample.b_x_ml.isel(ctd_depth=10),
-                                   offset=True, rotation=rotation_rad,
-                                   method='find e-w')
-                sample = sample.assign_coords(
-                  {'transect': b_x_ml_transect.transect.reset_coords(drop=True),
-                   'vertex'  : b_x_ml_transect.vertex.reset_coords(drop=True)})
-
-            sample_set.append(sample.expand_dims('sample'))
-        samples=xr.concat(sample_set, dim='sample')
-        samples.to_netcdf(self.data_path + prep + 
-                          rotation_label.rstrip('_') + '.nc')
 
     def get_normed_buoyancy_gradients(self, load=True):
         '''
@@ -534,7 +494,7 @@ class model(object):
         grid_T_redu = self.ds['grid_T'].sel(lon=slice(xmin,xmax),
                                             lat=slice(ymin,ymax),
                                             time_counter=slice(tmin,tmax),
-                                            deptht=slice(None,dmax)).load()
+                                            deptht=slice(None,dmax))#.load()
 
         # interpolate
         #grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
@@ -545,6 +505,7 @@ class model(object):
         self.glider_nemo['dives'] = self.giddy_raw_no_ll.dives
         if random_offset:
             self.glider_nemo.attrs['lon_offset'] = self.lon_shift
+
             self.glider_nemo.attrs['lat_offset'] = self.lat_shift
 
         # drop obsolete coords
@@ -705,7 +666,7 @@ class model(object):
         '''
 
         # loop over samples
-        for ind in range(4,100):
+        for ind in range(0,100):
             # load sample
             kwargs = dict(clobber=True,mode='a')
             g = xr.open_dataset(self.data_path + 
