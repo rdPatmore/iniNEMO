@@ -1,6 +1,5 @@
 import xarray as xr
 import config
-import iniNEMO.Process.model_object as mo
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.animation as animation
@@ -24,12 +23,14 @@ class bootstrap_glider_samples(object):
     for ploting bootstrap samples of buoyancy gradients
     '''
 
-    def __init__(self, case, offset=False, var='b_x_ml', load_samples=True,
-                 subset='', transect=False, interp='1000'):
+    def __init__(self, case, glider_fn=None, offset=False, var='b_x_ml', 
+                 load_samples=True, transect=False, subset=None):
+
         self.root = config.root()
         self.case = case
         self.data_path = config.data_path() + self.case + '/'
         self.var = var
+        self.glider_fn = glider_fn
 
         self.hist_range = (0,2e-8)
         def expand_sample_dim(ds):
@@ -42,48 +43,33 @@ class bootstrap_glider_samples(object):
             #da = da.sel(ctd_depth=10, method='nearest')
             #da = get_transects(da)
             return da
-        if load_samples:
-            sample_size = 100
-        else:
-            sample_size = 1
 
         # subset domain
         self.subset=subset
-        self.append=''
-        patch=''
+        self.append=self.glider_fn.replace('glider_uniform_','').split('.')[0]
         if self.subset=='north':
             self.append='_n'
-            patch = '_north_patch'
+            self.glider_fn = self.glider_fn.split('.')[0] + '_north_patch.nc'
         if self.subset=='south':
             self.append='_s'
-            patch = '_south_patch'
+            self.glider_fn = self.glider_fn.split('.')[0] + '_south_patch.nc'
         
-        self.append = self.append + '_interp_' + interp
+        #self.append = self.append + '_interp_' + interp
 
         # load samples
-        prep = 'GliderRandomSampling/glider_uniform_interp_'+ interp + \
-               patch + '.nc'
-        #sample_list = [self.data_path + prep + 
-        #               str(i).zfill(2) + '.nc' for i in range(sample_size)]
-        #self.samples = xr.open_mfdataset(sample_list, 
-        #                             combine='nested', concat_dim='sample',
-        #                             preprocess=expand_sample_dim).load()
-        self.samples = xr.open_dataset(self.data_path + prep,
-                                       chunks={'sample':1})[var]
+        self.samples = xr.open_dataset(self.data_path + 'GliderRandomSampling/'
+                                     + self.glider_fn, chunks={'sample':1})[var]
 
-        # depth average
-        #self.samples = self.samples.mean('ctd_depth', skipna=True)
+        # select depth
         self.samples = self.samples.sel(ctd_depth=10, method='nearest')
-        #self.samples = self.samples.sel(ctd_depth=10, method='nearest')
-
 
         # unify times
-        self.samples['time_counter'] = self.samples.time_counter.isel(sample=0)
-    
+        self.samples['time_counter'] = self.samples.time_counter.isel(
+                                       sample=0).drop('sample')
+
         # get transects and remove 2 n-s excursions
         # this cannot currently deal with depth-distance data (1-d only)
         old=False
-        print (self.samples)
         if transect:
             if old:
                 sample_list = []
@@ -102,9 +88,8 @@ class bootstrap_glider_samples(object):
         clean_float_time = float_time.where(float_time > 0, np.nan)
         self.samples['time_counter'] = clean_float_time
 
- 
         # absolute value of buoyancy gradients
-        self.samples = np.abs(self.samples)
+        self.samples = np.abs(self.samples).load()
         #self.samples['b_x_ml'] = np.abs(self.samples.b_x_ml)
 
         #for i in range(self.samples.sample.size):
@@ -415,7 +400,9 @@ class bootstrap_glider_samples(object):
         glider_hist = xr.DataArray(hist_set, dims=('sets', 'bin_centers'), 
                                   coords={'bin_centers': bin_centers})
 
-        model_hist = self.get_full_model_hist(subset='')
+        # open full model hist
+        model_hist = xr.open_dataset(self.data_path + 
+                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist.nc')
 
         # rmse :: pred - truth / truth
         frac_diff = (glider_hist - model_hist.hist_norm) / model_hist.hist_norm
@@ -431,10 +418,14 @@ class bootstrap_glider_samples(object):
 
     def get_glider_sampled_hist(self, n=1, save=False, by_time=None):
         '''
-        add sample set of means and std to histogram
-        n      : sample size
+        Add sample set of means and std to histogram
+
+        arguments
+        ---------
+        n      : sample size (number of simultaneous deployments)
         by_time: get stats over time - i.e. get weekly stats
                  - week is only option for now
+        save   : save histograms
         '''
  
         set_size = self.samples.sizes['sample']
@@ -564,7 +555,7 @@ class bootstrap_glider_samples(object):
             hist_ds.to_netcdf(self.data_path + 
                           '/SOCHIC_PATCH_3h_20121209_20130331_' + 
                           self.var + '_glider_' +
-                          str(n).zfill(2) + '_hist' + self.append + '.nc')
+                          str(n).zfill(2) + '_hist_' + self.append + '.nc')
         return hist_ds
 
     def get_glider_sample_lims(self):
@@ -1349,13 +1340,14 @@ class bootstrap_glider_samples(object):
 
         var_str = var + '_glider_'
 
-        preamble = self.data_path + '/SOCHIC_PATCH_3h_20121209_20130331_'
+        preamble = self.data_path+'/SOCHIC_PATCH_3h_20121209_20130331_'
+        append = 'hist_' + self.append
 
         ds_all, ds_rolling = [], []
         for n in range(1,31):
             # entier glider time series
             g_all = xr.open_dataset(preamble + var_str + str(n).zfill(2) + 
-                                   '_hist_interp_1000.nc')
+                                   '_' + append + '.nc')
             roll_coord = xr.DataArray(['full_time'], dims='rolling')
             quant_coord = xr.DataArray([n], dims='glider_quantity')
             g_all = g_all.assign_coords({'rolling':         roll_coord,
@@ -1368,7 +1360,7 @@ class bootstrap_glider_samples(object):
             # weekly glider time series
                 try:
                     g = xr.open_dataset(preamble + var_str + str(n).zfill(2) +
-                                    '_hist_interp_1000_' + roll_freq + '.nc')
+                                   '_' + append + '_' + roll_freq + '.nc')
                 except:
                     g = xr.open_dataset(preamble + var_str + str(n).zfill(2) +
                                     '_hist_' + roll_freq + '.nc')
@@ -1382,17 +1374,20 @@ class bootstrap_glider_samples(object):
         ds_all = xr.concat(ds_all, dim='glider_quantity')
 
         # save
-        ds_rolling.to_netcdf(preamble + 'hist_interp_1000_rolling_' +
+        preamble = self.data_path+'/BGHists/SOCHIC_PATCH_3h_20121209_20130331_'
+        ds_rolling.to_netcdf(preamble + append + '_rolling_' +
                              var + '.nc')
-        ds_all.to_netcdf(preamble + 'hist_interp_1000_full_time_' +
+        ds_all.to_netcdf(preamble + append +'_full_time_' +
                              var + '.nc')
 
 def collect_hists():
-    m = bootstrap_glider_samples('EXP10')
-    m.collect_hists('b_x_ml')
-    m.collect_hists('bg_norm_ml')
+    g_fn = 'glider_uniform_interp_1000_parallel_transects.nc'
+    m = bootstrap_glider_samples('EXP10', glider_fn=g_fn)
+    #m.collect_hists('b_x_ml')
+    #m.collect_hists('bg_norm_ml')
+    m.collect_hists('b_x_ct_12_ml')
 
-#collect_hists()
+collect_hists()
 def prep_hist(by_time=None, interp='1000'):
     '''
     Create files for histogram plotting. Takes output from model_object.
@@ -1402,19 +1397,20 @@ def prep_hist(by_time=None, interp='1000'):
                  - bg_norm (glider sample of model norm)
     '''
 
+    g_fn = 'glider_uniform_interp_1000_parallel_transects.nc'
+
     cases = ['EXP10']
     #for var in ['bg_norm_ml','b_x_ml']:
-    for var in ['b_x_ml']:
+    for var in ['b_x_ct_12_ml']:
         for case in cases:
             m = bootstrap_glider_samples(case, var=var, load_samples=True,
-                                       subset='', transect=False, interp=interp)
+                                       transect=False, glider_fn=g_fn)
             if by_time:
                  m.append =  m.append + '_' + by_time
             #m.get_full_model_hist(save=True, by_time=by_time)
-            #m.get_glider_sampled_hist(n=1, save=True, by_time=by_time)
-            for n in range(30,31):
-                print (n)
+            for n in range(1,31):
                 m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
+                                        
 
 def prep_timeseries(subset='', interp='1000'):
     cases = ['EXP10']
@@ -1472,7 +1468,7 @@ def plot_quantify_delta_bg(subset=''):
 #m.get_full_model_timeseries(save=True)
 #m.get_full_model_timeseries_norm_bg(save=True)
 
-plot_hist()
+#plot_hist()
 #prep_hist(by_time='3W_rolling')
 #prep_hist(by_time='1W_rolling', interp='1000')
 #prep_hist(by_time='2W_rolling', interp='1000')
@@ -1486,9 +1482,9 @@ print ('done 1')
 #m = bootstrap_glider_samples('EXP08')
 #m.histogram_buoyancy_gradients_and_samples()
 #print ('done 2')
-m = bootstrap_glider_samples('EXP10')
+#m = bootstrap_glider_samples('EXP10')
 #m.histogram_buoyancy_gradients_and_samples()
-m.plot_error_bars()
+#m.plot_error_bars()
 
 #def plot_histogram():
 #    m = glider_nemo('EXP03')

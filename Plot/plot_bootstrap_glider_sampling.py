@@ -1,6 +1,6 @@
 import xarray as xr
 import config
-import iniNEMO.Process.model_object as mo
+#import iniNEMO.Process.model_object as mo
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.animation as animation
@@ -840,8 +840,99 @@ class bootstrap_plotting(object):
             ax.text(0.03, 0.96, letters[i], transform=ax.transAxes, va='top',
                     ha='left')
 
-
         plt.savefig('paper_hist_rmse.png', dpi=1200)
+
+    def plot_parallel_path_rmse(self, case):
+        '''
+        Plot RMSE error as a percentage against the model mean for parallel
+        paths.
+
+        This is a 2x1 plot. Panel 1 is along-track buoyancy gradients. Panel 2
+        is across transect buoyancy gradients.
+        '''
+
+        # initialise figure
+        fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5,4.0))
+
+        # data paths
+        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
+        self.path = self.data_path + case + '/BGHists' 
+        self.preamble = self.path + file_id
+
+        # get data
+        b_x_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_b_x_ml.nc')
+        b_x_ct_roll = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_rolling_b_x_ct_12_ml.nc')
+        b_x_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_b_x_ml.nc')
+        b_x_ct_full = xr.open_dataset(self.preamble + 'hist' 
+                 + self.interp + self.append + '_full_time_b_x_ct_12_ml.nc')
+
+        # set colours
+        c1 = '#f18b00'
+        colours=[c1, 'purple', 'green' 'navy']
+        colours = ['#dad1d1', '#7e9aa5', '#55475a']
+        c0 = '#7e9aa5'
+        c= ['lightgrey', 'grey', 'black', c1]
+
+        # get means
+        b_x_f_mean = b_x_full.mean('bin_centers')
+        b_x_ct_f_mean = b_x_ct_full.mean('bin_centers')
+        b_x_r_mean = b_x_roll.mean(['bin_centers','time_counter'])
+        b_x_ct_r_mean = b_x_ct_roll.mean(['bin_centers','time_counter'])
+
+        # plot full time mean
+        p0, = ax0.plot(b_x_f_mean.glider_quantity, b_x_f_mean.rmse_mean,
+                     c=c[3], lw=1.5, zorder=10)
+        ax1.plot(b_x_ct_f_mean.glider_quantity, b_x_ct_f_mean.rmse_mean,
+                     c=c[3], lw=1.5)
+
+        # plot rolling time means
+        p = []
+        for i, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
+            b_x_mean = b_x_r_mean.sel(rolling=roll)
+            b_x_ct_mean = b_x_ct_r_mean.sel(rolling=roll)
+            l, = ax0.plot(b_x_mean.glider_quantity, b_x_mean.rmse_mean, 
+                         c=c[i], lw=1.5)
+            ax1.plot(b_x_ct_mean.glider_quantity, b_x_ct_mean.rmse_mean,
+                         c=c[i], lw=1.5)
+            p.append(l)
+
+        p = p + [p0]
+        labs = ['1-Week', '2-Week', '3-Week', '3.5-Month', '3.5-Month']
+        fig.legend(p, labs, loc='lower center', title='Deployment',
+                       title_fontsize=8,
+                       bbox_to_anchor=(0.555, 0.39), ncol=4, fontsize=8)
+
+        # axes settings
+        for ax in [ax0, ax1]:
+            ax.set_xlim(1,30)
+            ax.set_xlabel('Number of Gliders')
+            ax.set_xticks([1,5,10,15,20,25,30])
+            ax.set_ylim(0,120)
+        ax1.set_yticklabels([])
+
+        l0 = r'$|\nabla b|$'
+        l1 = r'($\times 10^{-8}$ s$^{-2}$)'
+
+        ax0.set_ylabel('Mean RMSE (%)')
+
+        ax0.text(0.98, 0.96, 'Along-Track', va='top', ha='right',
+                    transform=ax0.transAxes)
+        ax1.text(0.98, 0.96, 'Across-Front', va='top', ha='right',
+                    transform=ax1.transAxes)
+
+        thresh = r'$|\nabla b|> 4 \times 10^{-9}$ s$^{-2}$'
+        ax0.text(29.5, 32, thresh, va='bottom', ha='right',
+                    transform=ax0.transData, c=c[3], fontsize=6)
+        # letters
+        letters = ['(a)', '(b)']
+        for i, ax in enumerate([ax0,ax1]):
+            ax.text(0.03, 0.96, letters[i], transform=ax.transAxes, va='top',
+                    ha='left')
+
+        plt.savefig('paper_hist_parallel_transects_rmse.png', dpi=1200)
 
     def get_ensembles(self, case, by_time):
         '''
@@ -1325,12 +1416,14 @@ def plot_hist(by_time=None):
         #                                                          var='b_x_ml')
     
     else:
-        boot = bootstrap_plotting()
+        boot = bootstrap_plotting(append='parallel_transects')
         #boot.plot_histogram_bg_pdf_averaged_weekly_samples_multi_var('EXP10')
-        boot.print_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        #boot.print_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
+        boot.plot_parallel_path_rmse('EXP10')
         #boot.plot_histogram_bg_rmse_averaged_weekly_samples_multi_var('EXP10')
             #m = bootstrap_glider_samples(case, var='b_x_ml', load_samples=False,
             #                             subset='')
             #m.plot_histogram_buoyancy_gradients_and_samples()
             #m.plot_rmse_over_ensemble_sizes()
 
+plot_hist()

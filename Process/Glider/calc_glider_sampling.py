@@ -92,6 +92,46 @@ def glider_sample_parallel_straight_line_paths():
                                  parallel_offset=lon_shift)
         m.interp_raw_obs_path_to_uniform_grid()
 
+def calculate_buoyancy_gradients_across_straight_line_paths(fn, dist):
+
+    # set paths
+    prep = 'GliderRandomSampling/'
+    path = config.data_path() + case + '/' + prep 
+
+    # get path 1
+    kwargs = dict(clobber=True,mode='a')
+    g1 = xr.open_dataset(path + fn + '.nc', backend_kwargs=kwargs)
+
+    # get path 2
+    g2 = xr.open_dataset(path + fn + '_shift_' + dist + '.nc')
+
+    # constants
+    g = 9.81
+    rho_0 = 1027 
+
+    # distance between tracks
+    lon0 = g1.isel(distance=100, ctd_depth=0, sample=0).lon
+    lon1 = g2.isel(distance=100, ctd_depth=0, sample=0).lon
+    lat0 = g1.isel(distance=100, ctd_depth=0, sample=0).lat
+    lat1 = g2.isel(distance=100, ctd_depth=0, sample=0).lat
+
+
+    # get haversine distance between tracks
+    # haversine should perhaps be outside of the model_object
+    m = model_object.model('EXP10')
+    dx = m.haversine(lon0, lat0, lon1, lat1)
+   
+    # buoyancy gradient
+    b_1 = g * (1 - g1.rho / rho_0)
+    b_2 = g * (1 - g2.rho / rho_0)
+    dbdtransect = np.abs((b_1 - b_2) / dx)
+
+    # restrict to ml
+    g1['b_x_ct_' + dist + '_ml'] = dbdtransect.where(g1.deptht < g1.mld)
+ 
+    # save
+    g1.to_netcdf(path + fn + '.nc')
+
 def save_interpolated_transects_to_one_file(case, fn, n=100, rotation=None,
                                             add_transects=False):
     '''
@@ -148,16 +188,37 @@ def save_interpolated_transects_to_one_file(case, fn, n=100, rotation=None,
     samples=xr.concat(sample_set, dim='sample')
     samples.to_netcdf(data_path + rotation_label.rstrip('_') + '.nc')
 
+def restrict_bg_norm_to_mld(remove=False, append='', interp_dist=1000,
+                            transects=False):
+    ''' 
+    Fix mistake made when adding bg_norm to glider samples.
+    Variable was taken over full depth rather than being restricted
+    to mld.
+    '''        
+
+    m = model_object.model('EXP10')
+
+    m.save_append = 'interp_' + str(interp_dist) + append
+    if remove:
+        m.save_append = m.save_append + '_' + remove
+    if transects:
+        m.save_append = m.save_append + '_pre_transect'
+
+    m.restrict_bg_norm_to_mld()
+
+
 if __name__ == '__main__':
 
   
     dask.config.set(scheduler='single-threaded')
 
-    glider_sample_parallel_straight_line_paths()
+    #glider_sample_parallel_straight_line_paths()
 
-    #case='EXP10'
-    #fn = 'glider_uniform_interp_1000_parallel_transects'
+    case='EXP10'
+    fn = 'glider_uniform_interp_1000_parallel_transects'
     #save_interpolated_transects_to_one_file(case, fn)
+    calculate_buoyancy_gradients_across_straight_line_paths(fn, '12')
+
 
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
     ######glider_sampling('EXP10', remove='every_2',

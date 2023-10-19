@@ -275,7 +275,7 @@ class model(object):
         a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
         c = 2 * asin(sqrt(a)) 
         r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
-        return c * r
+        return c * r * 1000
     
     def resample_original_raw_glider_path(self, sample_dist):
 
@@ -666,23 +666,21 @@ class model(object):
         '''
 
         # loop over samples
-        for ind in range(0,100):
-            # load sample
-            kwargs = dict(clobber=True,mode='a')
-            g = xr.open_dataset(self.data_path + 
-                           'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc',
-                           backend_kwargs=kwargs)
+        kwargs = dict(clobber=True,mode='a')
+        g = xr.open_dataset(self.data_path 
+                          + 'GliderRandomSampling/glider_uniform_'
+                          + self.save_append + '.nc',
+                            backend_kwargs=kwargs)
 
-            # bg_norm within mixed layer
-            g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
+        # bg_norm within mixed layer
+        g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
 
-            # drop fill depth bg_norm
-            g = g.drop('bg_norm')
+        # drop fill depth bg_norm
+        g = g.drop('bg_norm')
 
-            # save
-            g.to_netcdf(self.data_path + 'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
+        # save
+        g.to_netcdf(self.data_path + 'GliderRandomSampling/glider_uniform_'
+                       + self.save_append + '.nc')
   
 
     def theta_and_salt_gradients_in_mld_from_interped_data(glider_sample):
@@ -815,23 +813,3 @@ if __name__ == '__main__':
         m.interp_to_raw_obs_path()
         m.interp_raw_obs_path_to_uniform_grid(ind='')
     
-    def restrict_bg_norm_to_mld(remove=False, append='', interp_dist=1000,
-                                transects=False):
-        ''' 
-        Fix mistake made when adding bg_norm to glider samples.
-        Variable was taken over full depth rather than being restricted
-        to mld.
-        '''        
-
-        m = model('EXP10')
-
-        m.save_append = 'interp_' + str(interp_dist) + append
-        if remove:
-            m.save_append = m.save_append + '_' + remove
-        if transects:
-            m.save_append = m.save_append + '_pre_transect'
-
-        m.restrict_bg_norm_to_mld()
-
-    m = model('EXP10')
-    m.save_simplified_gridT()
