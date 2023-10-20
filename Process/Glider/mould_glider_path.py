@@ -54,7 +54,7 @@ class mould_glider_path(model_object.model):
 
         # shift distance to end of da0
         ddiff =  da0[-1].dives - da1[0].dives
-        da1['dives'] = da1.dives + ddiff
+        da1['dives'] = da1.dives + ddiff + 0.5
 
         # label transect
         transect = np.full(da1.shape, da0.transect[-1] + 1)
