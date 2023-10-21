@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=1
  
-python -u model_object.py
+python -u ../Common/model_object.py

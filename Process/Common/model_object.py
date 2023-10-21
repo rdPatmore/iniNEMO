@@ -9,12 +9,13 @@ from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 import itertools
 from iniNEMO.Plot.get_transects import get_transects
+from dask.diagnostics import ProgressBar
 
 
 class model(object):
     ''' get model object and process '''
  
-    def __init__(self, case):
+    def __init__(self, case, load_obs=False):
         self.case = case
         self.root = config.root()
         self.path = config.data_path()
@@ -25,6 +26,9 @@ class model(object):
         # parameters for reducing nemo domain when glider sampling
         self.south_limit = None
         self.north_limit = None
+
+        if load_obs:
+            self.load_obs()
 
     def load_all(self):
         def drop_coords(ds):
@@ -40,14 +44,7 @@ class model(object):
         self.grid_keys = ['grid_T', 'grid_U', 'grid_V', 'grid_W', 'icemod']
         self.file_names = ['/SOCHIC_PATCH_3h_20120101_20121231_',
                            '/SOCHIC_PATCH_3h_20130101_20140101_']
-        #self.file_names = ['/SOCHIC_PATCH_24h_20120101_20121231_']
-        #self.file_names = ['/SOCHIC_PATCH_6h_20120101_20120701_',
-        #                  '/SOCHIC_PATCH_6h_20120702_20121231_']
         for pos in self.grid_keys:
-        #    self.ds[pos] = xr.open_mfdataset(self.data_path +
-        #                '/SOCHIC_PATCH_3h*_' + pos + '.nc',
-        #              chunks={'time_counter':100}, decode_cf=False)
-        #                #compat='different', coords='all',
             data_set = []
             for file_name in self.file_names:
                 data = xr.open_dataset(self.data_path +
@@ -74,65 +71,17 @@ class model(object):
                                                coords='minimal')
             self.ds[pos] = xr.decode_cf(self.ds[pos])
             self.ds[pos] = self.ds[pos].isel(x=slice(1,-1), y=slice(1,-1))
-        #self.ds = self.ds.drop_vars('time_instant')
-        #self.ds = xr.open_mfdataset(self.data_path + '/SOCHIC_201201_T.nc',
-        #                            #compat='override',coords='minimal',
-        #                            chunks={'time_counter':10})#, 'x':10,'y':10})
-        #self.data = xr.open_dataset(self.data_path +
-        #            self.file_names[0] + 'grid_T.nc',
-        #          chunks={'time_counter':1},
-        #          decode_cf=False)
 
+    def load_obs(self):
         # load obs
         self.giddy     = xr.open_dataset(self.root + 
                          'Giddy_2020/sg643_grid_density_surfaces.nc')
         self.giddy_raw = xr.open_dataset(self.root + 
-                         'Giddy_2020/merged_raw.nc')
+                         'Giddy_2020/merged_raw.nc', chunks='auto')
         self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
                                                 'latitude': 'lat'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
-
-    def save_interpolated_transects_to_one_file(self, n=100, rotation=None,
-                                                add_transects=False):
-        ''' get set of 100 glider samples '''
-
-        # load samples
-        prep = 'GliderRandomSampling/glider_uniform_' + self.append + '_'
-        if rotation:
-            rotation_label = 'rotate_' + str(rotation) + '_' 
-            rotation_rad = np.radians(rotation)
-        else:
-            rotation_label = ''
-            rotation_rad = rotation # None type 
-        sample_list = [self.data_path + prep + rotation_label +
-                       str(i).zfill(2) + '.nc' for i in range(n)]
-
-        sample_set = []
-        for i in range(n):
-            print ('sample: ', i)
-            sample = xr.open_dataset(sample_list[i],
-                                     decode_times=False)
-            sample['lon_offset'] = sample.attrs['lon_offset']
-            sample['lat_offset'] = sample.attrs['lat_offset']
-            sample = sample.set_coords(['lon_offset','lat_offset',
-                                        'time_counter'])
-
-            if add_transects:
-            # this removes n-s transect!
-            # hack because transect doesn't currently take 2d-ds (1d-da only)
-                b_x_ml_transect = get_transects(
-                                   sample.b_x_ml.isel(ctd_depth=10),
-                                   offset=True, rotation=rotation_rad,
-                                   method='find e-w')
-                sample = sample.assign_coords(
-                  {'transect': b_x_ml_transect.transect.reset_coords(drop=True),
-                   'vertex'  : b_x_ml_transect.vertex.reset_coords(drop=True)})
-
-            sample_set.append(sample.expand_dims('sample'))
-        samples=xr.concat(sample_set, dim='sample')
-        samples.to_netcdf(self.data_path + prep + 
-                          rotation_label.rstrip('_') + '.nc')
 
 
     def get_normed_buoyancy_gradients(self, load=True):
@@ -146,14 +95,14 @@ class model(object):
         if load:
             bg_norm = xr.open_dataarray(config.data_path() + self.case + '/' +
                                       self.file_id + 'bg_mod2.nc',
-                                      chunks='auto') ** 0.5
+                                      chunks={'time_counter':1}) ** 0.5
             bg_norm = bg_norm.assign_coords({'x': bg_norm.x.values + 1,
                                              'y': bg_norm.y.values + 1})
             bg_norm.name = 'bg_norm'
 
         else:
             mesh_mask = xr.open_dataset(config.data_path() + self.case + 
-                                     '/mesh_mask.nc').squeeze('time_counter')
+                         '/mesh_mask.nc', chunks='auto').squeeze('time_counter')
  
             # remove halo
             mesh_mask = mesh_mask.isel(x=slice(1,-1), y=slice(1,-1))
@@ -167,7 +116,6 @@ class model(object):
             dy = mesh_mask.e2t.isel(y=slice(1,None))
 
             # buoyancy gradient
-            print (self.ds)
             buoyancy = g * (1 - self.ds['grid_T'].rho / rho_0)
             bg_x = buoyancy.diff('x') / dx
             bg_y = buoyancy.diff('y') / dy
@@ -184,78 +132,58 @@ class model(object):
 
         return bg_norm
 
-    def load_gridT_and_giddy(self, bg=False):
+    def save_simplified_gridT(self):
+        ''' save simplified grid_T file for glider sampling of model '''
+
+        # open grid T
+        self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        path = self.data_path + self.file_id + 'grid_T.nc'
+        #ds = xr.open_dataset(path, chunks={'x':100,'y':100})
+        ds = xr.open_dataset(path, chunks={'time_counter':1})
+        ds = ds.isel(x=slice(1,-1), y=slice(1,-1))
+
+        # drop variables
+        ds = ds.drop(['tos', 'sos', 'zos',
+                      'wfo', 'qsr_oce', 'qns_oce',
+                      'qt_oce', 'sfx', 'taum', 'windsp',
+                      'precip', 'snowpre', 'bounds_nav_lon',
+                      'bounds_nav_lat', 'deptht_bounds',
+                      'area', 'e3t','time_centered_bounds',
+                      'time_counter_bounds', 'time_centered',
+                      'mldr10_3', 'time_instant',
+                      'time_instant_bounds'])#.isel(x=slice(0,50),
+                                                   #      y=slice(0,50)).load()
+        ds = ds.assign_coords({'x': ds.x.values,'y': ds.y.values})
+
+        # get rho
+        rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc',
+                                chunks={'time_counter':1})
+
+        # add model normed buoyancy gradient and rho
+        ds = xr.merge([ds, self.get_normed_buoyancy_gradients(), rho])
+
+        with ProgressBar():
+            ds.to_netcdf(self.data_path + self.file_id + 
+                                                'grid_T_for_glider_sampling.nc')
+
+    def load_gridT_and_giddy(self, g_fn='merged_raw.nc'):
         ''' minimal loading for glider sampling of model '''
 
         # grid T
         self.ds = {}
         self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-        path = self.data_path + self.file_id + 'grid_T.nc'
-        self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':10})
-        self.ds['grid_T'] = self.ds['grid_T'].isel(x=slice(1,-1), y=slice(1,-1))
-
-        # drop variables
-        self.ds['grid_T'] = self.ds['grid_T'].drop(['tos', 'sos', 'zos',
-                            'wfo', 'qsr_oce', 'qns_oce',
-                            'qt_oce', 'sfx', 'taum', 'windsp',
-                            'precip', 'snowpre', 'bounds_nav_lon',
-                            'bounds_nav_lat', 'deptht_bounds',
-                            'area', 'e3t','time_centered_bounds',
-                            'time_counter_bounds', 'time_centered',
-                            'mldr10_3', 'time_instant',
-                            'time_instant_bounds'])#.isel(x=slice(0,50),
-                                                   #      y=slice(0,50)).load()
-        self.ds['grid_T'] = self.ds['grid_T'].assign_coords(
-                                        {'x': self.ds['grid_T'].x.values,
-                                         'y': self.ds['grid_T'].y.values})
-
-
-        # add model normed buoyancy gradient
-        if bg:
-            self.ds['grid_T'] = xr.merge([self.ds['grid_T'],
-                                          self.get_normed_buoyancy_gradients()])
+        path = self.data_path + self.file_id + 'grid_T_for_glider_sampling.nc'
+        self.ds['grid_T'] = xr.open_dataset(path, chunks={'time_counter':1})
 
         # glider
-        self.giddy_raw = xr.open_dataset(self.root + 
-                         'Giddy_2020/merged_raw.nc')
-        self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
-                                                'latitude': 'lat'})
+        self.giddy_raw = xr.open_dataset(self.root + 'Giddy_2020/' + g_fn)
+        #self.giddy_raw = self.giddy_raw.rename({'longitude': 'lon',
+        #                                        'latitude': 'lat'})
+        # straight transct specific
+        self.giddy_raw = self.giddy_raw.rename({'ctd_time_dt64': 'ctd_time'})
+        self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
         index = np.arange(self.giddy_raw.ctd_data_point.size)
         self.giddy_raw = self.giddy_raw.assign_coords(ctd_data_point=index)
-
-    def load_gsw(self):
-        ''' load absolute salinity and conservative temperature '''
-
-        #self.ds = {}
-        #self.file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-        path = self.data_path + self.file_id + 'gsw.nc'
-        self.ds['gsw'] = xr.open_dataset(path, chunks={'time_counter':10})
-
-    def merge_state(self):
-        ''' merge all state variables into one file '''
-
-        grid_T = xr.open_dataset(self.data_path + 
-                                 'SOCHIC_PATCH_3h_20120101_20121231_grid_T.nc',
-                                    chunks={'time_counter':1})
-        alpha = xr.open_dataarray(self.data_path + 'alpha.nc',
-                                    chunks={'time_counter':1})
-        beta = xr.open_dataarray(self.data_path + 'beta.nc',
-                                    chunks={'time_counter':1})
-        absolute_salinity = xr.open_dataarray(self.data_path + 
-                                    'absolute_salinity.nc',
-                                    chunks={'time_counter':1})
-        conservative_temperature = xr.open_dataarray(self.data_path + 
-                                        'conservative_temperature.nc',
-                                        chunks={'time_counter':1})
-        self.ds = xr.merge([alpha, beta, absolute_salinity,
-                           conservative_temperature,
-                           grid_T.mldr10_3])
-
-        # make grid regular
-        self.x_y_to_lat_lon()
- 
-        self.ds.to_netcdf('state.nc')
-
 
     def x_y_to_lat_lon(self, grid='grid_T'):
         ''' change x y dimentions to lat lon '''
@@ -266,100 +194,6 @@ class model(object):
 
         self.ds[grid] = self.ds[grid].swap_dims({'x':'lon', 'y':'lat'})
 
-    def get_pressure(self, save=False):
-        ''' calculate pressure from depth '''
-        if self.loaded_p:
-            print ('p already loaded') 
-        else:
-            self.loaded_p = True
-            data = self.ds['grid_T']
-            self.p = gsw.p_from_z(-data.deptht, data.nav_lat)
-            self.p.name = 'p'
-            if save:
-                self.p.to_netcdf(self.data_path + self.file_id + 'p.nc')
-
-    def get_conservative_temperature(self, save=False):
-        ''' calulate conservative temperature '''
-        data = self.ds['grid_T'].chunk({'time_counter':1})
-        #self.cons_temp = gsw.conversions.CT_from_pt(data.vosaline,
-        #                                            data.votemper)
-        self.cons_temp = xr.apply_ufunc(gsw.conversions.CT_from_pt,
-                                        data.vosaline, data.votemper,
-                                        dask='parallelized',
-                                        output_dtypes=[data.vosaline.dtype])
-        #self.cons_temp.compute()
-        self.cons_temp.name = 'cons_temp'
-        if save:
-            self.cons_temp.to_netcdf(self.data_path + self.file_id
-                                   + 'conservative_temperature.nc',)
-
-    def get_absolute_salinity(self, save=False):
-        ''' calulate absolute_salinity '''
-        self.get_pressure()
-        data = self.ds['grid_T'].chunk({'time_counter':1})
-        #self.abs_sal = gsw.conversions.SA_from_SP(data.vosaline, 
-        #                                          self.p,
-        #                                          data.nav_lon,
-        #                                          data.nav_lat)
-        self.abs_sal = xr.apply_ufunc(gsw.conversions.SA_from_SP,data.vosaline, 
-                                      self.p, data.nav_lon, data.nav_lat,
-                                      dask='parallelized', 
-                                      output_dtypes=[data.vosaline.dtype])
-        #self.abs_sal.compute()
-        self.abs_sal.name = 'abs_sal'
-        if save:
-            self.abs_sal.to_netcdf(self.data_path + self.file_id 
-                                + 'absolute_salinity.nc')
-
-
-    def get_alpha_and_beta(self, save=False):
-        ''' calculate the themo-haline contaction coefficients '''
-        #self.open_ct_as_p()
-        alpha = xr.apply_ufunc(gsw.density.alpha,
-                                          self.ds['gsw'].abs_sal,
-                                          self.ds['gsw'].cons_temp,
-                                          self.ds['gsw'].p,
-                                          dask='parallelized',
-                                   output_dtypes=[self.ds['gsw'].abs_sal.dtype])
-        beta = xr.apply_ufunc(gsw.density.beta,
-                                         self.ds['gsw'].abs_sal,
-                                         self.ds['gsw'].cons_temp,
-                                         self.ds['gsw'].p,
-                                          dask='parallelized',
-                                  output_dtypes=[self.ds['gsw'].abs_sal.dtype])
-
-        if save:
-            alpha.to_netcdf(config.data_path() + self.file_id + 'alpha.nc')
-            beta.to_netcdf(config.data_path() + self.file_id + 'beta.nc')
-
-    def get_rho(self):
-        '''
-        calculate buoyancy from conservative temperature and
-        absolute salinity    
-        '''
-        
-        # load temp, sal, alpha, beta
-        gsw_file = xr.open_dataset(self.data_path + self.file_id +  'gsw.nc',
-                              chunks={'time_counter':1})
-        ct = gsw_file.cons_temp
-        a_sal = gsw_file.abs_sal
-
-        rho = xr.apply_ufunc(gsw.density.sigma0, a_sal, ct,
-                             dask='parallelized', output_dtypes=[a_sal.dtype]
-                             ) + 1000
-
-        # save
-        rho.name = 'rho'
-        rho.to_netcdf(self.data_path + self.file_id + 'rho.nc')
-
-    def save_all_gsw(self):
-        ''' save p, conservative temperature and absolute salinity to netcdf '''
-
-        self.get_pressure()
-        self.get_conservative_temperature()
-        self.get_absolute_salinity()
-        gsw = xr.merge([self.p, self.cons_temp, self.abs_sal])
-        gsw.to_netcdf(self.data_path + self.file_id + 'gsw.nc')
         
     def get_nemo_glider_time(self, start_month='01'):
         ''' take a time sample based on time difference in glider sample '''
@@ -368,7 +202,6 @@ class model(object):
         start_date = np.datetime64('2012-' + start_month + '-01 00:00:00')
         time_span = start_date + time_diff
         return time_span
-    #self.ds = self.ds.interp(time_counter=time_span.values, method='nearest')
         
     def random_glider_lat_lon_shift(self, grid='grid_T', load=True):
                                     
@@ -427,6 +260,22 @@ class model(object):
 
         # remove duplicate index values
         _, index = np.unique(self.giddy_raw['distance'], return_index=True)
+
+    def haversine(self, lon1, lat1, lon2, lat2):
+        """
+        Calculate the great circle distance in kilometers between two points 
+        on the earth (specified in decimal degrees)
+        """
+        # convert decimal degrees to radians 
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+        # haversine formula 
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a)) 
+        r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
+        return c * r * 1000
     
     def resample_original_raw_glider_path(self, sample_dist):
 
@@ -452,52 +301,6 @@ class model(object):
         self.giddy_raw = xr.decode_cf(self.giddy_raw)
         self.giddy_raw = self.giddy_raw.swap_dims({'distance':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('distance')
-
-    def mould_glider_path_to_shape(self, sample_dist):
-        '''
-        take distance in glider path reshape the path along distance
-        preserving dives and depth
-        '''
-
-        # first shape is a square
-        length_dist = 4000 # meters
-         
-        self.giddy_raw['distance'] = xr.DataArray( 
-                 gt.utils.distance(self.giddy_raw.lon,
-                                   self.giddy_raw.lat).cumsum(),
-                                   dims='ctd_data_point')
-        self.giddy_raw = self.giddy_raw.set_coords('distance')
-        self.giddy_raw = self.giddy_raw.swap_dims(
-                                                 {'ctd_data_point': 'distance'})
-
-        # remove duplicate index values
-        _, index = np.unique(self.giddy_raw['distance'], return_index=True)
-        self.giddy_raw = self.giddy_raw.isel(distance=index)
-  
-        # iterate over sides
-        for i in int(range(giddy_raw.distance.max()/lenth_dist)):
-            side = self.giddy_raw.sel(distance=slice(
-                         i * length_dist, (i + 1) * length_dist))
-        #    if ns:
-        #         ds = 
-             
-
-    def haversine(lon1, lat1, lon2, lat2):
-        """
-        Calculate the great circle distance in kilometers between two points 
-        on the earth (specified in decimal degrees)
-        """
-        # convert decimal degrees to radians 
-        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-    
-        # haversine formula 
-        dlon = lon2 - lon1 
-        dlat = lat2 - lat1 
-        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-        c = 2 * asin(sqrt(a)) 
-        r = 6371 # Radius of earth in kilometers. Use 3956 for miles. Determines return value units.
-        return c * r
-        
 
         distance_interp = np.arange(0,self.giddy_raw.distance.max(),
                                     sample_dist)
@@ -540,10 +343,6 @@ class model(object):
         preliminary processing for sampling model like a glider
         '''
         
-        # add rho
-        rho = xr.open_dataarray(self.data_path + self.file_id + 'rho.nc')
-        self.ds['grid_T'] = xr.merge([self.ds['grid_T'], rho])
-
         # shift glider time to nemo time
         time_delta = (np.datetime64('2018') 
                     - np.datetime64('2012')).astype('timedelta64[ns]')
@@ -558,20 +357,12 @@ class model(object):
                                                 deptht=slice(None,1100),
                                                 time_counter=slice(time0,time1))
 
-
         # alter path to test sampling methods
         if resample_path:
             self.resample_original_raw_glider_path(sample_dist)
 
         if rotate:
             self.rotate_original_raw_glider_path(rotation)
-
-        
-        ## get glider lat-lons
-        #self.glider_lon = xr.DataArray(self.giddy_raw.lon.values,
-        #                      dims='ctd_data_point')
-        #self.glider_lat = xr.DataArray(self.giddy_raw.lat.values,
-        #                      dims='ctd_data_point')
 
         # add lat-lat lon to grid_T dimentions
         self.x_y_to_lat_lon('grid_T')
@@ -656,8 +447,6 @@ class model(object):
 
         self.giddy_raw = self.giddy_raw.assign_coords(
                          {'remove_index': remove_index})
-        #self.giddy_raw = self.giddy_raw.set_index(
-        #         ctd_data_point=['ctd_data_point','dive_direction','ctd_time'])
         self.giddy_raw = self.giddy_raw.swap_dims(
                                             {'ctd_data_point':'remove_index'})
         self.giddy_raw = self.giddy_raw.sel(remove_index=token)
@@ -665,69 +454,8 @@ class model(object):
                                             {'remove_index':'ctd_data_point'})
         self.giddy_raw = self.giddy_raw.drop('remove_index')
 
-
-    #def get_transects(self, concat_dim='ctd_data_point', method='cycle',
-    #                  shrink=None):
-    #    '''
-    #        split path into transects
-    #        NB: the get_transects script in /Plots is more robust
-    #    '''
-
-    #    data = self.giddy_raw
-    #    if method == '2nd grad':
-    #        a = np.abs(np.diff(data.lat, 
-    #        append=data.lon.max(), prepend=data.lon.min(), n=2))# < 0.001))[0]
-    #        idx = np.where(a>0.006)[0]
-    #    crit = [0,1,2,3]
-    #    if method == 'cycle':
-    #        #data = data.isel(distance=slice(0,400))
-    #        #data['orig_lon'] = data.lon - data.lon_offset
-    #        #data['orig_lat'] = data.lat - data.lat_offset
-    #        idx=[]
-    #        crit_iter = itertools.cycle(crit)
-    #        start = True
-    #        a = next(crit_iter)
-    #        for i in range(data[concat_dim].size)[::shrink]:
-    #            da = data.isel({concat_dim:i})
-    #            print (i)
-    #            if (a == 0) and (start == True):
-    #                test = ((da.lat < -60.10) and (da.lon > 0.176))
-    #            elif a == 0:
-    #                test = (da.lon > 0.176)
-    #            elif a == 1:
-    #                test = (da.lat > -59.93)
-    #            elif a == 2:
-    #                test = (da.lon < -0.173)
-    #            elif a == 3:
-    #                test = (da.lat > -59.93)
-    #            if test: 
-    #                start = False
-    #                idx.append(i)
-    #                a = next(crit_iter)
-    #                print (idx)
-    #    var_list = []
-    #    for da in list(data.keys()):
-    #        da = np.split(data[da], idx)
-    #        transect = np.arange(len(da))
-    #        pop_list=[]
-    #        for i, arr in enumerate(da):
-    #            if len(da[i]) < 1:
-    #                pop_list.append(i) 
-    #            else:
-    #                da[i] = da[i].assign_coords({'transect':i})
-    #        for i in pop_list:
-    #            da.pop(i)
-    #        var_list.append(xr.concat(da, dim=concat_dim))
-    #    da = xr.merge(var_list)
-    #    print (da)
-    #    # remove initial and mid path excursions
-    #    da = da.where(da.transect>1, drop=True)
-    #    da = da.where(da.transect != da.lat.idxmin().transect, drop=True)
-    #    self.giddy_raw = da.load()
-    #    print (self.giddy_raw)
-
-    def interp_to_raw_obs_path(self, random_offset=False, save=False, ind='',
-                               append='', load_offset=False):
+    def interp_to_raw_obs_path(self, random_offset=False, save=False,
+                            append='', load_offset=False, parallel_offset=None):
         '''
         sample model along glider's raw path
         using giddy (2021)
@@ -750,22 +478,26 @@ class model(object):
             self.x = self.x + self.lon_shift
             self.y = self.y + self.lat_shift
 
+        if parallel_offset:
+            # longitudinal offset for parallel glider deployments
+            self.x = self.x + parallel_offset
 
         # lon lat gets overriden if these remain
         self.giddy_raw_no_ll = self.giddy_raw.drop(['lon','lat'])
 
-        # reduce computational load - local reduction of time and space
+        ## reduce computational load - local reduction of time and space
         xmin, xmax = self.x.min(), self.x.max()
         ymin, ymax = self.y.min(), self.y.max()
         tmin = self.giddy_raw.ctd_time.min()
         tmax = self.giddy_raw.ctd_time.max()
         dmax = self.giddy_raw.ctd_depth.max()
         grid_T_redu = self.ds['grid_T'].sel(lon=slice(xmin,xmax),
-                                            lat=slice(ymin,xmax),
+                                            lat=slice(ymin,ymax),
                                             time_counter=slice(tmin,tmax),
-                                            deptht=slice(None,dmax))
+                                            deptht=slice(None,dmax))#.load()
+
         # interpolate
-        grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
+        #grid_T_redu = grid_T_redu.chunk({'time_counter':-1})
         self.glider_nemo = grid_T_redu.interp(lon=self.x, lat=self.y,
                                      deptht=self.giddy_raw_no_ll.ctd_depth,
                                      time_counter=self.giddy_raw_no_ll.ctd_time)
@@ -773,6 +505,7 @@ class model(object):
         self.glider_nemo['dives'] = self.giddy_raw_no_ll.dives
         if random_offset:
             self.glider_nemo.attrs['lon_offset'] = self.lon_shift
+
             self.glider_nemo.attrs['lat_offset'] = self.lat_shift
 
         # drop obsolete coords
@@ -780,29 +513,35 @@ class model(object):
                                                        'nav_lat'])
 
         if save:
-            self.glider_nemo.to_netcdf(self.data_path +
-                                     'GliderRandomSampling/glider_raw_nemo_' + 
-                                      append + '_' + ind + '.nc')
+            with ProgressBar():
+                self.glider_nemo.to_netcdf(self.data_path +
+                                     'GliderRandomSampling/glider_raw_nemo_' 
+                                      + self.save_append
+                                      + '_' + str(self.ind).zfill(2) + '.nc')
+            self.glider_nemo.close()
 
-    def interp_raw_obs_path_to_uniform_grid(self, ind=''):
+    def interp_raw_obs_path_to_uniform_grid(self, open=False):
         '''
            interpolate glider path sampled model data to 
            1 m vertical and 1 km horizontal grids
            following giddy (2021)
         '''
 
-        #glider_raw = xr.open_dataset(self.data_path +
-        #                             'GliderRandomSampling/glider_raw_nemo_' + 
-        #                             ind + '.nc')
-                                    #chunks={'ctd_data_point': 1000})
-        glider_raw = self.glider_nemo.load()
-        glider_raw['distance'] = xr.DataArray( 
-                 gt.utils.distance(glider_raw.lon,
-                                   glider_raw.lat).cumsum(),
-                                   dims='ctd_data_point')
-        glider_raw = glider_raw.set_coords('distance')
+        if open:
+            glider_raw =  xr.open_dataset(self.data_path
+                                       + 'GliderRandomSampling/glider_raw_nemo_'
+                     + self.save_append + '_' + str(self.ind).zfill(2) + '.nc')
+        else:
+            glider_raw = self.glider_nemo.load()
 
-        # make time a variable so it doesn't dissapear on interp
+        if 'distance' not in list(glider_raw.coords):
+            glider_raw['distance'] = xr.DataArray( 
+                     gt.utils.distance(glider_raw.lon,
+                                       glider_raw.lat).cumsum(),
+                                       dims='ctd_data_point')
+            glider_raw = glider_raw.set_coords('distance')
+
+        # make time a variable so it doesn't disapear on interp
         glider_raw = glider_raw.reset_coords('time_counter')
         #glider_raw = glider_raw.isel(ctd_data_point=slice(0,100))
 
@@ -827,17 +566,20 @@ class model(object):
             group = group.isel(ctd_depth=index)
         
             # interpolate
-            depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
+            depth_uniform = group.interp(ctd_depth=np.arange(1.0,999.0,1))
 
             uniform = depth_uniform.expand_dims(dives=[label])
             glider_uniform_i.append(uniform)
 
         glider_uniform = xr.concat(glider_uniform_i, dim='dives')
-
+        #glider_uniform = glider_uniform.chunk({'dives':-1})
 
         # interpolate to 1 km horzontal grid
         glider_uniform_i = []
         for (label, group) in glider_uniform.groupby('ctd_depth'):
+            # time interferes with dropna
+            group = group.set_coords('time_counter') 
+
             group = group.swap_dims({'dives': 'distance'})
                 
             group = group.sortby('distance')
@@ -849,7 +591,7 @@ class model(object):
 
             if group.sizes['distance'] < 2:
                 continue
-
+            
             group = group.interpolate_na('distance')
            
             uniform = group.interp(distance=uniform_distance)
@@ -871,9 +613,10 @@ class model(object):
                               glider_uniform)
 
 
-        glider_uniform.to_netcdf(self.data_path + 
-                                 'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
+        with ProgressBar():
+            glider_uniform.to_netcdf(self.data_path + 
+                                     'GliderRandomSampling/glider_uniform_'
+                      + self.save_append + '_' + str(self.ind).zfill(2) + '.nc')
 
     def get_mld_from_interpolated_glider(self, glider_sample,
                                          ref_depth=10, threshold=0.03):
@@ -909,8 +652,6 @@ class model(object):
 
         # buoyancy gradient
         b = g * (1 - glider_sample.rho / rho_0)
-        print (b)
-        print (b.distance.diff('distance'))
         b_x = b.diff('distance') / dx
 
         # buoyancy within mixed layer
@@ -925,24 +666,21 @@ class model(object):
         '''
 
         # loop over samples
-        for ind in range(4,100):
-            # load sample
-            kwargs = dict(clobber=True,mode='a')
-            g = xr.open_dataset(self.data_path + 
-                           'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc',
-                           backend_kwargs=kwargs)
+        kwargs = dict(clobber=True,mode='a')
+        g = xr.open_dataset(self.data_path 
+                          + 'GliderRandomSampling/glider_uniform_'
+                          + self.save_append + '.nc',
+                            backend_kwargs=kwargs)
 
-            # bg_norm within mixed layer
-            print (g)
-            g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
+        # bg_norm within mixed layer
+        g['bg_norm_ml'] = g.bg_norm.where(g.deptht < g.mld, drop=True)
 
-            # drop fill depth bg_norm
-            g = g.drop('bg_norm')
+        # drop fill depth bg_norm
+        g = g.drop('bg_norm')
 
-            # save
-            g.to_netcdf(self.data_path + 'GliderRandomSampling/glider_uniform_'
-                           + self.save_append + '_' + str(ind).zfill(2) + '.nc')
+        # save
+        g.to_netcdf(self.data_path + 'GliderRandomSampling/glider_uniform_'
+                       + self.save_append + '.nc')
   
 
     def theta_and_salt_gradients_in_mld_from_interped_data(glider_sample):
@@ -965,7 +703,6 @@ class model(object):
                             self.samples.deptht < self.samples.mld, drop=True)
         self.samples['S_x_ml'] = S_x.where( 
                             self.samples.deptht < self.samples.mld, drop=True)
-
 
     def interp_to_obs_path(self, random_offset=False):
         '''
@@ -1021,9 +758,6 @@ class model(object):
     def save_glider_nemo_state(self):
         ''' save nemo data on glider path '''
         
-        #state = xr.merge([self.glider_nemo.votemper,
-        #                  self.glider_nemo.vosaline,
-        #                  self.glider_nemo.mldr10_3])
         self.glider_nemo.to_netcdf(self.data_path + 'glider_nemo.nc')
 
     def save_area_mean_all(self):
@@ -1037,15 +771,6 @@ class model(object):
             ds = ds.drop('area_mean')
             ds.to_netcdf(self.data_path +
                          'Stats/SOCHIC_PATCH_mean_' + grid + '.nc')
-
-    #def save_area_mean_all_test(self):
-    #    ''' save lateral mean of all data '''
-#
-#        ds = self.data.mean(['x','y']).load()
-#        for key in ds.keys():
-#            ds = ds.rename({key: key + '_mean'})
-#        ds.to_netcdf(self.data_path +
-#                     'Stats/SOCHIC_PATCH_mean_grid_T.nc')
 
     def save_area_std_all(self):
         ''' save lateral standard deviation of all data '''
@@ -1069,74 +794,6 @@ class model(object):
 if __name__ == '__main__':
   
     dask.config.set(scheduler='single-threaded')
-    #dask.config.set({'temporary_directory': 'Scratch'})
-    #cluster = LocalCluster(n_workers=1)
-    #client = Client(cluster)
-    #from dask.distributed import Client, progress
-    #client = Client(threads_per_worker=1, n_workers=10)
-
-    def get_rho(case):
-        m = model(case)
-        m.load_gridT_and_giddy()
-        m.save_all_gsw()
-        m.get_rho()
-
-    def save_alpha_and_beta(case):
-        m = model(case)
-        m.load_gridT_and_giddy()
-        m.load_gsw()
-        print (m.ds)
-        m.get_alpha_and_beta(save=True)
-    #save_alpha_and_beta('EXP10')
-
-    def glider_sampling(case, remove=False, append='', interp_dist=1000,
-                        transects=False, south_limit=None, north_limit=None,
-                        rotate=False, rotation=np.pi/2):
-        m = model(case)
-        m.interp_dist=interp_dist
-        #m.transects=transects
-        m.save_append = 'interp_' + str(interp_dist) + append
-        if remove:
-            m.save_append = m.save_append + '_' + remove
-        if transects:
-            m.save_append = m.save_append + '_pre_transect'
-        m.load_gridT_and_giddy(bg=True)
-
-        # reductions of nemo domain
-        m.south_limit = south_limit
-        m.north_limit = north_limit
-
-        #m.save_area_mean_all()
-        #m.save_area_std_all()
-        #m.save_month()
-        #m.get_conservative_temperature(save=True)
-        #sample_dist=5000
-        #m.prep_interp_to_raw_obs(resample_path=True, sample_dist=sample_dist)
-        m.prep_interp_to_raw_obs(rotate=rotate, rotation=rotation)
-        if transects:
-            #m.get_transects(shrink=100)
-            print (m.giddy_raw)
-            m.giddy_raw = get_transects(m.giddy_raw, 
-                                        method='from interp_1000',
-                                        shrink=100)
-        if remove:
-            m.prep_remove_dives(remove=remove)
-        for ind in range(54,100):
-            m.ind = ind
-            print ('ind: ', ind)
-            # calculate perfect gradient crossings
-            m.interp_to_raw_obs_path(random_offset=True, load_offset=True)
-            print ('done part 1')
-            m.interp_raw_obs_path_to_uniform_grid(ind=ind)
-            print ('done part 2')
-        #inds = np.arange(100)
-        #m.ds['grid_T'] = m.ds['grid_T'].expand_dims(ind=inds)
-        #futures = client.map(process_all, inds, **dict(m=m))
-        #client.gather(futures)
-        #xr.apply_ufunc(process_all, inds, dask="parallelized")
-        print (' ')
-        print ('successfully ended')
-        print (' ')
 
     def show_dive_climb_removal(case):
         ''' test removal of dives/climbs and plot path '''
@@ -1149,105 +806,10 @@ if __name__ == '__main__':
         print (m.giddy_raw)
         plt.scatter(m.giddy_raw.distance, -m.giddy_raw.ctd_depth)
         plt.show()
-    show_dive_climb_removal('EXP10')
-    #glider_sampling('EXP10', interp_dist=1000, transects=False)
-    ######glider_sampling('EXP10', interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_2',
-    ######                interp_dist=1000, transects=True)
-    ######glider_sampling('EXP10', remove='every_4',
-    ######                interp_dist=1000, transects=True)
-    #glider_sampling('EXP10', remove='every_2_and_dive',
-    #                interp_dist=1000, transects=True)
-    #glider_sampling('EXP10', remove='every_2_and_climb',
-    #                interp_dist=1000, transects=True)
-    #glider_sampling('EXP10', remove='every_4_and_dive',
-    #                interp_dist=1000, transects=True)
-
-    # done 27th Oct
-#    glider_sampling('EXP10', remove='every_3_and_climb',
-#                    interp_dist=1000, transects=False)
-    # do last 15
-    #glider_sampling('EXP10', remove='every_2_and_climb',
-    #                interp_dist=1000, transects=False)
-
-    # not done
-    #glider_sampling('EXP10', remove='every_4_and_climb',
-    #                interp_dist=1000, transects=False)
-    #glider_sampling('EXP10', remove='every_8_and_climb',
-    #                interp_dist=1000, transects=False)
-
-    #glider_sampling('EXP10', remove='every_3',
-    #                interp_dist=1000, transects=False)
-#    glider_sampling('EXP10', remove=False, append='interp_2000', 
-#                    interp_dist=2000, transects=False, rotate=False)
-    ###
-    #north_limit=-59.9858036
-    ###
-
-    def combine_glider_samples(case, remove=False, append='', interp_dist=1000,
-                        transects=False, south_limit=None, north_limit=None,
-                        rotate=False, rotation=np.pi/2):
-        '''
-        this needs adjusting
-        currently has a conditional statement for get_transects that is
-        not used
-        method relies on orignal data already containing transects
-
-        Transects required for spectra and geom. These plotting scripts have
-        in-built routines for adding transects. Better to add this here?
-
-        Combine is required for bootstrapping. Need to check if the calcs
-        include the mesoscale transect.
-        '''
-
-        m = model(case)
-        m.interp_dist=interp_dist
-        m.transects=transects
-        #m.load_gridT_and_giddy()
-        m.append = append
-
-        # reductions of nemo domain
-        m.south_limit = south_limit
-        m.north_limit = north_limit
-
-        m.save_interpolated_transects_to_one_file(n=100, rotation=None)
-
-#    combine_glider_samples('EXP10',
-#                           append='interp_1000', 
-#                           interp_dist=1000, transects=False)
-    #combine_glider_samples('EXP10', remove=False,
-    #                       append='interp_1000_north_patch', 
-    #                       interp_dist=1000, transects=False, rotate=False)
+    #show_dive_climb_removal('EXP10')
 
     def interp_obs_to_model():
         m.prep_interp_to_raw_obs()
         m.interp_to_raw_obs_path()
         m.interp_raw_obs_path_to_uniform_grid(ind='')
     
-    def restrict_bg_norm_to_mld(remove=False, append='', interp_dist=1000,
-                                transects=False):
-        ''' 
-        Fix mistake made when adding bg_norm to glider samples.
-        Variable was taken over full depth rather than being restricted
-        to mld.
-        '''        
-
-        m = model('EXP10')
-
-        m.save_append = 'interp_' + str(interp_dist) + append
-        if remove:
-            m.save_append = m.save_append + '_' + remove
-        if transects:
-            m.save_append = m.save_append + '_pre_transect'
-
-        m.restrict_bg_norm_to_mld()
-
-    #restrict_bg_norm_to_mld()
-    
-    #print ('start')
-    #m.get_conservative_temperature(save=True)
-    #print ('part1/3')
-    #m.get_absolute_salinity(save=True)
-    #print ('part2/3')
-    #m.get_alpha_and_beta(save=True)
-    #print ('part3/3... end')

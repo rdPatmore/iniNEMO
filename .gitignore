@@ -9,9 +9,9 @@
 *__pycache__
 *myout.txt
 Plot/weekly_test.txt
-Process/out_prof.txt
+Process/Machinary/out_prof.txt
 Process/Scratch/
 Plot/myout_08.txt
-Process/myout_combine.txt
+Process/Machinary/myout_combine.txt
 Movie/myout_08.txt
 *dask-worker-space

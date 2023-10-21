@@ -157,7 +157,7 @@ class plot_KE(object):
 
         plt.savefig(self.case + '_ke_mld_budget.png')
 
-    def plot_TKE_budget_30(self):
+    def plot_TKE_budget(self, depth):
         ''' plot budget of TKE at middepth of the mixed layer '''
         
         # ini figure
@@ -169,7 +169,7 @@ class plot_KE(object):
         # load and slice
         ds = xr.open_dataset(self.preamble + 'TKE_30_budget.nc')
         b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
-        b_flux = b_flux.sel(deptht=30, method='nearest')
+        b_flux = b_flux.sel(deptht=depth, method='nearest')
         b_flux = b_flux.drop(['nav_lon','nav_lat'])
 
         cut=slice(10,-10)
@@ -229,7 +229,7 @@ class plot_KE(object):
                      rotation=90, transform=cbar.ax.transAxes,
                      va='center', ha='right')
 
-        plt.savefig(self.case + '_tke_30_budget.png')
+        plt.savefig(self.case + '_tke_' + depth + '_budget.png')
 
 
 
@@ -237,4 +237,4 @@ class plot_KE(object):
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_TKE_budget_30()
+ke.plot_TKE_budget(depth=30)

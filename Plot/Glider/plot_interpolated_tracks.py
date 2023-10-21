@@ -4,7 +4,7 @@ import numpy as np
 import config
 import itertools
 import matplotlib
-from get_transects import get_transects
+from iniNEMO.Process.Glider.get_transects import get_transects
 import matplotlib.colors as mcolors
 matplotlib.rcParams.update({'font.size': 8})
 
