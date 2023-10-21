@@ -36,6 +36,8 @@ class mom_trd(object):
         except:
             ds = xr.open_dataset(path + 'mom' + vec + '.nc')
 
+        ds[vec + 'trd_lad'] = ds[vec + 'trd_keg'] + ds[vec + 'trd_rvo']
+
         e3 = xr.open_dataset(path + 'grid_' + vec.upper() +'.nc')['e3' + vec]
         e3 = e3.interp(time_counter=ds.time_counter)
         
@@ -53,34 +55,33 @@ class mom_trd(object):
         # ~~~~~ define figure layout ~~~~ #
 
         # initialise figure
-        fig = plt.figure(figsize=(6.5,6.0))
+        fig = plt.figure(figsize=(6.5,5.5))
 
         # initialise gridspec
-        gs0 = gridspec.GridSpec(ncols=5, nrows=2)
+        gs0 = gridspec.GridSpec(ncols=3, nrows=2)
         gs1 = gridspec.GridSpec(ncols=3, nrows=1)
     
         # set frame bounds
-        gs0.update(top=0.98, bottom=0.35, left=0.18, wspace=0.1, hspace=0.25,
-                   right=0.78)
-        gs1.update(top=0.3, bottom=0.02, left=0.18, wspace=0.1,right=0.78)
+        gs0.update(top=0.92, bottom=0.40, left=0.08, wspace=0.1, hspace=0.12,
+                   right=0.85)
+        gs1.update(top=0.30, bottom=0.08, left=0.08, wspace=0.1,right=0.85)
 
         # assign axes to lists
         axs0, axs1 = [], []
-        for i in range(8):
+        for i in range(6):
             axs0.append(fig.add_subplot(gs0[i]))
         for i in range(3):
             axs1.append(fig.add_subplot(gs1[i]))
 
         # term selection
-        var_list = ['trd_hpg', 'trd_keg', 'trd_rvo',
-                    'trd_pvo', 'trd_zad', 'trd_ldf', 'trd_zdf', 'trd_tot']
+        var_list = ['trd_hpg', 'trd_pvo', 'trd_lad',
+                    'trd_zad', 'trd_ldf', 'trd_zdf']
 
         # term labels
-        titles = ['hyd\npressure grad',
-                  'lateral\nadvection (KE)', 'lateral\nadvection (zeta)',
-                  'Coriolis',               'vertical\nadvection',
-                  'lateral\diffusion',
-                  'vertical\ndiffusion',     'tendency' ]
+        titles = ['pressure grad', 'Coriolis',
+                  'lateral\nadvection', 'vertical\nadvection',
+                  'lateral\ndiffusion', 'vertical\ndiffusion']
+
 
         # plot
         vmin, vmax = -1e-3, 1e-3
@@ -92,40 +93,61 @@ class mom_trd(object):
                     transform=ax.transAxes, fontsize=8)
 
         # get budget closure
-        rhs_vars = [self.vec + var for var in var_list[:-1]]
+        rhs_vars = [self.vec + var for var in var_list]
         sum_rhs = self.ds_2d[rhs_vars].to_array().sum('variable')
         budget_diff = self.ds_2d[self.vec + 'trd_tot'] - sum_rhs
 
+        # plot budget closure
         vmin, vmax = -1e-7, 1e-7
         axs1[0].pcolor(sum_rhs, vmin=vmin, vmax=vmax, cmap=cmap)
         axs1[1].pcolor(self.ds_2d[self.vec + 'trd_tot'],
                       vmin=vmin, vmax=vmax, cmap=cmap)
         p1 = axs1[2].pcolor(budget_diff, vmin=vmin, vmax=vmax, cmap=cmap)
-#
-        # axes labels
-        #for ax in axs[:-1,:].flatten():
-        #    ax.set_xticklabels([])
-        #for ax in axs[:,1:].flatten():
-        #    ax.set_yticklabels([])
-        #for ax in axs[-1,:].flatten():
-        #    ax.set_xlabel('x')
-        #for ax in axs[:,0].flatten():
-        #    ax.set_ylabel('y')
 
-        # colour bar
-        #pos0 = axs[0,-1].get_position()
-        #pos1 = axs[-1,-1].get_position()
-        #cbar_ax = fig.add_axes([0.79, pos1.y0, 0.02, pos0.y1 - pos1.y0])
-        #cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
-        #cbar.ax.text(9.0, 0.5, 'Momentum Tendency', fontsize=8,
-        #             rotation=90, transform=cbar.ax.transAxes,
-        #             va='center', ha='right')
-        #ax.text(0.5, 0.99, self.vec + ' momentum', va='top', ha='center',
-        #        fontsize=10, transform=fig.transFigure)
+        # budget  labels
+        titles = ['Sum of RHS', 'Tendency', 'Difference']
+        for i, ax in enumerate(axs1):
+            ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
+                    transform=ax.transAxes, fontsize=8)
+
+        # axes labels
+        for ax in axs0[:3]:
+            ax.set_xticklabels([])
+        for ax in axs0[1:3] + axs0[3:] + axs1[1:]:
+            ax.set_yticklabels([])
+        for ax in axs0[3:] + axs1:
+            ax.set_xlabel('x')
+        for ax in [axs0[0],axs0[3],axs1[0]]:
+            ax.set_ylabel('y')
+        for ax in axs0 + axs1:
+            ax.set_aspect('equal')
+
+        # colour bar - terms
+        pos0 = axs0[2].get_position()
+        pos1 = axs0[5].get_position()
+        cbar_ax = fig.add_axes([0.87, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(6.0, 0.5, 'Momentum Tendency', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='right')
+        cbar.formatter.set_powerlimits((0, 0))
+
+        # colour bar - budget
+        pos = axs1[-1].get_position()
+        cbar_ax = fig.add_axes([0.87, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p1, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(6.0, 0.5, 'Momentum Tendency', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='right')
+
+        # figure title
+        ax.text(0.5, 0.99, self.vec.upper() + ' Momentum',
+                va='top', ha='center',
+                fontsize=10, transform=fig.transFigure)
     
         # save
         plt.savefig(self.case + '_' + self.vec + '_mom_budget_integrated.png')
 
 mom =  mom_trd()
-mom.get_mom_terms_depth_integral(case='GYRE_TRD', vec='u')
+mom.get_mom_terms_depth_integral(case='GYRE_TRD', vec='v')
 mom.plot_mom_terms()
