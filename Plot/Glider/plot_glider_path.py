@@ -72,7 +72,7 @@ def plot_raw_path():
     
     plt.savefig('Plots/giddy_path.png', dpi=600)
 
-def plot_new_path():
+def plot_new_path_comparison():
     # projections
     axes_proj=ccrs.AlbersEqualArea(central_latitude=-60,
                                     standard_parallels=(-62,-58))
@@ -101,8 +101,32 @@ def plot_new_path():
     ax.set_aspect(2.0)
     ax.set_xlabel(r'Longitude ($^{\circ}$)')
     ax.set_ylabel(r'Latitude ($^{\circ}$)')
-    ax.set_title('\'Bow-Tie\'', fontsize=8)
     
     plt.savefig('Plots/straight_path_compare.png', dpi=600)
+
+def plot_new_path():
+    # projections
+    axes_proj=ccrs.AlbersEqualArea(central_latitude=-60,
+                                    standard_parallels=(-62,-58))
+    proj = ccrs.PlateCarree() # lon lat projection
+    
+    # initialise figure
+    fig = plt.figure(figsize=(5.5, 5.0))
+    
+    # get data
+    straight_path = xr.open_dataset(config.root() + 
+                             'Giddy_2020/artificial_straight_line_transects.nc')
+    
+    # render straight path
+    plt.plot(straight_path.lon, straight_path.lat, c='k', lw=1.0)
+
+    plt.xlim(-1,1)
+
+    ax = plt.gca()
+    ax.set_aspect(2.0)
+    ax.set_xlabel(r'Longitude ($^{\circ}$)')
+    ax.set_ylabel(r'Latitude ($^{\circ}$)')
+    
+    plt.savefig('../Plots/straight_path.png', dpi=600)
 
 plot_new_path()

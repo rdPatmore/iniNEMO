@@ -12,7 +12,7 @@ import datetime
 import matplotlib.gridspec as gridspec
 import scipy.stats as stats
 #import itertools
-from get_transects import get_transects
+from iniNEMO.Process.Glider.get_transects import get_transects
 
 #matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
@@ -852,7 +852,9 @@ class bootstrap_plotting(object):
         '''
 
         # initialise figure
-        fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5,4.0))
+        fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5,3.0))
+        plt.subplots_adjust(wspace=0.1, bottom=0.15, left=0.10, right=0.98,
+                            top=0.85)
 
         # data paths
         file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
@@ -903,7 +905,7 @@ class bootstrap_plotting(object):
         labs = ['1-Week', '2-Week', '3-Week', '3.5-Month', '3.5-Month']
         fig.legend(p, labs, loc='lower center', title='Deployment',
                        title_fontsize=8,
-                       bbox_to_anchor=(0.555, 0.39), ncol=4, fontsize=8)
+                       bbox_to_anchor=(0.555, 0.85), ncol=4, fontsize=8)
 
         # axes settings
         for ax in [ax0, ax1]:
@@ -920,12 +922,9 @@ class bootstrap_plotting(object):
 
         ax0.text(0.98, 0.96, 'Along-Track', va='top', ha='right',
                     transform=ax0.transAxes)
-        ax1.text(0.98, 0.96, 'Across-Front', va='top', ha='right',
+        ax1.text(0.98, 0.96, 'Across-Deployment', va='top', ha='right',
                     transform=ax1.transAxes)
 
-        thresh = r'$|\nabla b|> 4 \times 10^{-9}$ s$^{-2}$'
-        ax0.text(29.5, 32, thresh, va='bottom', ha='right',
-                    transform=ax0.transData, c=c[3], fontsize=6)
         # letters
         letters = ['(a)', '(b)']
         for i, ax in enumerate([ax0,ax1]):

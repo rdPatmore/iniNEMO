@@ -10,9 +10,13 @@ matplotlib.rcParams.update({'font.size': 8})
 class raw_glider_sampling(object):
     '''
     process glider data to find time and depth sampling rates
+
+    arguments
+    ---------
+    single_depth: optional argument to slice depth level
     '''
 
-    def __init__(self, fn='merged_raw.nc'):
+    def __init__(self, fn='merged_raw.nc', single_depth=None):
         self.data_path = config.root() + 'Giddy_2020/'
         self.glider = xr.open_dataset(self.data_path + fn)
 
@@ -24,6 +28,8 @@ class raw_glider_sampling(object):
         if 'lon' in list(self.glider.coords): 
             self.glider = self.glider.rename({'lon': 'longitude',
                                               'lat': 'latitude'})
+        # assign depth slice choice
+        self.single_depth = single_depth
 
     def interpolate_to_uniform_depths(self):
         ''' interpolate raw glider data to uniform 1 m grid in vertical '''
@@ -46,8 +52,14 @@ class raw_glider_sampling(object):
             _, index = np.unique(group['ctd_depth'], return_index=True)
             group = group.isel(ctd_depth=index)
 
-            # interpolate - 1 m 
-            depth_uniform = group.interp(ctd_depth=np.arange(0.0,999.0,1))
+            # select interpolation choice
+            if self.single_depth:
+                depths = [self.single_depth]
+            else:
+                depths = np.arange(1.0,999.0,1)
+
+            # interpolate 
+            depth_uniform = group.interp(ctd_depth=depths)
 
             # concatenations is along dimension not coord
             #uniform = depth_uniform.swap_dims({'ctd_depth':'dives'})
@@ -55,32 +67,28 @@ class raw_glider_sampling(object):
             uniform = depth_uniform.expand_dims(dives=[label])
             glider_uniform_i.append(uniform)
 
-        self.glider_uniform = xr.concat(glider_uniform_i, dim='dives')
+        self.g_uniform = xr.concat(glider_uniform_i, dim='dives')
 
     def get_sampling_distance(self):
         ''' caluclates distance between samples '''
 
-        distance_k = []
-        for (label, group) in self.glider_uniform.groupby('ctd_depth'):
-            distance = xr.DataArray(
-                                gt.utils.distance(group.longitude,
-                                                  group.latitude),
+        def get_dx(ds):
+            dx = xr.DataArray(gt.utils.distance(ds.longitude, ds.latitude),
                                                   dims='dives')/1000 # km
-            distance_k.append(distance)
-        self.glider_uniform['distance'] = xr.concat(distance_k, dim='ctd_depth')
+            return dx 
+        
+        self.g_uniform['dx'] = self.g_uniform.groupby('ctd_depth').map(get_dx)
 
     def get_sampling_rates(self):
         ''' calculates time between samples '''
         
-        time_i = []
-        for (label, group) in self.glider_uniform.groupby('ctd_depth'):
-            dt = group.ctd_time.diff('dives')/3600 # hours
+        def get_dt(ds):
+            dt = ds.ctd_time.diff('dives')/3600 # hours
             dt = dt.where(dt > 0, drop=True)
-            print (dt.dives)
-            #dt = dt.pad(ctd_data_point=(0,1))
-            #dt = dt.swap_dims({'dives':'ctd_time'})
-            time_i.append(dt)
-        self.glider_uniform['dt'] = xr.concat(time_i, dim='ctd_depth')
+
+            return dt
+
+        self.g_uniform['dt'] = self.g_uniform.groupby('ctd_depth').map(get_dt)
 
     def get_sampling_freqencies(self):
         '''
@@ -88,19 +96,28 @@ class raw_glider_sampling(object):
     
         Interpolates paths to uniform depths and finds distance and times
         between vertical profiles
+
         '''
 
-        # calcs
+        # interplolate to uniform depth
         self.interpolate_to_uniform_depths()
+        
+        # load for faster plotting
+        self.g_uniform = self.g_uniform.load()
+
+        # calculate space and time between samples
         self.get_sampling_distance()
         self.get_sampling_rates()
  
-        # load for faster plotting
-        self.glider_uniform = self.glider_uniform.load()
+        # remove ctd_depth (when using depth slice)
+        self.g_uniform = self.g_uniform.squeeze()
+
+        # remove distances < 1 km
+        self.g_uniform = self.g_uniform.where(self.g_uniform.dx > 1)
 
 class plot_sampling_frequencies(object):
 
-    def sub_set(self, ds, token):
+    def subset(self, ds, token):
         '''
         Subset by dive number
      
@@ -109,7 +126,6 @@ class plot_sampling_frequencies(object):
         token: flag for removing dive or climb - 0.0 for climb, 0.5 for dive
         '''
 
-        print (ds.dt.values)
         remove_index = ds.dives % 1
         dsn = ds.assign_coords({'remove_index': remove_index})
         dsn = dsn.swap_dims({'dives':'remove_index'})
@@ -131,70 +147,55 @@ class plot_sampling_frequencies(object):
 
         def render_path(path, c):
 
-            def plot_hist(ds, row, c, x_r, y_r):
+            def plot_hist(ds, c, x_r):
                 bins = 100
 
                 # plot sampling distance bar chart
-                axs[row,0].hist(ds.distance, bins=bins, range=x_r,
+                axs[0].hist(ds.dx, bins=bins, range=x_r,
                                 color=c, alpha=0.5)
 
                 # plot sampling rate bar chart
-                print (ds.dt.values)
-                p = axs[row,1].hist(ds.dt, bins=bins, range=x_r,
+                p = axs[1].hist(ds.dt, bins=bins, range=x_r,
                                     color=c, alpha=0.5)
                 return p
 
             # get sampling rates
-            g = raw_glider_sampling(path)
+            g = raw_glider_sampling(path, single_depth=10)
             g.get_sampling_freqencies()
 
-            # subset to 10 m depth
-            g.glider_uniform = g.glider_uniform.sel(ctd_depth=10, 
-                                                            method='nearest')
-            # remove climbs
-            glider_dive = self.sub_set(g.glider_uniform, 0.0)
-            # remove dives
-            glider_climb = self.sub_set(g.glider_uniform, 0.5)
+            # subset by climb/dive
+            #glider_dive = self.subset(g.g_uniform, 0.0) # remove climbs
+            #glider_climb = self.subset(g.g_uniform, 0.5) # remove dives
 
-            glider_dive = glider_dive.fillna(-1.0)
-            glider_climb = glider_climb.fillna(-1.0)
-
-            y_range=[0,1000]
-            x_range=[0,6]
-            pd = plot_hist(glider_dive, 0, c, x_range, y_range)
-            pc = plot_hist(glider_climb, 1, c, x_range, y_range)
-
-           # para = raw_glider_sampling('artificial_straight_line_transects.nc')
+            x_range=[1,7]
+            ph = plot_hist(g.g_uniform, c, x_range)
+            return ph
 
         # plot prep
-        fig, axs = plt.subplots(2, 2, figsize=(4.5,4))
-        plt.subplots_adjust(right=0.83, top=0.98, bottom=0.15, wspace=0.05,
-                            hspace=0.06)
+        fig, axs = plt.subplots(1, 2, figsize=(5.5,3))
+        plt.subplots_adjust(left=0.1, right=0.98, top=0.90, bottom=0.15,
+                            wspace=0.05)
 
-        colours = ['k', 'r']
+        # render
+        colours = ['k', '#f18b00']
+        p = []
         for i, path in enumerate(paths):
-            render_path(path, colours[i])
+            p.append(render_path(path, colours[i]))
 
-        axs[0,0].set_ylabel('Count')
-        axs[1,0].set_ylabel('Count')
-        axs[1,0].set_xlabel('Distance Between Samples\n(km)')
-        axs[1,1].set_xlabel('Time Between Samples\n(Hours)')
-        axs[0,1].yaxis.set_ticklabels([])
-        axs[1,1].yaxis.set_ticklabels([])
-        axs[0,0].xaxis.set_ticklabels([])
-        axs[0,1].xaxis.set_ticklabels([])
+        print (p)
 
-        for ax in axs[0]:
-            ax.text(0.95, 0.95, 'climb -> dive', transform=ax.transAxes,
-                    bbox=dict(facecolor='lightgrey', alpha=1.0,
-                              edgecolor='None'), ha='right', va='top',
-                    fontsize=6)
-        for ax in axs[1]:
-            ax.text(0.95, 0.05, 'dive -> climb', transform=ax.transAxes,
-                    bbox=dict(facecolor='lightgrey', alpha=1.0,
-                              edgecolor='None'), ha='right', va='bottom',
-                    fontsize=6)
-        plt.show()
+        # set axes
+        axs[0].set_ylabel('Count')
+        axs[0].set_xlabel('Distance Between Samples (km)')
+        axs[1].set_xlabel('Time Between Samples (Hours)')
+        axs[1].yaxis.set_ticklabels([])
+
+        fig.legend(['bow-tie', 'straight path'],
+                    loc='lower center', bbox_to_anchor=(0.5, 0.91), 
+                    ncol=len(paths), fontsize=8)
+
+        # show
+        plt.savefig('straight_line_bow_tie_sampling_rate_hist.png', dpi=1200)
 
     def plot_sampling_rates(self):
         ''' Plot raw glider sampling rates. Spatial and temporal ''' 
@@ -208,8 +209,8 @@ class plot_sampling_frequencies(object):
         g = raw_glider_sampling()
         g.get_sampling_freqencies()
 
-        glider_dive = self.sub_set(g.glider_uniform, 0.0)  # remove climbs
-        glider_climb = self.sub_set(g.glider_uniform, 0.5) # remove dives
+        glider_dive = self.sub_set(g.g_uniform, 0.0)  # remove climbs
+        glider_climb = self.sub_set(g.g_uniform, 0.5) # remove dives
 
         glider_stacked_d = glider_dive.stack(z=('dive','ctd_depth'))
         glider_stacked_d = glider_stacked_d.fillna(0.0)
