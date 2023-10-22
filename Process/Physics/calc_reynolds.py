@@ -202,7 +202,8 @@ if __name__ == '__main__':
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
-    #m.get_primes('momv', 'momv')
+    #m.get_time_mean('momu', 'momu')
+    m.get_primes('momu', 'momu')
 
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')
@@ -213,8 +214,8 @@ if __name__ == '__main__':
     #m.get_time_mean('rhoW', 'rhoW')
     #m.get_time_mean('wvel', 'wvel')
 
-    m.get_primes('rhoW', 'rhoW')
-    m.get_primes('wvel', 'wvel')
+    #m.get_primes('rhoW', 'rhoW')
+    #m.get_primes('wvel', 'wvel')
 
     #m.get_primes_all()
 

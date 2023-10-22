@@ -167,7 +167,8 @@ class plot_KE(object):
         axs[-1,-1].axis('off')
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'TKE_30_budget.nc')
+        ds = xr.open_dataset(self.preamble + 'TKE_budget.nc')
+        ds = ds.sel(deptht=depth, method='nearest')
         b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
         b_flux = b_flux.sel(deptht=depth, method='nearest')
         b_flux = b_flux.drop(['nav_lon','nav_lat'])
@@ -229,12 +230,12 @@ class plot_KE(object):
                      rotation=90, transform=cbar.ax.transAxes,
                      va='center', ha='right')
 
-        plt.savefig(self.case + '_tke_' + depth + '_budget.png')
+        plt.savefig(self.case + '_tke_' + str(depth) + '_budget.png')
 
 
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
+file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
 ke.plot_TKE_budget(depth=30)

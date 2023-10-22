@@ -1,6 +1,6 @@
 #!/bin/bash 
 
-#SBATCH --partition=high-mem
+#SBATCH --partition=long-serial
 #SBATCH -o %j.out 
 #SBATCH -e %j.err
 #SBATCH --time=06:00:00
@@ -8,4 +8,4 @@
 
 # executable 
 #python -u calc_mld.py
-python -u calc_reynolds.py
+python -u ../Budgets/calc_KE.py

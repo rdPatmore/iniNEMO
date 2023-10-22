@@ -2,6 +2,8 @@ import xarray as xr
 import config
 import matplotlib.pyplot as plt
 import numpy as np
+import dask
+from dask.diagnostics import ProgressBar
 
 class KE(object):
 
@@ -147,26 +149,34 @@ class KE(object):
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
 
         # load and slice
-        append = 'dep_' + depth_str + '_rey_' + rey_str + '.nc'
-        umom = xr.open_dataset(self.preamble + 'momu_' + append)
-        vmom = xr.open_dataset(self.preamble + 'momv_' + append)
-        uvel = xr.open_dataset(self.preamble + 'uvel_' + append)
-        vvel = xr.open_dataset(self.preamble + 'vvel_' + append)
+        #append = 'dep_' + depth_str + '_rey_' + rey_str + '.nc'
+        chunksu = {'x':10, 'depthu': 1}
+        chunksv = {'x':10, 'depthv': 1}
+        chunkst = {'x':10, 'deptht': 1}
+        #chunks = {'time_counter':1}
+        append = 'rey.nc'
+        umom = xr.open_dataset(self.preamble + 'momu_' + append, chunks=chunksu)
+        vmom = xr.open_dataset(self.preamble + 'momv_' + append, chunks=chunksv)
+        uvel = xr.open_dataset(self.preamble + 'uvel_' + append, chunks=chunksu)
+        vvel = xr.open_dataset(self.preamble + 'vvel_' + append, chunks=chunksv)
 
-        e3u = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc').e3u
-        e3v = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc').e3v
-        e3t = xr.open_dataset(self.preamble + 'grid_T_' + depth_str + '.nc')
-
+        e3u = xr.open_dataset(self.preamble + 'uvel.nc', chunks=chunksu).e3u
+        e3v = xr.open_dataset(self.preamble + 'vvel.nc', chunks=chunksv).e3v
+        e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunkst)
+        #e3u = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc').e3u
+        #e3v = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc').e3v
+        #e3t = xr.open_dataset(self.preamble + 'grid_T_' + depth_str + '.nc')
 
         # use time that is consistent with grid_W
         e3t['time_counter'] = e3t.time_instant
         e3t = e3t.e3t # get var
 
         # drop time var to avoid unit error of uvel*time
-        umom = umom.drop_vars(['time_instant','time_instant_bounds',
-                              'time_counter_bounds'])
-        vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
-                              'time_counter_bounds'])
+        #print (umom)
+        #umom = umom.drop_vars(['time_instant','time_instant_bounds',
+        #                      'time_counter_bounds'])
+        #vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
+        #                      'time_counter_bounds'])
         for var in umom.data_vars:
             umom = umom.rename({var:var.lstrip('u')})
         for var in vmom.data_vars:
@@ -176,7 +186,8 @@ class KE(object):
         TKE = TKE.mean('time_counter')
 
         # save
-        TKE.to_netcdf(self.preamble + 'TKE_budget_' + append)
+        with ProgressBar():
+            TKE.to_netcdf(self.preamble + 'TKE_budget.nc')#_' + append)
 
     def calc_MKE_budget(self, depth_str='mld'):
 
@@ -246,7 +257,7 @@ class KE(object):
     def KE(self, umom, vmom, uvel, vvel, e3u, e3v, e3t):
         ''' calculate KE - shared function for KE, MKE and TKE '''
 
-        cfg  = xr.open_dataset(self.path + 'domain_cfg.nc').squeeze()
+        cfg  = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1).squeeze()
 
         bu = cfg.e1u * cfg.e2u * e3u
         bv = cfg.e1v * cfg.e2v * e3v
@@ -254,6 +265,11 @@ class KE(object):
 
         uke = uvel.uo * umom * bu
         vke = vvel.vo * vmom * bv
+
+        # coordinate hack
+        uke = uke.rename_dims({'depthu':'deptht'})
+        vke = vke.rename_dims({'depthv':'deptht'})
+
         KE = 0.5 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt
 
         return KE
@@ -477,16 +493,17 @@ class KE(object):
         # save
         TKE_timeseries.to_netcdf(self.preamble + 'TKE_mld.nc')
        
-
-m = KE('TRD00')
-#m.calc_z_KE_budget()
-m.calc_rhoW()
-#m.calc_KE_budget(depth_str='30')
-#m.calc_TKE_budget(depth_str='30')
-#m.calc_MKE_budget(depth_str='30')
-#m.calc_z_TKE_budget()
-#m.calc_z_MKE_budget()
-#m.calc_TKE_steadiness()
-#m.calc_z_TKE_budget()
-#m.calc_reynolds_terms()
-#m.calc_TKE(save=True)
+if __name__ == '__main__':
+     dask.config.set(scheduler='single-threaded')
+     m = KE('TRD00')
+     #m.calc_z_KE_budget()
+     #m.calc_rhoW()
+     #m.calc_KE_budget(depth_str='30')
+     m.calc_TKE_budget()
+     #m.calc_MKE_budget(depth_str='30')
+     #m.calc_z_TKE_budget()
+     #m.calc_z_MKE_budget()
+     #m.calc_TKE_steadiness()
+     #m.calc_z_TKE_budget()
+     #m.calc_reynolds_terms()
+     #m.calc_TKE(save=True)
