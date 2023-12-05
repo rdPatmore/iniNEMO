@@ -4,7 +4,8 @@ import gsw
 import scipy.fft as fft
 import matplotlib.pyplot as plt
 import numpy as np
-import iniNEMO.Process.calc_power_spectrum as spec
+import iniNEMO
+#import iniNEMO.Process.calc_power_spectrum as spec
 from scipy import ndimage
 import matplotlib
 #from skimage.filters import window

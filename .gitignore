@@ -8,11 +8,11 @@
 *.err
 *__pycache__
 *myout.txt
-src/Plot/weekly_test.txt
-src/Process/Machinary/out_prof.txt
-src/Process/Scratch/
-src/Plot/myout_08.txt
-src/Process/Machinary/myout_combine.txt
-src/Movie/myout_08.txt
+Plot/weekly_test.txt
+Process/Machinary/out_prof.txt
+Process/Scratch/
+Plot/myout_08.txt
+Process/Machinary/myout_combine.txt
+Movie/myout_08.txt
 *.swp
 *dask-worker-space
