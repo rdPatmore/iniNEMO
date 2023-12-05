@@ -659,7 +659,7 @@ class plot_power_spectrum(object):
         for ax in axs[-1,:]:
             ax.set_xlabel(r'Wavenumber (km$^{-1}$)')
         for ax in axs[:,0]:
-            ax.set_ylabel('Density \nPower Spectral Density')
+            ax.set_ylabel('Power Spectral Density\nof Potential Density')
 
         # letters
         letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)']
