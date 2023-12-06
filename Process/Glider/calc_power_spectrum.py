@@ -11,7 +11,7 @@ import spectrum as sp
 from scipy import stats
 import itertools
 import matplotlib.pyplot as plt
-from iniNEMO.Plot.get_transects import get_transects
+from iniNEMO.Process.Glider.get_transects import get_transects
 
 # not sure on the application here
 # however the expectation is that, on average, slopes will reduce with increases
@@ -545,16 +545,26 @@ class power_spectrum_glider(object):
                               '_spectrum_' + self.append.rstrip('_') +
                      transect_append + '_' + proc + '_clean_pfit1.nc')
 
-    def calc_variance(self, proc='fft'):
+    def get_spec(self, transect_append='_post_transect', proc='multi_taper'):
+        '''
+        Open processed spectra 
+
+        transect_append: files named depending on whether transects have been 
+                         calcualted
+        '''
+
+        self.spec = xr.open_dataset(self.path + 'Spectra/glider_samples_' 
+                            + self.var + 
+                          '_spectrum_' + self.append.rstrip('_') +
+                          transect_append + '_' + proc + '_clean_pfit1.nc')
+
+    def calc_variance(self):
         ''' calculate integral under first sample spectrum '''
         
-        spec = xr.open_dataset(self.path + 'Spectra/glider_samples_'
-                              + self.var + '_spectrum' +
-                              self.append.rstrip('_') + '_' + proc + '.nc')
-        sample = spec.temp_spec.isel(sample=0)
-        ds = sample.freq.diff(dim='freq')
-        integ = (sample.isel(freq=slice(None,-1)) * ds).sum(dim='freq')
-        print (integ.values)
+        mean = self.spec.temp_spec_gmean.mean('sample')
+        df = mean.freq.diff(dim='freq')*1000
+        integ = (mean.isel(freq=slice(None,-1)) * df).sum(dim='freq')
+        print ('variance: ', round((integ.values * 1000), 2))
 
 if __name__ == '__main__':
     # variable
@@ -651,11 +661,26 @@ if __name__ == '__main__':
 #    m.get_glider()
 #    m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
 
+    m = power_spectrum_glider('EXP10', var, append='interp_1000_', fs=1000)
+    m.get_spec()
+    m.calc_variance()
     for num in [2,3,4,8]:
         app = 'interp_1000_every_' + str(num) + '_and_climb_'
         m = power_spectrum_glider('EXP10', var, append=app, fs=1000)
-        m.get_glider()
-        m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+                                  
+        m.get_spec()
+        #m.get_glider()
+        #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+        m.calc_variance()
+
+    for num in [2,3,4,8]:
+        app = 'interp_1000_every_' + str(num)
+        m = power_spectrum_glider('EXP10', var, append=app, fs=1000)
+                                  
+        m.get_spec()
+        #m.get_glider()
+        #m.calc_spectrum(proc='multi_taper', get_transects_flag=True)
+        m.calc_variance()
 
     #~~~~ standard plotting end ~~~~#
 
