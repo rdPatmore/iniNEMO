@@ -274,6 +274,7 @@ class KE(object):
 
         return KE
 
+
     def im1(self, var):
         ''' rolling opperations: roll west '''
 
