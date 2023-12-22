@@ -6,19 +6,62 @@ import dask
 from dask.diagnostics import ProgressBar
 
 class KE_integrals(object):
+    '''
+    Calculate KE budgets integrated in the dimensions of choice
+
+    This is designed for TKE to start with
+    '''
 
     def __init__(self, case):
         self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
         self.preamble = config.data_path() + case +  self.file_id
         self.path = config.data_path() + case + '/'
 
-    def vertically_integrated_ml_KE(KE_type='TKE'):
+    def get_ml_masked_tke(self):
+        ''' mask tke according to mixed layer depth '''
+
+
+        # get time-mean grid_T
+        kwargs = {'chunks':-1, 'decode_cf':False} 
+        ds_mean = xr.open_dataset(self.preamble + 'grid_T.nc',
+                        **kwargs).mean('time_counter')
+
+        # alias mld and e3t
+        mld_mean = ds_mean.mldr10_3
+        self.e3t_mean = ds_mean.e3t
+
+        # get tke
+        kwargs = {'chunks':{'x':100, 'y':100}} 
+        tke = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
+
+        # mask below time-mean mixed layer
+        self.tke_mld = tke.where(tke.deptht < mld_mean, drop=False)
+
+
+    def vertically_integrated_ml_KE(self, KE_type='TKE'):
         ''' vertically integrated KE budget '''
 
-        kwargs = {'chunks':{'time_counter':100} ,'decode_cf':False} 
-        self.mld = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs
-                                   ).mldr10_3
+        # get data
+        self.get_ml_masked_tke()
 
-        print (self.mld)
+        # calculate vertical integral
+        tke_integ = (self.tke_mld * self.e3t_mean).sum('deptht')
 
-    def domain_integrated_ml_KE(KE_type='TKE'):
+        with ProgressBar():
+            tke_integ.to_netcdf(self.preamble + 'TKE_budget_z_integ.nc')
+
+    def domain_integrated_ml_KE(self, KE_type='TKE'):
+        ''' domain integrated KE budget '''
+
+        # get data and domain_cfg
+        self.get_ml_masked_tke()
+        cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
+
+        # calculate domain integral
+        tke_integ = (self.tke_mld * self.e3t_mean * cfg.glamt * cfg.gphit).sum()
+
+        with ProgressBar():
+            tke_integ.to_netcdf(self.preamble + 'TKE_budget_domain_integ.nc')
+
+ke = KE_integrals('TRD00')
+ke.domain_integrated_ml_KE()
