@@ -2,6 +2,7 @@ import xarray as xr
 import config
 from dask.distributed import Client, LocalCluster
 import dask
+import matplotlib.pyplot as plt
 
 class mld(object):
     ''' class for mixed layer depth operations'''
@@ -9,6 +10,49 @@ class mld(object):
     def __init__(self, model, nc_preamble):
         self.path = config.data_path() + model
         self.nc_preamble = self.path + '/' + nc_preamble
+
+    def season_mean(ds):
+        # Number of days in each month
+        month_length = ds.time.dt.days_in_month
+    
+        # Calculate the weights 
+        weights = (
+            month_length.groupby("time.season") /
+            month_length.groupby("time.season").sum() )
+    
+        # Test that the sum of the weights for each season is 1.0
+        np.testing.assert_allclose(
+                       weights.groupby("time.season").sum().values, np.ones(4))
+    
+        # Calculate the weighted average
+        weighted_mean =  (ds * weights).groupby("time.season").sum(dim="time")
+      
+        return weighted_mean
+
+    def calculate_seasonal_and_spatial_mean_mld(self):
+        ''' mean mld over seasons and space '''
+
+        # load mld
+        kwargs = {'chunks':{'deptht':-1, 'x':-1, 'y':-1}}
+        mld = xr.open_dataset(self.nc_preamble + 'grid_T.nc', **kwargs
+                             ).mldr10_3
+
+        # horizontal mean
+        mld_timeseries = mld.mean(['x','y'])
+        #mld_timeseries = mld.quantile([0.9], ['x','y']).squeeze()#.values
+
+        print (mld_timeseries)
+
+        #plt.plot(mld_timeseries)
+        #plt.show()
+
+
+        #print (mld_timeseries.min().values)
+        #print (mld_timeseries.max().values)
+        print (mld_timeseries[0].values)
+        print (mld_timeseries[-1].values)
+        
+
 
     def find_KE_at_middepth(self, depth=None):
         ''' reduce data to the middle of the mixed layer depth '''
@@ -306,14 +350,16 @@ if __name__=='__main__':
      #client = Client(cluster)
      #client = Client(n_workers=5, memory_limit='64GB') # deals with memory issues
      
-    nc_preamble = 'SOCHIC_PATCH_15mi_20121209_20121211_'
-    m = mld('TRD00', nc_preamble)
+    nc_preamble = 'SOCHIC_PATCH_3h_20121209_20130331_'
+
+    m = mld('EXP10', nc_preamble)
     print ('start')
+    m.calculate_seasonal_and_spatial_mean_mld()
 #    m.find_var_at_middepth('b_flux', 'deptht', depth=30)
     #m.find_var_at_middepth('grid_T', 'deptht', depth=30)
     #m.reduce_uvel_vars()
     #m.reduce_vvel_vars()
-    m.reduce_wvel_vars()
+    #m.reduce_wvel_vars()
 #    m.find_var_at_middepth('momu', 'depthu', depth=30)
 #    print ('0')
 #    m.find_KE_at_middepth(depth=30)

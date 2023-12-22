@@ -13,6 +13,8 @@ import matplotlib.gridspec as gridspec
 import scipy.stats as stats
 #import itertools
 from iniNEMO.Process.Glider.get_transects import get_transects
+from plot_interpolated_tracks import get_sampled_path
+import cartopy.crs as ccrs
 
 #matplotlib.use('Agg')
 matplotlib.rcParams.update({'font.size': 8})
@@ -842,6 +844,44 @@ class bootstrap_plotting(object):
 
         plt.savefig('paper_hist_rmse.png', dpi=1200)
 
+    def render_straight_path(self, ax):
+        '''
+        render bow-tie and quasi-linear paths
+        '''
+        # projections
+        axes_proj=ccrs.AlbersEqualArea(central_latitude=-60,
+                                        standard_parallels=(-62,-58))
+        proj = ccrs.PlateCarree() # lon lat projection
+        
+        # get data
+        straight_path = xr.open_dataset(config.root() + 
+                             'Giddy_2020/artificial_straight_line_transects.nc')
+        
+        giddy_path = get_sampled_path('EXP10', 'interp_1000',
+                                       post_transect=True, drop_meso=True) 
+    
+        # render giddy path
+        path_cset=['#f18b00','navy','green','purple']
+        for i, (l,trans) in enumerate(giddy_path.groupby('transect')):
+            ax.plot(trans.lon - trans.lon_offset, trans.lat - trans.lat_offset,
+                    c='#dad1d1')
+                     #c=path_cset[int(trans.vertex[0])])
+    
+        # render straight path
+        ax.plot(straight_path.lon, straight_path.lat, c='#f18b00')
+    
+        # format axes labels
+        ax.set_aspect(2.0)
+        ax.set_xlabel(r'Longitude ($^{\circ}$)')
+        ax.set_ylabel(r'Latitude ($^{\circ}$)')
+        ax.set_xticks([-0.2, 0, 0.2])
+        ax.get_xticklabels()[0].set_ha('right')
+        ax.get_xticklabels()[-1].set_ha('left')
+        
+        # set title
+        ax.text(0.5, 1.02, 'Quasi-Linear\nPath', va='bottom', ha='center',
+                transform=ax.transAxes, c='#f18b00')
+
     def plot_parallel_path_rmse(self, case):
         '''
         Plot RMSE error as a percentage against the model mean for parallel
@@ -851,10 +891,16 @@ class bootstrap_plotting(object):
         is across transect buoyancy gradients.
         '''
 
-        # initialise figure
-        fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(5.5,3.0))
-        plt.subplots_adjust(wspace=0.1, bottom=0.15, left=0.10, right=0.98,
-                            top=0.85)
+        # initialised figure
+        fig = plt.figure(figsize=(6.5, 3))
+        gs0 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs1 = gridspec.GridSpec(ncols=2, nrows=1)
+        gs0.update(top=0.85, bottom=0.15, left=0.04, right=0.26)
+        gs1.update(top=0.85, bottom=0.15, left=0.29, right=0.98, wspace=0.1)
+
+        ax0 = fig.add_subplot(gs0[0])
+        ax1 = fig.add_subplot(gs1[0])
+        ax2 = fig.add_subplot(gs1[1])
 
         # data paths
         file_id = '/SOCHIC_PATCH_3h_20121209_20130331_' 
@@ -878,6 +924,8 @@ class bootstrap_plotting(object):
         c0 = '#7e9aa5'
         c= ['lightgrey', 'grey', 'black', c1]
 
+        self.render_straight_path(ax0)
+
         # get means
         b_x_f_mean = b_x_full.mean('bin_centers')
         b_x_ct_f_mean = b_x_ct_full.mean('bin_centers')
@@ -885,9 +933,9 @@ class bootstrap_plotting(object):
         b_x_ct_r_mean = b_x_ct_roll.mean(['bin_centers','time_counter'])
 
         # plot full time mean
-        p0, = ax0.plot(b_x_f_mean.glider_quantity, b_x_f_mean.rmse_mean,
+        p0, = ax1.plot(b_x_f_mean.glider_quantity, b_x_f_mean.rmse_mean,
                      c=c[3], lw=1.5, zorder=10)
-        ax1.plot(b_x_ct_f_mean.glider_quantity, b_x_ct_f_mean.rmse_mean,
+        ax2.plot(b_x_ct_f_mean.glider_quantity, b_x_ct_f_mean.rmse_mean,
                      c=c[3], lw=1.5)
 
         # plot rolling time means
@@ -895,9 +943,9 @@ class bootstrap_plotting(object):
         for i, roll in enumerate(['1W_rolling','2W_rolling','3W_rolling']):
             b_x_mean = b_x_r_mean.sel(rolling=roll)
             b_x_ct_mean = b_x_ct_r_mean.sel(rolling=roll)
-            l, = ax0.plot(b_x_mean.glider_quantity, b_x_mean.rmse_mean, 
+            l, = ax1.plot(b_x_mean.glider_quantity, b_x_mean.rmse_mean, 
                          c=c[i], lw=1.5)
-            ax1.plot(b_x_ct_mean.glider_quantity, b_x_ct_mean.rmse_mean,
+            ax2.plot(b_x_ct_mean.glider_quantity, b_x_ct_mean.rmse_mean,
                          c=c[i], lw=1.5)
             p.append(l)
 
@@ -905,31 +953,33 @@ class bootstrap_plotting(object):
         labs = ['1-Week', '2-Week', '3-Week', '3.5-Month', '3.5-Month']
         fig.legend(p, labs, loc='lower center', title='Deployment',
                        title_fontsize=8,
-                       bbox_to_anchor=(0.555, 0.85), ncol=4, fontsize=8)
+                       bbox_to_anchor=(0.635, 0.85), ncol=4, fontsize=8)
 
         # axes settings
-        for ax in [ax0, ax1]:
+        for ax in [ax1, ax2]:
             ax.set_xlim(1,30)
             ax.set_xlabel('Number of Gliders')
             ax.set_xticks([1,5,10,15,20,25,30])
             ax.set_ylim(0,120)
-        ax1.set_yticklabels([])
+        ax2.set_yticklabels([])
 
         l0 = r'$|\nabla b|$'
         l1 = r'($\times 10^{-8}$ s$^{-2}$)'
 
-        ax0.set_ylabel('Mean RMSE (%)')
+        ax1.set_ylabel('Mean RMSE (%)')
 
-        ax0.text(0.98, 0.96, 'Along-Track', va='top', ha='right',
-                    transform=ax0.transAxes)
-        ax1.text(0.98, 0.96, 'Across-Deployment', va='top', ha='right',
+        ax1.text(0.98, 0.96, 'Along-Track', va='top', ha='right',
                     transform=ax1.transAxes)
+        ax2.text(0.98, 0.96, 'Across-Deployment', va='top', ha='right',
+                    transform=ax2.transAxes)
 
         # letters
-        letters = ['(a)', '(b)']
-        for i, ax in enumerate([ax0,ax1]):
+        letters = ['(a)', '(b)', '(c)']
+        for i, ax in enumerate([ax0,ax1,ax2]):
             ax.text(0.03, 0.96, letters[i], transform=ax.transAxes, va='top',
                     ha='left')
+        #ax0.text(0.03, 0.96, '(a)', transform=ax0.transAxes, va='top',
+        #        ha='left')
 
         plt.savefig('paper_hist_parallel_transects_rmse.png', dpi=1200)
 

@@ -4,7 +4,8 @@ import gsw
 import scipy.fft as fft
 import matplotlib.pyplot as plt
 import numpy as np
-import iniNEMO.Process.calc_power_spectrum as spec
+import iniNEMO
+#import iniNEMO.Process.calc_power_spectrum as spec
 from scipy import ndimage
 import matplotlib
 #from skimage.filters import window
@@ -268,11 +269,23 @@ class plot_power_spectrum(object):
         self.fig, self.ax = plt.subplots(figsize=(3.5,3.5))
         plt.subplots_adjust(left=0.15, top=0.98, right=0.98)
 
+    def calc_variance(self, spec, rounding=2):
+        ''' 
+        Calculate integral under first sample spectrum 
+
+        THIS IS DUPLICATED in calc_power_spectrum.py 
+        '''
+        
+        df = spec.freq.diff(dim='freq')*1000
+        integ = (spec.isel(freq=slice(None,-1)) * df).sum(dim='freq')
+        return round((integ.values * 1000), rounding)
+
     def add_glider_spectra(self, model, ax, var='votemper', 
                            append='', c='orange', c2=None,
                            label='', old=False, ls='-', old_spec_calc=False,
                            simple_calc=False, panel_label=None,
-                           lines=False, zorder=1, a=0.4):
+                           lines=False, zorder=1, a=0.4,
+                           variance=False):
         ''' plot glider spectrum with alterations'''
 
         # shading colour is provided
@@ -288,6 +301,7 @@ class plot_power_spectrum(object):
             path = self.data_path + model + '/Spectra/'
         spec = xr.load_dataset(path + 'glider_samples_' + var + 
                                '_spectrum' + append + '.nc')
+
         #for group, samples in spec.groupby('sample'):
         #    print (group)
         #    self.ax.loglog(samples.freq, samples.temp_spec, c=c,
@@ -324,6 +338,14 @@ class plot_power_spectrum(object):
             spec_mean = spec.temp_spec_gmean.mean(dim='sample', skipna=True)
             spec_l = spec_mean + u_mag_mean
             spec_u = spec_mean - l_mag_mean
+
+        # add variance
+        if variance:
+            variance = self.calc_variance(spec_mean)
+            ax.text(0.9, 9e-2, '$\sigma=$' + str(variance) + '(km$^{-2}$)', 
+                    va='center', ha='right', size=6, c=c)
+        
+
         if lines:
             ax.loglog(spec_l.freq*1000, spec_l, c=c, lw=0.8, ls=':',
                       zorder=zorder)
@@ -547,6 +569,19 @@ class plot_power_spectrum(object):
             order = 'post'
         else:
             order = 'pre'
+        
+        # add 5 km frequency line
+        c = 'turquoise'
+        axs[0,-1].vlines(0.2, 6e-7, 7e-2, colors='turquoise', ls=':', lw=0.8,
+                        zorder=10)
+                     #transform=axs[0,-1].transData)
+        #axs[0,-1].text(0.2, 9e-2, '5 km', c='turquoise',
+        #               va='center', ha='center', size=6)
+ 
+        ## add variance titile
+        #for ax in axs.flatten():
+        #    ax.text(0.9, 9e-2, r'$\sigma$ (km$^{-2}$)',
+        #            va='center', ha='right', size=6, c='k')
 
         # add full path spectrum to all panels
         for ax in axs.flatten():
@@ -556,6 +591,7 @@ class plot_power_spectrum(object):
                                                append=spec_append,
                                                c=c0, c2=c0_sh,
                                                simple_calc=True, a=alpha)
+                                               
 
         # ~~~ pre transect pairs ~~~ #
         spec_append = \
@@ -573,7 +609,7 @@ class plot_power_spectrum(object):
         for i in range(4):
             self.spec.add_glider_spectra('EXP10', axs[0,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True, a=alpha, lines=False)
+                        simple_calc=True, a=alpha, lines=False, variance=True)
             self.add_path(axs[0,i], names[i], post_transect=post_transect,
                           path_cset=path_cset)
 
@@ -599,7 +635,7 @@ class plot_power_spectrum(object):
         for i in range(num):
             p1, = self.spec.add_glider_spectra('EXP10', axs[1,i], var=var,
                         append=spec_append[i], panel_label=pl[i], c=c1,
-                        simple_calc=True, a=alpha, lines=False)
+                        simple_calc=True, a=alpha, lines=False, variance=True)
             self.add_path(axs[1,i], names[i], post_transect=post_transect,
                           path_cset=path_cset)
 
@@ -659,7 +695,7 @@ class plot_power_spectrum(object):
         for ax in axs[-1,:]:
             ax.set_xlabel(r'Wavenumber (km$^{-1}$)')
         for ax in axs[:,0]:
-            ax.set_ylabel('Density \nPower Spectral Density')
+            ax.set_ylabel('Power Spectral Density\nof Potential Density')
 
         # letters
         letters = ['(a)', '(b)', '(c)', '(d)', '(e)', '(f)', '(g)', '(h)']
@@ -669,6 +705,7 @@ class plot_power_spectrum(object):
         #axs[0,-1].legend([p0,p1], ['full', 'reduced'],
         #                 loc='upper left', bbox_to_anchor=(1.03, 1.0),
         #                 fontsize=6, title='Path', borderaxespad=0)
+
 
         # save
         plt.savefig(
@@ -992,7 +1029,7 @@ m = plot_power_spectrum()
 #m.plot_pre_post_transect()
 #m.plot_pre_post_transect_and_climb_dive_reduction()
 m.plot_pair_remove_and_climb_dive_reduction(post_transect=True)
-m.plot_pair_remove_and_climb_dive_reduction(post_transect=False)
+#m.plot_pair_remove_and_climb_dive_reduction(post_transect=False)
 
 #m.compare_climb_dive_pair_reduction()
 #m.plot_regridded_detrended_example()
