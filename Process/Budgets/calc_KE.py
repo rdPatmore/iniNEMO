@@ -189,6 +189,20 @@ class KE(object):
         with ProgressBar():
             TKE.to_netcdf(self.preamble + 'TKE_budget.nc')#_' + append)
 
+    def merge_vertical_buoyancy_flux(self):
+        ''' add vertical buoyancy flux to TKE dataset '''
+
+        kwargs = {'chunks': {'time_counter': 100}}
+        TKE = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
+        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc', **kwargs)
+
+        # merge in buoyancy flux
+        TKE['trd_bfx'] = b_flux
+
+        with ProgressBar():
+            TKE.to_netcdf(self.preamble + 'TKE_budget_full.nc')
+
+
     def calc_MKE_budget(self, depth_str='mld'):
 
         # load and slice
@@ -500,7 +514,8 @@ if __name__ == '__main__':
      #m.calc_z_KE_budget()
      #m.calc_rhoW()
      #m.calc_KE_budget(depth_str='30')
-     m.calc_TKE_budget()
+     #m.calc_TKE_budget()
+     m.merge_vertical_buoyancy_flux()
      #m.calc_MKE_budget(depth_str='30')
      #m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()

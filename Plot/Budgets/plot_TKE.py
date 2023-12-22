@@ -12,6 +12,7 @@ class plot_KE(object):
     def __init__(self, case, file_id):
         self.case = case
         self.preamble = config.data_path() + case + '/' + file_id
+        self.path = config.data_path() + case + '/'
 
     def plot_ke_time_series(self):
         ''' plot ke oce-ice over depth and time '''
@@ -236,9 +237,9 @@ class plot_KE(object):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
         # ini figure
-        fig, axs = plt.subplots(2, 4, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(2, 4, figsize=(5.5,3.5))
         plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1,
-                            wspace=0.10, hspace=0.11)
+                            wspace=0.05, hspace=0.05)
         axs[-1,-1].axis('off')
 
         # load and slice
@@ -246,36 +247,36 @@ class plot_KE(object):
         b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
         b_flux = b_flux.sel(deptht=30, method='nearest')
         b_flux = b_flux.drop(['nav_lon','nav_lat'])
+        cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
         cut=slice(10,-10)
         ds     = ds.isel(x=cut,y=cut)
+        cfg    = cfg.isel(x=cut,y=cut)
         b_flux = b_flux.isel(x=cut,y=cut)
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
-        ds['trd_hpg'] = ds.trd_hpg + b_flux
+        ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx 
 
         # plot
-        self.vmin, self.vmax = -2e-7, 2e-7
+        self.vmin, self.vmax = -1e-5, 1e-5
         self.cmap=cmocean.cm.balance
         def render(ax, ds, var):
-            ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var],
+            p = ax.pcolor(cfg.nav_lon, cfg.nav_lat, ds[var],
                       vmin=self.vmin, vmax=self.vmax,
                       cmap=self.cmap)
+            return p
 
         render(axs[0,0], ds, 'trd_hpg')
         render(axs[0,1], ds, 'trd_adv')
         render(axs[0,2], ds, 'trd_pvo')
         render(axs[0,3], ds, 'trd_zad')
         render(axs[1,0], ds, 'trd_zdf')
-        p = axs[1,1].pcolor(-b_flux, vmin=self.vmin, vmax=self.vmax,
-                        cmap=self.cmap)
-        render(axs[1,2], ds, 'trd_tot')
-
-        # titles
+        render(axs[1,1], ds, 'trd_bfx')
+        p = render(axs[1,2], ds, 'trd_tot')
 
         # titles
         titles = ['pressure grad',
-                  'lateral\n advection ',
+                  'lateral\nadvection ',
                   'Coriolis',               'vertical\nadvection',
                   'vertical\ndiffusion','vertical\nbuoyancy flux',
                   'tendency' ]
@@ -290,9 +291,9 @@ class plot_KE(object):
         for ax in axs[:,1:].flatten():
             ax.set_yticklabels([])
         for ax in axs[-1,:].flatten():
-            ax.set_xlabel('x')
+            ax.set_xlabel(r'Longitude ($^{\circ}$E)')
         for ax in axs[:,0].flatten():
-            ax.set_ylabel('y')
+            ax.set_ylabel(r'Latitude ($^{\circ}$N)')
 
         pos0 = axs[0,-1].get_position()
         pos1 = axs[-1,-1].get_position()
@@ -302,10 +303,48 @@ class plot_KE(object):
                      rotation=90, transform=cbar.ax.transAxes,
                      va='center', ha='right')
 
-        plt.savefig(self.case + '_tke_budget_depth_integrated.png')
+        plt.savefig(self.case + '_tke_budget_depth_integrated.png', dpi=600)
+
+    def plot_domain_integrated_TKE_budget(self):
+        ''' plot domain integrated TKE budget '''
+     
+        # ini figure
+        fig, axs = plt.subplots(1, figsize=(5.5,3.5))
+        plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1)
+
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'TKE_budget_domain_integ.nc')
+
+        ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+        ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx
+        ds['trd_tot'] = -ds.trd_tot
+
+        # plot
+        self.vmin, self.vmax = -1e-5, 1e-5
+        self.cmap=cmocean.cm.balance
+
+        # titles
+        titles = ['pressure\ngrad',
+                  'lateral\n advection ',
+                  'Coriolis',               'vertical\nadvection',
+                  'vertical\ndiffusion','vertical\nbuoyancy flux',
+                  'tendency' ]
+        var_list = [
+        'trd_hpg',
+        'trd_adv',
+        'trd_pvo',
+        'trd_zad',
+        'trd_zdf',
+        'trd_bfx',
+        'trd_tot']
+        data = [ds[var].values for var in var_list]
+        axs.bar(titles, data)
+
+        plt.savefig(self.case + '_tke_budget_domain_integrated.png', dpi=600)
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
 ke.plot_ml_integrated_TKE_budget()
+ke.plot_domain_integrated_TKE_budget()
