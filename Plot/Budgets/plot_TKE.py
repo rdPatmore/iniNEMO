@@ -157,7 +157,7 @@ class plot_KE(object):
 
         plt.savefig(self.case + '_ke_mld_budget.png')
 
-    def plot_TKE_budget(self, depth):
+    def plot_TKE_budget(self, depth=None, ml_mean=False):
         ''' plot budget of TKE at middepth of the mixed layer '''
         
         # ini figure
