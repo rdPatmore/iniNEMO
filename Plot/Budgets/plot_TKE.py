@@ -232,10 +232,80 @@ class plot_KE(object):
 
         plt.savefig(self.case + '_tke_' + str(depth) + '_budget.png')
 
+    def plot_ml_integrated_TKE_budget(self):
+        ''' plot budget of TKE depth-integrated over the mixed layer '''
+        
+        # ini figure
+        fig, axs = plt.subplots(2, 4, figsize=(5.5,5.5))
+        plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1,
+                            wspace=0.10, hspace=0.11)
+        axs[-1,-1].axis('off')
 
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
+        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
+        b_flux = b_flux.sel(deptht=30, method='nearest')
+        b_flux = b_flux.drop(['nav_lon','nav_lat'])
+
+        cut=slice(10,-10)
+        ds     = ds.isel(x=cut,y=cut)
+        b_flux = b_flux.isel(x=cut,y=cut)
+
+        ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+        ds['trd_hpg'] = ds.trd_hpg + b_flux
+
+        # plot
+        self.vmin, self.vmax = -2e-7, 2e-7
+        self.cmap=cmocean.cm.balance
+        def render(ax, ds, var):
+            ax.pcolor(ds.nav_lon, ds.nav_lat, ds[var],
+                      vmin=self.vmin, vmax=self.vmax,
+                      cmap=self.cmap)
+
+        render(axs[0,0], ds, 'trd_hpg')
+        render(axs[0,1], ds, 'trd_adv')
+        render(axs[0,2], ds, 'trd_pvo')
+        render(axs[0,3], ds, 'trd_zad')
+        render(axs[1,0], ds, 'trd_zdf')
+        p = axs[1,1].pcolor(-b_flux, vmin=self.vmin, vmax=self.vmax,
+                        cmap=self.cmap)
+        render(axs[1,2], ds, 'trd_tot')
+
+        # titles
+
+        # titles
+        titles = ['pressure grad',
+                  'lateral\n advection ',
+                  'Coriolis',               'vertical\nadvection',
+                  'vertical\ndiffusion','vertical\nbuoyancy flux',
+                  'tendency' ]
+
+        for i, ax in enumerate(axs.flatten()[:-1]):
+            ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
+                    transform=ax.transAxes, fontsize=8)
+            ax.set_aspect('equal')
+
+        for ax in axs[:-1,:].flatten():
+            ax.set_xticklabels([])
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        for ax in axs[-1,:].flatten():
+            ax.set_xlabel('x')
+        for ax in axs[:,0].flatten():
+            ax.set_ylabel('y')
+
+        pos0 = axs[0,-1].get_position()
+        pos1 = axs[-1,-1].get_position()
+        cbar_ax = fig.add_axes([0.86, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(6.0, 0.5, 'TKE Tendency', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='right')
+
+        plt.savefig(self.case + '_tke_budget_depth_integrated.png')
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_TKE_budget(depth=30, ml_mean=True)
+ke.plot_ml_integrated_TKE_budget()
