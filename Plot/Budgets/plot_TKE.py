@@ -256,6 +256,8 @@ class plot_KE(object):
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
         ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx 
+        ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
+        ds['trd_tot'] = -ds.trd_tot
 
         # plot
         self.vmin, self.vmax = -1e-5, 1e-5
@@ -272,6 +274,7 @@ class plot_KE(object):
         render(axs[0,3], ds, 'trd_zad')
         render(axs[1,0], ds, 'trd_zdf')
         render(axs[1,1], ds, 'trd_bfx')
+        render(axs[1,2], ds, 'trd_tau')
         p = render(axs[1,2], ds, 'trd_tot')
 
         # titles
@@ -279,7 +282,7 @@ class plot_KE(object):
                   'lateral\nadvection ',
                   'Coriolis',               'vertical\nadvection',
                   'vertical\ndiffusion','vertical\nbuoyancy flux',
-                  'tendency' ]
+                  'wind\nstress', 'tendency' ]
 
         for i, ax in enumerate(axs.flatten()[:-1]):
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
@@ -317,6 +320,7 @@ class plot_KE(object):
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
         ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx
+        ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
         ds['trd_tot'] = -ds.trd_tot
 
         # plot
@@ -327,8 +331,8 @@ class plot_KE(object):
         titles = ['pressure\ngrad',
                   'lateral\n advection ',
                   'Coriolis',               'vertical\nadvection',
-                  'vertical\ndiffusion','vertical\nbuoyancy flux',
-                  'tendency' ]
+                  'vertical\ndiffusion','vertical\nbuoyancy\nflux',
+                  'wind\nstress', 'tendency' ]
         var_list = [
         'trd_hpg',
         'trd_adv',
@@ -336,6 +340,7 @@ class plot_KE(object):
         'trd_zad',
         'trd_zdf',
         'trd_bfx',
+        'trd_tau',
         'trd_tot']
         data = [ds[var].values for var in var_list]
         axs.bar(titles, data)
