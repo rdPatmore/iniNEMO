@@ -38,8 +38,8 @@ class mld(object):
                              ).mldr10_3
 
         # horizontal mean
-        mld_timeseries = mld.mean(['x','y'])
-        #mld_timeseries = mld.quantile([0.9], ['x','y']).squeeze()#.values
+        #mld_timeseries = mld.mean(['x','y'])
+        mld_timeseries = mld.quantile([0.01]).squeeze().values
 
         print (mld_timeseries)
 
@@ -50,7 +50,9 @@ class mld(object):
         #print (mld_timeseries.min().values)
         #print (mld_timeseries.max().values)
         print (mld_timeseries[0].values)
+        print (mld_timeseries[0].time_counter.values)
         print (mld_timeseries[-1].values)
+        print (mld_timeseries[-1].time_counter.values)
         
 
 

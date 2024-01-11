@@ -342,7 +342,7 @@ class plot_power_spectrum(object):
         # add variance
         if variance:
             variance = self.calc_variance(spec_mean)
-            ax.text(0.9, 9e-2, '$\sigma=$' + str(variance) + '(km$^{-2}$)', 
+            ax.text(0.9, 9e-2, '$\sigma^2=$' + str(variance) + '(km$^{-2}$)', 
                     va='center', ha='right', size=6, c=c)
         
 
@@ -572,7 +572,7 @@ class plot_power_spectrum(object):
         
         # add 5 km frequency line
         c = 'turquoise'
-        axs[0,-1].vlines(0.2, 6e-7, 7e-2, colors='turquoise', ls=':', lw=0.8,
+        axs[0,-1].vlines(0.2, 6e-7, 7e-2, colors='turquoise', ls=':', lw=1.0,
                         zorder=10)
                      #transform=axs[0,-1].transData)
         #axs[0,-1].text(0.2, 9e-2, '5 km', c='turquoise',

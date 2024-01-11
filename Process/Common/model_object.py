@@ -8,7 +8,7 @@ import glidertools as gt
 from math import radians, cos, sin, asin, sqrt
 from dask.distributed import Client, LocalCluster
 import itertools
-from iniNEMO.Plot.get_transects import get_transects
+from iniNEMO.Process.Glider.get_transects import get_transects
 from dask.diagnostics import ProgressBar
 
 
