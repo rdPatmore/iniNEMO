@@ -44,6 +44,12 @@ class KE_integrals(object):
         # get data
         self.get_ml_masked_tke()
 
+        tke = self.tke_mld.trd_tau.isel(x=20)
+        #tke_e3t = (tke * self.e3t_mean)
+        p = plt.pcolor(self.e3t_mean)
+        plt.colorbar(p)
+        plt.savefig('test.png')
+        print (sdkf)
         # calculate vertical integral
         tke_integ = (self.tke_mld * self.e3t_mean).sum('deptht')
 
@@ -64,5 +70,5 @@ class KE_integrals(object):
             tke_integ.to_netcdf(self.preamble + 'TKE_budget_domain_integ.nc')
 
 ke = KE_integrals('TRD00')
-ke.domain_integrated_ml_KE()
+#ke.domain_integrated_ml_KE()
 ke.vertically_integrated_ml_KE()

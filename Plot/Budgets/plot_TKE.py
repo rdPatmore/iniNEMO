@@ -237,10 +237,10 @@ class plot_KE(object):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
         # ini figure
-        fig, axs = plt.subplots(2, 4, figsize=(5.5,3.5))
-        plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1,
-                            wspace=0.05, hspace=0.05)
-        axs[-1,-1].axis('off')
+        fig, axs = plt.subplots(2, 3, figsize=(5.5,3.5))
+        plt.subplots_adjust(left=0.1, right=0.85, top=0.90, bottom=0.12,
+                            wspace=0.05, hspace=0.30)
+        #axs[-1,-1].axis('off')
 
         # load and slice
         ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
@@ -256,8 +256,9 @@ class plot_KE(object):
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
         ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx 
-        ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
-        ds['trd_tot'] = -ds.trd_tot
+        ds['trd_tau'] = ds.trd_tau 
+        #ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
+        ds['trd_tot'] = ds.trd_tot
 
         # plot
         self.vmin, self.vmax = -1e-5, 1e-5
@@ -270,21 +271,26 @@ class plot_KE(object):
 
         render(axs[0,0], ds, 'trd_hpg')
         render(axs[0,1], ds, 'trd_adv')
-        render(axs[0,2], ds, 'trd_pvo')
-        render(axs[0,3], ds, 'trd_zad')
+        #render(axs[0,2], ds, 'trd_pvo')
+        render(axs[0,2], ds, 'trd_zad')
         render(axs[1,0], ds, 'trd_zdf')
         render(axs[1,1], ds, 'trd_bfx')
-        render(axs[1,2], ds, 'trd_tau')
+        #render(axs[1,2], ds, 'trd_tau')
         p = render(axs[1,2], ds, 'trd_tot')
 
         # titles
-        titles = ['pressure grad',
-                  'lateral\nadvection ',
-                  'Coriolis',               'vertical\nadvection',
-                  'vertical\ndiffusion','vertical\nbuoyancy flux',
-                  'wind\nstress', 'tendency' ]
+        #titles = ['pressure grad',
+        #          'lateral\nadvection ',
+        #          'Coriolis',               'vertical\nadvection',
+        #          'vertical\ndiffusion','vertical\nbuoyancy flux',
+        #          'wind\nstress', 'tendency' ]
+        titles = ['Pressure\nGradient',
+                  'Lateral\nAdvection ',
+                  'Vertical\nAdvection',
+                  'Vertical Diffusion\n+ Wind','Vertical Buoyancy\nFlux',
+                  'Tendency' ]
 
-        for i, ax in enumerate(axs.flatten()[:-1]):
+        for i, ax in enumerate(axs.flatten()):
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
                     transform=ax.transAxes, fontsize=8)
             ax.set_aspect('equal')
@@ -320,6 +326,7 @@ class plot_KE(object):
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
         ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx
+        ds['trd_tau'] = ds.trd_tau 
         ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
         ds['trd_tot'] = -ds.trd_tot
 
@@ -328,11 +335,11 @@ class plot_KE(object):
         self.cmap=cmocean.cm.balance
 
         # titles
-        titles = ['pressure\ngrad',
-                  'lateral\n advection ',
-                  'Coriolis',               'vertical\nadvection',
-                  'vertical\ndiffusion','vertical\nbuoyancy\nflux',
-                  'wind\nstress', 'tendency' ]
+        titles = ['Pressure\nGradient',
+                  'Lateral\nAdvection ',
+                  'Vertical\nAdvection',
+                  'Vertical\nDiffusion\n+ Wind','Vertical\nBuoyancy\nFlux',
+                  'wind\nstress', 'Tendency' ]
         var_list = [
         'trd_hpg',
         'trd_adv',
@@ -352,4 +359,4 @@ class plot_KE(object):
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
 ke.plot_ml_integrated_TKE_budget()
-ke.plot_domain_integrated_TKE_budget()
+#ke.plot_domain_integrated_TKE_budget()

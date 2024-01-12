@@ -1,15 +1,15 @@
 import xarray as xr
 import config
-import iniNEMO.Process.model_object as mo
+import iniNEMO.Process.Common.model_object as mo
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import dask
 import matplotlib
-from get_transects import get_transects
+from iniNEMO.Process.Glider.get_transects import get_transects
 import matplotlib.dates as mdates
-import iniNEMO.Plot.utils as utils
+import iniNEMO.Plot.Utils.utils as utils
 
 dask.config.set({"array.slicing.split_large_chunks": True})
 
@@ -322,6 +322,6 @@ class plot_buoyancy_gradients(object):
 
 p = plot_buoyancy_gradients('EXP10')
 #p.plot_bg_timeseries_with_north_south()
-#p.plot_bg_timeseries_full_model()
+p.plot_bg_timeseries_full_model()
 #p.plot_time_mean_bg()
-p.plot_buoyancy_gradient_directional_bias()
+#p.plot_buoyancy_gradient_directional_bias()

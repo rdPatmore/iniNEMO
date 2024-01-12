@@ -561,7 +561,7 @@ if __name__ == '__main__':
      #m.calc_rhoW()
      #m.calc_KE_budget(depth_str='30')
 
-     m.calc_TKE_budget()
+     #m.calc_TKE_budget()
      #m.merge_vertical_buoyancy_flux()
 
      #m.calc_MKE_budget(depth_str='30')
