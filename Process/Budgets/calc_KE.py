@@ -147,19 +147,39 @@ class KE(object):
             TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
+        ''' 
+        Caclulate turbulent kinetic energy tendency excluting
+        the vertical buoyancy flux term.
+        '''
 
-        # load and slice
+        # set chunking
         #append = 'dep_' + depth_str + '_rey_' + rey_str + '.nc'
-        chunksu = {'x':10, 'depthu': 1}
-        chunksv = {'x':10, 'depthv': 1}
-        chunkst = {'x':10, 'deptht': 1}
-        #chunks = {'time_counter':1}
+        chunksu = {'x':100}
+        chunksv = {'x':100}
+        chunkst = {'x':100}
+
+        # get momentum budgets
         append = 'rey.nc'
         umom = xr.open_dataset(self.preamble + 'momu_' + append, chunks=chunksu)
         vmom = xr.open_dataset(self.preamble + 'momv_' + append, chunks=chunksv)
-        uvel = xr.open_dataset(self.preamble + 'uvel_' + append, chunks=chunksu)
-        vvel = xr.open_dataset(self.preamble + 'vvel_' + append, chunks=chunksv)
+                      
+        # set coords erronously opened as vars
+        coord_list = ['area', 
+                      'time_instant',
+                      'bounds_nav_lat',
+                      'bounds_nav_lon',
+                      'nav_lat',
+                      'nav_lon']
+        umom = umom.set_coords(coord_list + ['depthu_bounds'])
+        vmom = vmom.set_coords(coord_list + ['depthv_bounds'])
 
+        # get velocities
+        uvel = xr.open_dataset(self.preamble + 'uvel_' + append,
+                               chunks=chunksu).uo
+        vvel = xr.open_dataset(self.preamble + 'vvel_' + append,
+                               chunks=chunksv).vo
+
+        # get scale factors
         e3u = xr.open_dataset(self.preamble + 'uvel.nc', chunks=chunksu).e3u
         e3v = xr.open_dataset(self.preamble + 'vvel.nc', chunks=chunksv).e3v
         e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunkst)
@@ -172,22 +192,48 @@ class KE(object):
         e3t = e3t.e3t # get var
 
         # drop time var to avoid unit error of uvel*time
-        #print (umom)
         #umom = umom.drop_vars(['time_instant','time_instant_bounds',
         #                      'time_counter_bounds'])
         #vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
         #                      'time_counter_bounds'])
+
+        # remove u and v from variable names for combining
         for var in umom.data_vars:
             umom = umom.rename({var:var.lstrip('u')})
         for var in vmom.data_vars:
             vmom = vmom.rename({var:var.lstrip('v')})
 
+        # make tau_u 3d
+        surf = {'depthu':[umom.depthu[0].values]}
+        umom['trd_tau'] = umom.trd_tau.expand_dims(dim=surf, axis=1)
+        #umom = umom.chunk(chunksu)
+
+        # make tau_v 3d
+        surf = {'depthv':[vmom.depthv[0].values]}
+        vmom['trd_tau'] = vmom.trd_tau.expand_dims(dim=surf, axis=1)
+        #vmom = vmom.chunk(chunksv)
+
         TKE = self.KE(umom, vmom, uvel, vvel, e3u, e3v, e3t)
+           #           chunks=chunkst)
         TKE = TKE.mean('time_counter')
 
         # save
         with ProgressBar():
             TKE.to_netcdf(self.preamble + 'TKE_budget.nc')#_' + append)
+
+    def merge_vertical_buoyancy_flux(self):
+        ''' add vertical buoyancy flux to TKE dataset '''
+
+        kwargs = {'chunks': {'time_counter': 100}}
+        TKE = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
+        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc', **kwargs)
+
+        # merge in buoyancy flux
+        TKE['trd_bfx'] = b_flux
+
+        with ProgressBar():
+            TKE.to_netcdf(self.preamble + 'TKE_budget_full.nc')
+
 
     def calc_MKE_budget(self, depth_str='mld'):
 
@@ -254,21 +300,35 @@ class KE(object):
         # save
         KE.to_netcdf(self.preamble + 'KE_' + depth_str + '_budget.nc')
 
-    def KE(self, umom, vmom, uvel, vvel, e3u, e3v, e3t):
-        ''' calculate KE - shared function for KE, MKE and TKE '''
+    def KE(self, umom, vmom, uvel, vvel, e3u, e3v, e3t, chunks=-1):
+        ''' 
+        calculate KE - shared function for KE, MKE and TKE
+   
+        Inputs
+        ------
+        umom (xr.Dataset): u-momentum terms
+        vmom (xr.Dataset): v-momentum terms
+        uvel (xr.DataArray): u-velocity
+        vvel (xr.DataArray): v-velocity
 
-        cfg  = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1).squeeze()
+        Returns
+        -------
+        KE (xr.Dataset): kinetic energy tendency terms
+        '''
+
+        cfg  = xr.open_dataset(self.path + 'domain_cfg.nc',
+                               chunks=chunks).squeeze()
 
         bu = cfg.e1u * cfg.e2u * e3u
         bv = cfg.e1v * cfg.e2v * e3v
         bt = cfg.e1t * cfg.e2t * e3t
 
-        uke = uvel.uo * umom * bu
-        vke = vvel.vo * vmom * bv
+        uke = uvel * umom * bu
+        vke = vvel * vmom * bv
 
         # coordinate hack
-        uke = uke.rename_dims({'depthu':'deptht'})
-        vke = vke.rename_dims({'depthv':'deptht'})
+        uke = uke.rename({'depthu':'deptht'})
+        vke = vke.rename({'depthv':'deptht'})
 
         KE = 0.5 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt
 
@@ -500,7 +560,10 @@ if __name__ == '__main__':
      #m.calc_z_KE_budget()
      #m.calc_rhoW()
      #m.calc_KE_budget(depth_str='30')
-     m.calc_TKE_budget()
+
+     #m.calc_TKE_budget()
+     #m.merge_vertical_buoyancy_flux()
+
      #m.calc_MKE_budget(depth_str='30')
      #m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()
