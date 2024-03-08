@@ -166,7 +166,7 @@ def save_interpolated_transects_to_one_file(case, fn, n=100, rotation=None,
     for i in range(n):
         print ('sample: ', i)
         sample = xr.open_dataset(sample_list[i],
-                                 decode_times=False)
+                                 decode_times=False, chunks=-1)
         sample['lon_offset'] = sample.attrs['lon_offset']
         sample['lat_offset'] = sample.attrs['lat_offset']
         sample = sample.set_coords(['lon_offset','lat_offset',
@@ -215,9 +215,10 @@ if __name__ == '__main__':
     #glider_sample_parallel_straight_line_paths()
 
     case='EXP10'
-    fn = 'glider_uniform_interp_1000_parallel_transects'
-    #save_interpolated_transects_to_one_file(case, fn)
-    calculate_buoyancy_gradients_across_straight_line_paths(fn, '12')
+    fn = 'glider_uniform_climb'
+    save_interpolated_transects_to_one_file(case, fn)
+
+    #calculate_buoyancy_gradients_across_straight_line_paths(fn, '12')
 
 
     ######glider_sampling('EXP10', interp_dist=1000, transects=True)
