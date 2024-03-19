@@ -167,13 +167,15 @@ def get_transects(da, concat_dim='distance', method='cycle',
         idx = np.where(max_dist>0.009)[0]
 
     if method == 'from interp_1000':
+        print ('i')
         # get transects from interp_1000_00
         # this data has the mesoscale transects included
 
         path = config.data_path() + 'EXP10/'
         file_path = path + 'GliderRandomSampling/' + \
-                    'glider_uniform_interp_1000_00.nc'
-        glider = xr.open_dataset(file_path).sel(ctd_depth=10, method='nearest')
+                    'glider_uniform_interp_1000.nc'
+        glider = xr.open_dataset(file_path).isel(sample=0)
+        glider = glider.sel(ctd_depth=10, method='nearest')
         
         glider['lon_offset'] = glider.attrs['lon_offset']
         glider['lat_offset'] = glider.attrs['lat_offset']

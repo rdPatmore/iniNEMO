@@ -2,6 +2,8 @@ import xarray as xr
 import numpy as np
 import config
 import dask
+from dask.diagnostics import ProgressBar
+from get_transects import get_transects
 
 class patch_set(object):
     '''
@@ -19,7 +21,7 @@ class patch_set(object):
         self.hist_range = (0,2e-8)
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
 
-    def get_10m_glider_samples(self, rotation=None):
+    def get_10m_glider_samples(self, meso=False):
         """ load processed glider samples restricted to 10 m depth """
 
         # files definitions
@@ -27,21 +29,12 @@ class patch_set(object):
 
         # get samples
         self.samples = xr.open_dataarray(self.data_path + prep +
-             rotation_label + '_b_x_abs_10m_post_transects.nc', 
-             decode_times=False, chunks=-1)
+             '_b_x_abs_10m_post_transects.nc', 
+             decode_times=False)
 
-    def get_glider_samples(self, rotation=None):
-        """ load processed glider samples """
-
-        # files definitions
-        prep = 'GliderRandomSampling/glider_uniform_interp_1000'
-        rotation_label = ""
-        if rotation:
-            rotation_label = "_rotate_" + str(rotation) 
-
-        # get samples
-        self.samples = xr.open_dataset(self.data_path + prep +
-             rotation_label + ".nc", decode_times=False, chunks=-1)
+        # flag for removing mesoscale transect
+        if not meso:
+            self.samples = self.samples.where(self.samples.meso_transect == 1)
 
     def process_bg(self):
         """
@@ -59,8 +52,7 @@ class patch_set(object):
         # assign alias
         self.ds = bg
 
-
-    def get_N2(self):
+    def save_N2_mld(self):
         """
         Save N2 for full domain averaged over the mixed layer 
         """
@@ -68,7 +60,7 @@ class patch_set(object):
         # get data
         W_path = self.data_path + "RawOutput/" + self.file_id + "grid_W.nc"
         T_path = self.data_path + "RawOutput/" + self.file_id + "grid_T.nc"
-        kwargs = {'chunks':{'time_counter':100} ,'decode_cf':False} 
+        kwargs = {'chunks':{'time_counter':1}}
         N2 = xr.open_dataset(W_path, **kwargs).bn2
         mld = xr.open_dataset(T_path, **kwargs).mldr10_3
       
@@ -77,12 +69,50 @@ class patch_set(object):
 
         # find mean N over mixed layer depth
         ds = N2.where(N2.depthw < mld).mean("depthw")
-     
-        # save
-        ds.to_netcdf(self.data_path + "ProcessedVars/" + self.file_id +
-                     "N2_mld.mc")
-        
 
+        # chunk to rolling operation length (1-week)
+        ds = ds.chunk({'time_counter':200})
+
+        # save
+        with ProgressBar():
+            ds.to_netcdf(self.data_path + "ProcessedVars/" + self.file_id +
+                         "N2_mld.nc")
+
+    def save_N2_depth(self, depth=100):
+        """
+        Save N2 for full domain averaged over a given depth
+        """
+
+        # get data
+        W_path = self.data_path + "RawOutput/" + self.file_id + "grid_W.nc"
+        T_path = self.data_path + "RawOutput/" + self.file_id + "grid_T.nc"
+        kwargs = {'chunks':{'time_counter':1}}
+        N2 = xr.open_dataset(W_path, **kwargs).bn2
+        mld = xr.open_dataset(T_path, **kwargs).mldr10_3
+      
+        # dubious merge of offset time_counter
+        mld["time_counter"] = N2.time_counter
+
+        # find mean N over mixed layer depth
+        ds = N2.sel(depthw=[None,depth], method="nearest").mean("depthw")
+
+        # chunk to rolling operation length (1-week)
+        ds = ds.chunk({'time_counter':200})
+
+        # save
+        with ProgressBar():
+            ds.to_netcdf(self.data_path + "ProcessedVars/" + self.file_id +
+                         "N2_{}.nc".format(str(depth)))
+
+    def get_N2(self, dep="100"):
+        """
+        Get N2 for full domain averaged over the mixed layer 
+        """
+
+        kwargs = {'chunks':{'time_counter':200}}
+        self.ds = xr.open_dataset(self.data_path + "ProcessedVars/" 
+                              + self.file_id + "N2_{}.nc".format(dep), **kwargs)
+        
     def get_model_patch_set(self, stats=None, rolling=False, var="bg"):
         ''' 
         restrict the model time to glider time and sample areas
@@ -121,9 +151,9 @@ class patch_set(object):
                                          'yi':(['lat'], yi)})
             patch = patch.swap_dims({'lon':'xi','lat':'yi'})
             patch = patch.reset_coords(['lon','lat'])
-            patch = patch.expand_dims(sample=[l])
+            patch = patch.expand_dims(sample=[l]).chunk({'time_counter':113})
 
-            dims = ['lon','lat','time_counter']
+            dims = ['xi','yi']
             if rolling:
                 rolling_str = '_rolling'
                 # contstruct allows for mean/std over multiple dims
@@ -141,7 +171,6 @@ class patch_set(object):
             if stats == 'median':
                 stats_str = '_median'
                 patch = patch.median(dims)
-                patch = patch.std(dims)
             
             if stats == 'time_mean_space_quantile':
                 kwargs = dict(time_counter=168, center=True, min_periods=1)
@@ -162,16 +191,18 @@ class patch_set(object):
 
         #    patch.to_netcdf('Scratch/patch_' + str(l) + '.nc')
         # space median
-        if stats == 'time_mean_space_quantile':
-            stats_str = '_time_mean_space_quantile'
-            space_dims=['sample','xi','yi']
-            qs = [0.1,0.5,0.9]
-            self.model_patchs = self.model_patches.quantile(qs, space_dims)
+        #if stats == 'time_mean_space_quantile':
+        #    stats_str = '_time_mean_space_quantile'
+        #    space_dims=['sample','xi','yi']
+        #    qs = [0.1,0.5,0.9]
+        #    self.model_patches = self.model_patches.quantile(qs, space_dims)
 
         # save
-        self.model_patches.to_netcdf(config.data_path() + self.case +
+        with ProgressBar():
+            self.model_patches.to_netcdf(config.data_path() + self.case +
                 '/PatchSets/SOCHIC_PATCH_3h_20121209_20130331_' + var +
                 '_patch_set' + rolling_str + stats_str + '.nc')
+                                                              
 
     def group_patch_files(self, stats=None):
         patch_set = xr.open_mfdataset('Scratch/patch*.nc')
@@ -184,7 +215,8 @@ class patch_set(object):
             patch_set = patch_set.quantile(qs, space_dims)
 
         # save
-        patch_set.to_netcdf(config.data_path() + self.case +
+        with ProgressBar():
+            patch_set.to_netcdf(config.data_path() + self.case +
                 '/PatchSets/SOCHIC_PATCH_3h_20121209_20130331_bg_patch_set' +
                 rolling_str + stats_str + '.nc')
 
@@ -192,6 +224,7 @@ class patch_set(object):
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
      exp10 = patch_set('EXP10')
-     #exp10.get_glider_samples()
+     exp10.get_10m_glider_samples(meso=False)
      exp10.get_N2()
-     #exp10.get_model_patch_set(stats="time_mean_space_quantile", var="N2")
+     exp10.get_model_patch_set(stats="mean", var="N2_100m")
+     #exp10.save_N2_depth()

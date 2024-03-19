@@ -553,7 +553,7 @@ class bootstrap_glider_samples(object):
             
         if save:
             hist_ds.to_netcdf(self.data_path + 
-                          '/SOCHIC_PATCH_3h_20121209_20130331_' + 
+                          '/BGHists/SOCHIC_PATCH_3h_20121209_20130331_' + 
                           self.var + '_glider_' +
                           str(n).zfill(2) + '_hist_' + self.append + '.nc')
         return hist_ds
@@ -645,25 +645,23 @@ class bootstrap_glider_samples(object):
                            'bin_right'  : (['bin_centers'], bins[1:])})
         return hist_ds
 
-    def get_full_model_hist(self, save=False, subset='', by_time=None):
+    def get_full_model_hist(self, var, save=False, subset='', by_time=None):
         '''
         make histgram of buoyancy gradients for full model domain
         by_time: splits caluculation over time
                  currently implemeted for weekly splitting only
         '''
-        # load buoyancy gradients       
-        self.get_model_buoyancy_gradients()
 
         # reduce data
-        self.bg = np.abs(self.bg.sel(deptht=10, method='nearest'))
-        #mean_bg = (self.bg.bx + self.bg.by) / 2
-        #mean_bg = self.bg.by
+        var = np.abs(var.sel(deptht=10, method='nearest'))
+        #mean_bg = (var.bx + var.by) / 2
+        #mean_bg = var.by
 
         # subset model
         if self.subset=='north':
-            self.bg = self.bg.where(self.bg.nav_lat>-59.9858036, drop=True)
+            var = var.where(var.nav_lat>-59.9858036, drop=True)
         if self.subset=='south':
-            self.bg = self.bg.where(self.bg.nav_lat<-59.9858036, drop=True)
+            var = var.where(var.nav_lat<-59.9858036, drop=True)
 
 
         def get_rolling_hists(ts):
@@ -673,12 +671,12 @@ class bootstrap_glider_samples(object):
             '''
 
             # get week centred dates
-            week_dates = list(self.bg.time_counter.resample(
+            week_dates = list(var.time_counter.resample(
             time_counter='1W').groups.keys())
 
             # create rolling object as dataset with extra rolled dimension
-            self.bg = self.bg.chunk(dict(time_counter=162,x=64,y=64))
-            rolled = self.bg.rolling(time_counter=ts, center=True).construct(
+            var = var.chunk(dict(time_counter=162,x=64,y=64))
+            rolled = var.rolling(time_counter=ts, center=True).construct(
                          by_time).sel(time_counter=week_dates, method='nearest')
 
             # swap time labels
@@ -700,11 +698,11 @@ class bootstrap_glider_samples(object):
                    for i in range(15)]
         if by_time == 'weekly':
             # split into groups of weeks
-            hist_ds = self.bg.resample(time_counter='1W', skipna=True).map(
+            hist_ds = var.resample(time_counter='1W', skipna=True).map(
                                                          self.get_bg_z_hist)
         elif by_time == '1W_rolling':
             # split into 1 week samples, sampled by week
-            hist_ds = self.bg.groupby_bins('time_counter', date_list,
+            hist_ds = var.groupby_bins('time_counter', date_list,
                                     labels=mid_date).map(self.get_bg_z_hist)
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
         elif by_time == '2W_rolling':
@@ -712,11 +710,11 @@ class bootstrap_glider_samples(object):
             mid_date=mid_date[1:]
             l_dl = date_list[::2] + np.timedelta64(84, 'h')
             l_label = mid_date[::2]
-            hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
+            hist_ds_l = var.groupby_bins('time_counter', l_dl,
                          labels=l_label).map(self.get_bg_z_hist)
             u_dl = date_list[1:-1:2] + np.timedelta64(84, 'h')
             u_label = mid_date[1:-1:2]# + np.timedelta64(1, 'W')
-            hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
+            hist_ds_u = var.groupby_bins('time_counter', u_dl,
                          labels=u_label).map(self.get_bg_z_hist)
             hist_ds = xr.merge([hist_ds_u, hist_ds_l])
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
@@ -725,26 +723,26 @@ class bootstrap_glider_samples(object):
             mid_date=mid_date[1:]
             l_dl = date_list[::3]
             l_label = mid_date[::3]
-            hist_ds_l = self.bg.groupby_bins('time_counter', l_dl,
+            hist_ds_l = var.groupby_bins('time_counter', l_dl,
                          labels=l_label).map(self.get_bg_z_hist)
             m_dl = date_list[1:-1:3]
             m_label = mid_date[1:-1:3]
-            hist_ds_m = self.bg.groupby_bins('time_counter', m_dl,
+            hist_ds_m = var.groupby_bins('time_counter', m_dl,
                          labels=m_label).map(self.get_bg_z_hist)
             u_dl = date_list[2:-1:3]
             u_label = mid_date[2:-1:3]
-            hist_ds_u = self.bg.groupby_bins('time_counter', u_dl,
+            hist_ds_u = var.groupby_bins('time_counter', u_dl,
                          labels=u_label).map(self.get_bg_z_hist)
             hist_ds = xr.merge([hist_ds_u, hist_ds_m, hist_ds_l])
             hist_ds = hist_ds.rename({'time_counter_bins':'time_counter'})
         else:
             # entire timeseries
-            hist_ds = self.get_bg_z_hist(self.bg)
+            hist_ds = self.get_bg_z_hist(var)
 
         if save:
             hist_ds.to_netcdf(self.data_path + 
-                          '/SOCHIC_PATCH_3h_20121209_20130331_bg_model_hist' + 
-                          self.append + '.nc')
+            '/BGHists/SOCHIC_PATCH_3h_20121209_20130331_' + var.name + 
+            '_model_hist' + self.append + '.nc')
         return hist_ds
 
     def get_sampled_model_hist(self):
@@ -1407,7 +1405,10 @@ def prep_hist(by_time=None, interp='1000'):
                                        transect=False, glider_fn=g_fn)
             if by_time:
                  m.append =  m.append + '_' + by_time
-            #m.get_full_model_hist(save=True, by_time=by_time)
+            # load buoyancy gradients       
+            m.get_model_buoyancy_gradients()
+
+            m.get_full_model_hist(self.bg, save=True, by_time=by_time)
             for n in range(1,31):
                 m.get_glider_sampled_hist(n=n, save=True, by_time=by_time)
                                         
