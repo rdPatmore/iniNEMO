@@ -8,7 +8,7 @@ import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
 import cmocean
 import cartopy.crs as ccrs
-import iniNEMO.Plot.plot_density_ratio as dr
+import iniNEMO.Plot.Dynamics.plot_density_ratio as dr
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -25,7 +25,8 @@ class paper_hydrog(object):
             self.subset_var = ''
 
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
-        self.f_path  = config.data_path() + case + self.file_id 
+        category = '/RawOutput'
+        self.f_path  = config.data_path() + case + category + self.file_id 
         self.data_path_old = config.data_path_old() + case + '/'
         self.data_path = config.data_path() + case + '/'
 
@@ -41,7 +42,7 @@ class paper_hydrog(object):
         t48_Ro = xr.open_dataarray(self.data_path_old + 'rossby_number.nc')
         t48_snap = xr.open_dataset(self.f_path + 'grid_T.nc').votemper
         si = xr.open_dataset(self.f_path + 'icemod.nc').icepres
-        t48_domain = xr.open_dataset(self.data_path + 'domain_cfg.nc')
+        t48_domain = xr.open_dataset(self.data_path + 'Grid/domain_cfg.nc')
 
         # restrict data
         halo=10
@@ -124,8 +125,8 @@ class paper_hydrog(object):
                               tmp_planes[4], tmp_planes[5])
 
         # set axis labels
-        axs.set_xlabel(r'Longitude ($^{\circ}$)' , fontsize=8)
-        axs.set_ylabel(r'Latitude ($^{\circ}$)', fontsize=8)
+        axs.set_xlabel(r'Longitude ($^{\circ}$E)' , fontsize=8)
+        axs.set_ylabel(r'Latitude ($^{\circ }$N)', fontsize=8)
         # rotate label
         axs.zaxis.set_rotate_label(False)  # disable automatic rotation
         axs.set_zlabel('Depth (m)' , fontsize=8, rotation=90)
@@ -311,8 +312,8 @@ class paper_hydrog(object):
         '''
 
         # load
-        bg_hist = xr.open_dataset(config.data_path() + self.case +
-                                  self.file_id + 'bg_model_hist.nc').load()
+        bg_hist = xr.open_dataset(config.data_path() + self.case + '/BGHists' +
+                               self.file_id + 'bg_model_hist.nc').load()
 
         # get step boundaries
         stair_edges = np.unique(np.concatenate((bg_hist.bin_left.values, \
@@ -417,7 +418,7 @@ class paper_hydrog(object):
         self.render_buoyancy_gradient_directional_bias(axs1)
         self.render_timeseries(axs2)
 
-        plt.savefig('hydrography_alt_cfg.png', dpi=600)
+        plt.savefig('hydrography_alt_cfg_unit_change.png', dpi=600)
 
 def plot():
     m = paper_hydrog('EXP10')

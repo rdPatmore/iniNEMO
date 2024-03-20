@@ -24,7 +24,9 @@ class plot_buoyancy_ratio(object):
             self.subset_var = ''
 
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
-        self.f_path  = config.data_path() + case + self.file_id 
+        self.f_path  = config.data_path() + case
+        self.raw_f_path  = self.f_path + '/RawOutput' + self.file_id 
+        self.prc_f_path  = self.f_path +  '/ProcessedVars' + self.file_id 
 
     def subset_n_s(self, arr, loc='north'):
         if loc == 'north':
@@ -45,14 +47,14 @@ class plot_buoyancy_ratio(object):
     def load_basics(self):
 
         chunks = {'time_counter':1,'deptht':1}
-        self.bg = xr.open_dataset(self.f_path + 'bg.nc', chunks=chunks)
-        self.T = xr.open_dataset(self.f_path + 'grid_T.nc', 
+        self.bg = xr.open_dataset(self.prc_f_path + 'bg.nc', chunks=chunks)
+        self.T = xr.open_dataset(self.raw_f_path + 'grid_T.nc', 
                                  chunks=chunks).votemper
-        self.S = xr.open_dataset(self.f_path + 'grid_T.nc',
+        self.S = xr.open_dataset(self.raw_f_path + 'grid_T.nc',
                                  chunks=chunks).vosaline
-        self.alpha = xr.open_dataset(self.f_path + 'alpha.nc',
+        self.alpha = xr.open_dataset(self.prc_f_path + 'alpha.nc',
                                      chunks=chunks).to_array().squeeze()
-        self.beta = xr.open_dataset(self.f_path + 'beta.nc',
+        self.beta = xr.open_dataset(self.prc_f_path + 'beta.nc',
                                     chunks=chunks).to_array().squeeze()
 
         # name the arrays (this should really be done in model_object
@@ -107,9 +109,9 @@ class plot_buoyancy_ratio(object):
 
         # load
         chunks = {'time_counter':1,'deptht':1}
-        self.wfo    = xr.open_dataset(self.f_path + 'grid_T.nc',
+        self.wfo    = xr.open_dataset(self.raw_f_path + 'grid_T.nc',
                                    chunks=chunks).wfo
-        self.qt_oce = xr.open_dataset(self.f_path + 'grid_T.nc',
+        self.qt_oce = xr.open_dataset(self.raw_f_path + 'grid_T.nc',
                                       chunks=chunks).qt_oce
 
         # assign index for x and y for merging
@@ -263,7 +265,7 @@ class plot_buoyancy_ratio(object):
         else:
             giddy_str = ''
 
-        f = self.f_path + 'density_ratio' + giddy_str + self.subset_var \
+        f = self.prc_f_path + 'density_ratio' + giddy_str + self.subset_var \
             + '.nc'
 
         if load:
@@ -365,8 +367,8 @@ class plot_buoyancy_ratio(object):
             giddy_str = ''
 
         # define file name
-        f = self.f_path + 'density_ratio_stats' + giddy_str + self.subset_var\
-            + '.nc'
+        f = self.prc_f_path + 'density_ratio_stats' + giddy_str \
+             + self.subset_var + '.nc'
 
         if load:
             self.stats = xr.open_dataset(f)
@@ -394,7 +396,8 @@ class plot_buoyancy_ratio(object):
         '''
 
         # define file name
-        f = self.f_path + 'bg_and_surface_flux_stats' + self.subset_var + '.nc'
+        f = self.prc_f_path + 'bg_and_surface_flux_stats' + \
+            self.subset_var + '.nc'
 
         if load:
             self.stats = xr.open_dataset(f) 
@@ -422,7 +425,7 @@ class plot_buoyancy_ratio(object):
         '''
 
         # get area and regrid to vorticity points
-        area = xr.open_dataset(self.f_path + 'grid_T.nc').area
+        area = xr.open_dataset(self.raw_f_path + 'grid_T.nc').area
         area = self.assign_x_y_index(area)
         if self.subset:
             area = self.subset_n_s(area, loc=self.subset)
@@ -474,7 +477,7 @@ class plot_buoyancy_ratio(object):
         ''' load sea ice and subset '''
 
         # load ice
-        self.si = xr.open_dataset(self.f_path + 'icemod.nc').icepres
+        self.si = xr.open_dataset(self.raw_f_path + 'icemod.nc').icepres
 
         # subset
         if self.subset:
@@ -483,7 +486,8 @@ class plot_buoyancy_ratio(object):
         self.si = self.get_stats(self.si)
 
         if save:
-            f = self.f_path + 'sea_ice_presence_stats' + self.subset_var + '.nc'
+            f = self.prc_f_path + 'sea_ice_presence_stats' \
+              + self.subset_var + '.nc'
             self.si.to_netcdf(f)
 
 
@@ -850,8 +854,8 @@ class plot_buoyancy_ratio(object):
         m.get_density_ratio(load=True)
 
         # get grid - dubious method...
-        lat = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lat
-        lon = xr.open_dataset(self.f_path + 'grid_T.nc').nav_lon
+        lat = xr.open_dataset(self.raw_f_path + 'grid_T.nc').nav_lat
+        lon = xr.open_dataset(self.raw_f_path + 'grid_T.nc').nav_lon
         lat = lat.isel(x=slice(1,None), y=slice(1,-1))
         lon = lon.isel(x=slice(1,None), y=slice(1,-1))
         

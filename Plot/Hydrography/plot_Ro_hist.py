@@ -6,7 +6,7 @@ import matplotlib
 
 matplotlib.rcParams.update({'font.size': 8})
 
-def render_rossby_number_hist(ax):
+def render_rossby_number_hist(ax, scale='linear'):
     '''
     render histogram of the rossby number at the surface
     '''
@@ -33,6 +33,7 @@ def render_rossby_number_hist(ax):
     # x params
     ax.yaxis.get_offset_text().set_visible(False)
     ax.set_ylabel(r'$\zeta/f$ (-)')
+    ax.set_xscale(scale)
     ax.set_ylim(stair_edges[0],stair_edges[-1])
 
 
@@ -42,8 +43,10 @@ def plot_rossby_number():
     '''
 
     # initialise figure
-    fig, ax = plt.subplots()
+    fig, (ax0, ax1) = plt.subplots(1,2, figsize=(6.5,4))
+    plt.subplots_adjust(wspace=0.3)
 
-    render_rossby_number_hist(ax)
-    plt.savefig('rossby_number_pdf_ln.png')
+    render_rossby_number_hist(ax0)
+    render_rossby_number_hist(ax1, scale='log')
+    plt.savefig('rossby_number_pdf_both_scales.png')
 plot_rossby_number()
