@@ -2,6 +2,7 @@ import xarray as xr
 import config
 import matplotlib.pyplot as plt
 import dask
+from dask.diagnostics import ProgressBar
 
 class reynolds(object):
 
@@ -147,7 +148,8 @@ class reynolds(object):
             f_mean = f.mean('time_counter').load()
             
             # save
-            f_mean.to_netcdf(self.nc_preamble + fname_out + '_mean.nc')
+            with ProgressBar():
+                f_mean.to_netcdf(self.nc_preamble + fname_out + '_mean.nc')
 
     def get_primes(self, fname, fname_out, var=None):
         ''' general routine for finding primes '''
@@ -166,7 +168,8 @@ class reynolds(object):
         f_prime = f - f_mean
 
         # save
-        f_prime.to_netcdf(self.nc_preamble + fname_out + '_rey.nc')
+        with ProgressBar():
+            f_prime.to_netcdf(self.nc_preamble + fname_out + '_rey.nc')
 
     def get_means_all(self):
 
@@ -202,8 +205,10 @@ if __name__ == '__main__':
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
-    #m.get_time_mean('momu', 'momu')
-    m.get_primes('momu', 'momu')
+    m.get_time_mean('momu', 'momu')
+    m.get_time_mean('momv', 'momv')
+    #m.get_primes('momu', 'momu')
+    #m.get_primes('momv', 'momv')
 
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')

@@ -148,7 +148,7 @@ class KE(object):
 
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
         ''' 
-        Caclulate turbulent kinetic energy tendency excluting
+        Caclulate turbulent kinetic energy tendency excluding
         the vertical buoyancy flux term.
         '''
 

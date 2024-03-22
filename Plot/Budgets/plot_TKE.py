@@ -243,6 +243,9 @@ class plot_KE(object):
         #axs[-1,-1].axis('off')
 
         # load and slice
+        ds = xr.open_dataset(self.preamble + 'TKE_budget.nc')
+        print (ds)
+        print (sdkjfh)
         ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
         b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
         b_flux = b_flux.sel(deptht=30, method='nearest')
