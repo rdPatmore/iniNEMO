@@ -154,9 +154,9 @@ class KE(object):
 
         # set chunking
         #append = 'dep_' + depth_str + '_rey_' + rey_str + '.nc'
-        chunksu = {'x':100}
-        chunksv = {'x':100}
-        chunkst = {'x':100}
+        chunksu = {'time_counter':100}
+        chunksv = {'time_counter':100}
+        chunkst = {'time_counter':100}
 
         # get momentum budgets
         append = 'rey.nc'
@@ -164,14 +164,14 @@ class KE(object):
         vmom = xr.open_dataset(self.preamble + 'momv_' + append, chunks=chunksv)
                       
         # set coords erronously opened as vars
-        coord_list = ['area', 
-                      'time_instant',
-                      'bounds_nav_lat',
-                      'bounds_nav_lon',
-                      'nav_lat',
-                      'nav_lon']
-        umom = umom.set_coords(coord_list + ['depthu_bounds'])
-        vmom = vmom.set_coords(coord_list + ['depthv_bounds'])
+        #coord_list = ['area', 
+        #              'time_instant',
+        #              'bounds_nav_lat',
+        #              'bounds_nav_lon',
+        #              'nav_lat',
+        #              'nav_lon']
+        #umom = umom.set_coords(coord_list + ['depthu_bounds'])
+        #vmom = vmom.set_coords(coord_list + ['depthv_bounds'])
 
         # get velocities
         uvel = xr.open_dataset(self.preamble + 'uvel_' + append,
@@ -202,19 +202,21 @@ class KE(object):
             umom = umom.rename({var:var.lstrip('u')})
         for var in vmom.data_vars:
             vmom = vmom.rename({var:var.lstrip('v')})
+        umom = umom.drop(['trd_tau2d', 'trd_bfr2d', 'trd_tfr2d'])
+        vmom = vmom.drop(['trd_tau2d', 'trd_bfr2d', 'trd_tfr2d'])
 
-        # make tau_u 3d
-        surf = {'depthu':[umom.depthu[0].values]}
-        umom['trd_tau'] = umom.trd_tau.expand_dims(dim=surf, axis=1)
-        #umom = umom.chunk(chunksu)
+        ## make tau_u 3d
+        #u_tau2d_hu = umom.trd_tau2d * umom.hu
+        #surf = {'depthu':[umom.depthu[0].values]}
+        #umom['trd_tau2d_h'] = u_tau2d_hu.expand_dims(dim=surf, axis=1)
 
-        # make tau_v 3d
-        surf = {'depthv':[vmom.depthv[0].values]}
-        vmom['trd_tau'] = vmom.trd_tau.expand_dims(dim=surf, axis=1)
-        #vmom = vmom.chunk(chunksv)
+        ## make tau_v 3d
+        #v_tau2d_hv = vmom.trd_tau2d * vmom.hv
+        #surf = {'depthv':[vmom.depthv[0].values]}
+        #vmom['trd_tau2d_h'] = v_tau2d_hv.expand_dims(dim=surf, axis=1)
 
+        # get TKE
         TKE = self.KE(umom, vmom, uvel, vvel, e3u, e3v, e3t)
-           #           chunks=chunkst)
         TKE = TKE.mean('time_counter')
 
         # save
@@ -323,6 +325,7 @@ class KE(object):
         bv = cfg.e1v * cfg.e2v * e3v
         bt = cfg.e1t * cfg.e2t * e3t
 
+        # Note: 2d variables are broadcast to 3d
         uke = uvel * umom * bu
         vke = vvel * vmom * bv
 
@@ -561,7 +564,7 @@ if __name__ == '__main__':
      #m.calc_rhoW()
      #m.calc_KE_budget(depth_str='30')
 
-     #m.calc_TKE_budget()
+     m.calc_TKE_budget()
      #m.merge_vertical_buoyancy_flux()
 
      #m.calc_MKE_budget(depth_str='30')

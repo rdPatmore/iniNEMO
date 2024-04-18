@@ -32,7 +32,7 @@ class KE_integrals(object):
 
         # get tke
         kwargs = {'chunks':{'x':100, 'y':100}} 
-        tke = xr.open_dataset(self.preamble + 'TKE_budget_full.nc', **kwargs)
+        tke = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
 
         # mask below time-mean mixed layer
         self.tke_mld = tke.where(tke.deptht < mld_mean, drop=False)

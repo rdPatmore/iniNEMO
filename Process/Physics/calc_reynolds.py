@@ -137,7 +137,7 @@ class reynolds(object):
     def get_time_mean(self, fname, fname_out, var=None):
         ''' general routine for finding means '''
 
-        kwargs = {'decode_cf':False} 
+        kwargs = {'decode_cf':False, 'chunks':{'time_counter':1}} 
         with xr.open_dataset(self.nc_preamble + fname + '.nc', **kwargs) as f:
             if var:
                f = f[var]
@@ -145,7 +145,7 @@ class reynolds(object):
                f = f.set_coords('time_instant')
 
             # mean
-            f_mean = f.mean('time_counter').load()
+            f_mean = f.mean('time_counter')#.load()
             
             # save
             with ProgressBar():
@@ -155,17 +155,24 @@ class reynolds(object):
         ''' general routine for finding primes '''
 
         # load
-        kwargs = {'decode_cf':False, 'chunks':{'time_counter':20}}
+        kwargs = {'decode_cf':True, 'chunks':{'time_counter':1}}
         f = xr.open_dataset(self.nc_preamble + fname + '.nc', **kwargs)
-        f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
+        #f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
+        f_mean = xr.open_dataset(self.nc_preamble + fname + '_mean.nc', 
+                                 decode_cf=False, chunks=-1)
         if fname in ['grid_T_30','grid_T']:
            f = f.set_coords('time_instant')
 
         if fname in ['momu','momv']:
-            f = f.drop(['time_counter_bounds','time_instant_bounds'])
-            f_mean = f_mean.drop(['time_counter_bounds','time_instant_bounds'])
+            f = f.drop(['time_counter_bounds'])
+            f_mean = f_mean.drop(['time_counter_bounds'])
+
         # reynolds
         f_prime = f - f_mean
+
+        for var in list(f_prime.keys()):
+            chunks = (tuple(max(c) for c in f_prime[var].chunks))
+            f_prime[var].encoding['chunksizes'] = chunks 
 
         # save
         with ProgressBar():
@@ -205,16 +212,17 @@ if __name__ == '__main__':
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
-    m.get_time_mean('momu', 'momu')
-    m.get_time_mean('momv', 'momv')
+    #m.add_depth_integrated_wind_stress()
+    #m.get_time_mean('momu', 'momu')
+    #m.get_time_mean('momv', 'momv')
     #m.get_primes('momu', 'momu')
     #m.get_primes('momv', 'momv')
 
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')
 
-    #m.get_primes('uvel', 'uvel')
-    #m.get_primes('vvel', 'vvel')
+    m.get_primes('uvel', 'uvel')
+    m.get_primes('vvel', 'vvel')
 
     #m.get_time_mean('rhoW', 'rhoW')
     #m.get_time_mean('wvel', 'wvel')
