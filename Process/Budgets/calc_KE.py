@@ -151,27 +151,21 @@ class KE(object):
         Caclulate turbulent kinetic energy tendency excluding
         the vertical buoyancy flux term.
         '''
-
         # set chunking
-        #append = 'dep_' + depth_str + '_rey_' + rey_str + '.nc'
-        chunksu = {'time_counter':100}
-        chunksv = {'time_counter':100}
-        chunkst = {'time_counter':100}
+        chunksu = {'time_counter':10}
+        chunksv = {'time_counter':10}
+        chunkst = {'time_counter':10}
 
         # get momentum budgets
         append = 'rey.nc'
         umom = xr.open_dataset(self.preamble + 'momu_' + append, chunks=chunksu)
         vmom = xr.open_dataset(self.preamble + 'momv_' + append, chunks=chunksv)
-                      
-        # set coords erronously opened as vars
-        #coord_list = ['area', 
-        #              'time_instant',
-        #              'bounds_nav_lat',
-        #              'bounds_nav_lon',
-        #              'nav_lat',
-        #              'nav_lon']
-        #umom = umom.set_coords(coord_list + ['depthu_bounds'])
-        #vmom = vmom.set_coords(coord_list + ['depthv_bounds'])
+
+        # remove u and v from variable names for combining
+        for var in umom.data_vars:
+            umom = umom.rename({var:var.lstrip('u')})
+        for var in vmom.data_vars:
+            vmom = vmom.rename({var:var.lstrip('v')})
 
         # get velocities
         uvel = xr.open_dataset(self.preamble + 'uvel_' + append,
@@ -183,37 +177,10 @@ class KE(object):
         e3u = xr.open_dataset(self.preamble + 'uvel.nc', chunks=chunksu).e3u
         e3v = xr.open_dataset(self.preamble + 'vvel.nc', chunks=chunksv).e3v
         e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunkst)
-        #e3u = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc').e3u
-        #e3v = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc').e3v
-        #e3t = xr.open_dataset(self.preamble + 'grid_T_' + depth_str + '.nc')
 
         # use time that is consistent with grid_W
         e3t['time_counter'] = e3t.time_instant
         e3t = e3t.e3t # get var
-
-        # drop time var to avoid unit error of uvel*time
-        #umom = umom.drop_vars(['time_instant','time_instant_bounds',
-        #                      'time_counter_bounds'])
-        #vmom = vmom.drop_vars(['time_instant','time_instant_bounds',
-        #                      'time_counter_bounds'])
-
-        # remove u and v from variable names for combining
-        for var in umom.data_vars:
-            umom = umom.rename({var:var.lstrip('u')})
-        for var in vmom.data_vars:
-            vmom = vmom.rename({var:var.lstrip('v')})
-        umom = umom.drop(['trd_tau2d', 'trd_bfr2d', 'trd_tfr2d'])
-        vmom = vmom.drop(['trd_tau2d', 'trd_bfr2d', 'trd_tfr2d'])
-
-        ## make tau_u 3d
-        #u_tau2d_hu = umom.trd_tau2d * umom.hu
-        #surf = {'depthu':[umom.depthu[0].values]}
-        #umom['trd_tau2d_h'] = u_tau2d_hu.expand_dims(dim=surf, axis=1)
-
-        ## make tau_v 3d
-        #v_tau2d_hv = vmom.trd_tau2d * vmom.hv
-        #surf = {'depthv':[vmom.depthv[0].values]}
-        #vmom['trd_tau2d_h'] = v_tau2d_hv.expand_dims(dim=surf, axis=1)
 
         # get TKE
         TKE = self.KE(umom, vmom, uvel, vvel, e3u, e3v, e3t)
@@ -564,8 +531,8 @@ if __name__ == '__main__':
      #m.calc_rhoW()
      #m.calc_KE_budget(depth_str='30')
 
-     m.calc_TKE_budget()
-     #m.merge_vertical_buoyancy_flux()
+     #m.calc_TKE_budget()
+     m.merge_vertical_buoyancy_flux()
 
      #m.calc_MKE_budget(depth_str='30')
      #m.calc_z_TKE_budget()

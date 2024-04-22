@@ -7,8 +7,8 @@
 #SBATCH --partition=high-mem
 #SBATCH -o %j.out 
 #SBATCH -e %j.err
-#SBATCH --time=24:00:00
-#SBATCH --mem=100G
+#SBATCH --time=48:00:00
+#SBATCH --mem=200G
 
 # executable 
 #python -u calc_mld.py
