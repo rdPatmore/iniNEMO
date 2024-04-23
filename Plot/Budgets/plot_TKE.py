@@ -237,29 +237,23 @@ class plot_KE(object):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
         # ini figure
-        fig, axs = plt.subplots(2, 3, figsize=(5.5,3.5))
+        fig, axs = plt.subplots(2, 4, figsize=(5.5,3.5))
         plt.subplots_adjust(left=0.1, right=0.85, top=0.90, bottom=0.12,
                             wspace=0.05, hspace=0.30)
         #axs[-1,-1].axis('off')
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'TKE_budget.nc')
-        print (ds)
-        print (sdkjfh)
+        #ds = xr.open_dataset(self.preamble + 'TKE_budget_full.nc')
         ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
-        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc')
-        b_flux = b_flux.sel(deptht=30, method='nearest')
-        b_flux = b_flux.drop(['nav_lon','nav_lat'])
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
         cut=slice(10,-10)
         ds     = ds.isel(x=cut,y=cut)
         cfg    = cfg.isel(x=cut,y=cut)
-        b_flux = b_flux.isel(x=cut,y=cut)
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
-        ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx 
-        ds['trd_tau'] = ds.trd_tau 
+        ds['trd_hpg'] = ds.trd_hpg
+        #ds['trd_tau'] = ds.trd_tau 
         #ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
         ds['trd_tot'] = ds.trd_tot
 
@@ -274,12 +268,12 @@ class plot_KE(object):
 
         render(axs[0,0], ds, 'trd_hpg')
         render(axs[0,1], ds, 'trd_adv')
-        #render(axs[0,2], ds, 'trd_pvo')
         render(axs[0,2], ds, 'trd_zad')
-        render(axs[1,0], ds, 'trd_zdf')
-        render(axs[1,1], ds, 'trd_bfx')
-        #render(axs[1,2], ds, 'trd_tau')
-        p = render(axs[1,2], ds, 'trd_tot')
+        render(axs[0,3], ds, 'trd_zdf')
+        render(axs[1,0], ds, 'trd_tfr2d')
+        render(axs[1,1], ds, 'trd_tau2d')
+        p = render(axs[1,2], ds, 'trd_bfx')
+        p = render(axs[1,3], ds, 'trd_tot')
 
         # titles
         #titles = ['pressure grad',
@@ -287,10 +281,13 @@ class plot_KE(object):
         #          'Coriolis',               'vertical\nadvection',
         #          'vertical\ndiffusion','vertical\nbuoyancy flux',
         #          'wind\nstress', 'tendency' ]
-        titles = ['Pressure\nGradient',
+        titles = ['Horiz. Pressure\nGradient',
                   'Lateral\nAdvection ',
                   'Vertical\nAdvection',
-                  'Vertical Diffusion\n+ Wind','Vertical Buoyancy\nFlux',
+                  'Vertical Diffusion',
+                  'Ice-Ocean Drag',
+                  'Wind Stress',
+                  'Vertical Buoyancy\nFlux',
                   'Tendency' ]
 
         for i, ax in enumerate(axs.flatten()):

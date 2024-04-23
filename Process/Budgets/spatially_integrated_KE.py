@@ -31,12 +31,17 @@ class KE_integrals(object):
         self.e3t_mean = ds_mean.e3t
 
         # get tke
-        kwargs = {'chunks':{'x':100, 'y':100}} 
-        tke = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
+        kwargs = {'chunks':{'time_counter':100}} 
+        tke = xr.open_dataset(self.preamble + 'TKE_budget_full.nc', **kwargs)
 
         # mask below time-mean mixed layer
         self.tke_mld = tke.where(tke.deptht < mld_mean, drop=False)
 
+        # restore unmasked 2d variables
+        for var in list(tke.keys()):
+            if var[-2:] == '2d':
+                print (var)
+                self.tke_mld[var] = tke[var]
 
     def vertically_integrated_ml_KE(self, KE_type='TKE'):
         ''' vertically integrated KE budget '''
@@ -44,12 +49,12 @@ class KE_integrals(object):
         # get data
         self.get_ml_masked_tke()
 
-        tke = self.tke_mld.trd_tau.isel(x=20)
-        #tke_e3t = (tke * self.e3t_mean)
-        p = plt.pcolor(self.e3t_mean)
-        plt.colorbar(p)
-        plt.savefig('test.png')
-        print (sdkf)
+        #tke = self.tke_mld.trd_tau.isel(x=20)
+        ##tke_e3t = (tke * self.e3t_mean)
+        #p = plt.pcolor(self.e3t_mean)
+        #plt.colorbar(p)
+        #plt.savefig('test.png')
+        #print (sdkf)
         # calculate vertical integral
         tke_integ = (self.tke_mld * self.e3t_mean).sum('deptht')
 
