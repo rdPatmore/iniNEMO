@@ -221,13 +221,13 @@ if __name__ == '__main__':
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')
 
-    m.get_primes('uvel', 'uvel')
-    m.get_primes('vvel', 'vvel')
+    #m.get_primes('uvel', 'uvel')
+    #m.get_primes('vvel', 'vvel')
 
-    #m.get_time_mean('rhoW', 'rhoW')
+    m.get_time_mean('rhoW', 'rhoW')
     #m.get_time_mean('wvel', 'wvel')
 
-    #m.get_primes('rhoW', 'rhoW')
+    m.get_primes('rhoW', 'rhoW')
     #m.get_primes('wvel', 'wvel')
 
     #m.get_primes_all()

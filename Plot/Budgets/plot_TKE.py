@@ -86,7 +86,7 @@ class plot_KE(object):
                     va='top', ha='right')
 
         # save
-        plt.savefig('ke_oce_ice.png', dpi=600)
+        plt.savefig(self.preamble + '_ke_oce_ice.png', dpi=600)
 
     def plot_KE_budget_slices(self):
         ''' plot budget of KE '''
@@ -243,7 +243,6 @@ class plot_KE(object):
         #axs[-1,-1].axis('off')
 
         # load and slice
-        #ds = xr.open_dataset(self.preamble + 'TKE_budget_full.nc')
         ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
@@ -253,8 +252,6 @@ class plot_KE(object):
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
         ds['trd_hpg'] = ds.trd_hpg
-        #ds['trd_tau'] = ds.trd_tau 
-        #ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
         ds['trd_tot'] = ds.trd_tot
 
         # plot
@@ -276,11 +273,6 @@ class plot_KE(object):
         p = render(axs[1,3], ds, 'trd_tot')
 
         # titles
-        #titles = ['pressure grad',
-        #          'lateral\nadvection ',
-        #          'Coriolis',               'vertical\nadvection',
-        #          'vertical\ndiffusion','vertical\nbuoyancy flux',
-        #          'wind\nstress', 'tendency' ]
         titles = ['Horiz. Pressure\nGradient',
                   'Lateral\nAdvection ',
                   'Vertical\nAdvection',
@@ -318,39 +310,48 @@ class plot_KE(object):
         ''' plot domain integrated TKE budget '''
      
         # ini figure
-        fig, axs = plt.subplots(1, figsize=(5.5,3.5))
-        plt.subplots_adjust(left=0.1, right=0.85, top=0.95, bottom=0.1)
+        fig, axs = plt.subplots(1, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.98, bottom=0.19)
 
         # load and slice
         ds = xr.open_dataset(self.preamble + 'TKE_budget_domain_integ.nc')
 
         ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
-        ds['trd_hpg'] = ds.trd_hpg + ds.trd_bfx
-        ds['trd_tau'] = ds.trd_tau 
-        ds['trd_zdf'] = ds.trd_zdf - ds.trd_tau 
-        ds['trd_tot'] = -ds.trd_tot
+        ds['trd_hpg'] = ds.trd_hpg# + ds.trd_bfx
+        #ds['trd_tot'] = -ds.trd_tot
 
         # plot
         self.vmin, self.vmax = -1e-5, 1e-5
         self.cmap=cmocean.cm.balance
 
         # titles
-        titles = ['Pressure\nGradient',
+        titles = ['Horiz.\nPressure\nGradient',
                   'Lateral\nAdvection ',
                   'Vertical\nAdvection',
-                  'Vertical\nDiffusion\n+ Wind','Vertical\nBuoyancy\nFlux',
-                  'wind\nstress', 'Tendency' ]
+                  'Vertical\nDiffusion',
+                  'Ice-Ocean\n Drag',
+                  'Wind\nStress',
+                  'Vertical\nBuoyancy\nFlux',
+                  'Tendency' ]
+
+        # set list of terms
         var_list = [
         'trd_hpg',
         'trd_adv',
-        'trd_pvo',
         'trd_zad',
         'trd_zdf',
+        'trd_tfr2d',
+        'trd_tau2d',
         'trd_bfx',
-        'trd_tau',
         'trd_tot']
+
+        # render data
         data = [ds[var].values for var in var_list]
         axs.bar(titles, data)
+
+        # set axis labels
+        axs.set_xlabel('Component')
+        axs.set_ylabel('EKE')
 
         plt.savefig(self.case + '_tke_budget_domain_integrated.png', dpi=600)
 
@@ -358,5 +359,6 @@ class plot_KE(object):
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_ml_integrated_TKE_budget()
+ke.plot_ke_time_series()
+#ke.plot_ml_integrated_TKE_budget()
 #ke.plot_domain_integrated_TKE_budget()

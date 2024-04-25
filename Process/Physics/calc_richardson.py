@@ -2,8 +2,9 @@ import xarray as xr
 import config
 import numpy as np
 import matplotlib.pyplot as plt
-import iniNEMO.Process.calc_vorticity as vort
+import iniNEMO.Process.Physics.calc_vorticity as vort
 import dask
+from dask.diagnostics import ProgressBar
 
 # Let's start simple with a LocalCluster that makes use of all the cores and RAM we have on a single machine
 from dask.distributed import Client, LocalCluster
@@ -11,10 +12,11 @@ from dask.distributed import Client, LocalCluster
 class richardson(object):
 
     def __init__(self, model, nc_preamble):
-        self.chunks = {'x':100,'y':100}
-        #self.chunks = {'time_counter':1}
+        #self.chunks = {'x':100,'y':100}
+        self.chunks = {'time_counter':1}
         self.path = config.data_path() + model
         self.nc_preamble = self.path + '/' + nc_preamble
+        self.model = model
         #self.dsu = xr.open_dataset(self.path + 
         #               '/SOCHIC_PATCH_3h_20121209_20130331_grid_U.nc',
         #                chunks=self.chunks)
@@ -29,7 +31,7 @@ class richardson(object):
                         #chunks={'x':50,'y':50} )
 
         # remove halo
-        self.cfg  = self.cfg.isel(x=slice(1,-1), y=slice(1,-1)).squeeze()
+        #self.cfg  = self.cfg.isel(x=slice(1,-1), y=slice(1,-1)).squeeze()
         #self.area = self.area.isel(x=slice(1,-1), y=slice(1,-1))
         #self.dsu  = self.dsu.isel(x=slice(1,-1), y=slice(1,-1))
         #self.dsv  = self.dsv.isel(x=slice(1,-1), y=slice(1,-1))
@@ -39,14 +41,24 @@ class richardson(object):
          
         g = 9.81
         rho_0 = 1026
-        rho = xr.open_dataset(self.nc_preamble + '_rho.nc', 
-                              chunks=self.chunks).rho
+        if self.model == 'EXP10':
+            rho = xr.open_dataset(self.nc_preamble + '_rho.nc', 
+                                  chunks=self.chunks).rho
+        elif self.model == 'TRD00':
+            rho = xr.open_dataset(self.nc_preamble + '_grid_T.nc', 
+                                  chunks=self.chunks).rhop
 
         # calculate buoyancy gradients
         b = g*(1-rho/rho_0) 
 
         dx = self.cfg.e1u.isel(x=slice(None,-1), y=slice(None,-1))
         dy = self.cfg.e1v.isel(x=slice(None,-1), y=slice(None,-1))
+        #print (b.diff('x', label='lower'))
+        print (b.diff('x', label='lower').isel(y=slice(None,-1)))
+        print (dx)
+        #by = b.diff('y', label='lower') / dy
+        #bx = b.diff('x', label='lower') / dx
+        #by = b.diff('y', label='lower') / dy
         bx = b.diff('x', label='lower').isel(y=slice(None,-1)) / dx
         by = b.diff('y', label='lower').isel(x=slice(None,-1)) / dy
         bx.name = 'bx'
@@ -54,7 +66,8 @@ class richardson(object):
         bg = xr.merge([bx,by])
 
         if save:
-            bg.to_netcdf(self.nc_preamble + '_bg.nc')
+            with ProgressBar():
+                bg.to_netcdf(self.nc_preamble + '_bg.nc')
 
     def buoyancy_gradient_mod_squared(self, load=False, save=False):
         ''' calculate the modulus square buoyancy gradient '''
@@ -200,12 +213,12 @@ if __name__ == '__main__':
     # explicitly connect to the cluster we just created
     #client = Client(cluster)
 
-    nc_preamble = 'SOCHIC_PATCH_3h_20121209_20130331'
-    m = richardson('EXP10', nc_preamble)
+    nc_preamble = 'SOCHIC_PATCH_15mi_20121209_20121211'
+    m = richardson('TRD00', nc_preamble)
     start = time.time()
-    #m.buoyancy_gradients(save=True)
+    m.buoyancy_gradients(save=True)
     #m.buoyancy_gradient_mod_squared(save=True)
     #m.format_N2(save=True)
-    m.balanced_richardson_number(save=True)
+    #m.balanced_richardson_number(save=True)
     end = time.time()
     print('time elapsed ', end - start)

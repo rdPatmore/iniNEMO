@@ -69,11 +69,11 @@ class KE_integrals(object):
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
         # calculate domain integral
-        tke_integ = (self.tke_mld * self.e3t_mean * cfg.glamt * cfg.gphit).sum()
+        tke_integ = (self.tke_mld * self.e3t_mean * cfg.e2t * cfg.e1t).sum()
 
         with ProgressBar():
             tke_integ.to_netcdf(self.preamble + 'TKE_budget_domain_integ.nc')
 
 ke = KE_integrals('TRD00')
-#ke.domain_integrated_ml_KE()
-ke.vertically_integrated_ml_KE()
+ke.domain_integrated_ml_KE()
+#ke.vertically_integrated_ml_KE()

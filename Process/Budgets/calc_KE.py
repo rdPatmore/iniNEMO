@@ -94,7 +94,8 @@ class KE(object):
         vels_T = xr.merge([self.uT, self.vT, self.wT])
        
         if save:
-            vels_T.to_netcdf(self.preamble + 'vels_Tpt.nc')
+            with ProgressBar():
+                vels_T.to_netcdf(self.preamble + 'vels_Tpt.nc')
 
     def calc_reynolds_terms(self):
         ''' calculate spatial-mean and spatial-deviations of velocities '''
@@ -106,8 +107,10 @@ class KE(object):
         # open ice mask
         #icemsk = xr.open_dataset(self.preamble + 'icemod.nc', decode_cf=False,
         icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
-                                 chunks={'time_counter':10} ).icepres
-        icemsk['time_counter'] = icemsk.time_instant
+                                 chunks={'time_counter':10} ).siconc
+        icemsk['time_counter'] = vels.time_counter
+        print (vels.time_counter.values)
+        print (icemsk.time_counter.values)
 
         # ice mask
         vel_ice = vels.where(icemsk > 0)
@@ -144,7 +147,8 @@ class KE(object):
         TKE = xr.merge([self.TKE_ice, self.TKE_oce])
     
         if save:
-            TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
+            with ProgressBar():
+                TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
 
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
         ''' 
@@ -374,7 +378,7 @@ class KE(object):
         # get variables
         T_path = self.preamble + 'grid_T.nc'
         W_path = self.preamble + 'grid_W.nc'
-        rho    = xr.open_dataset(T_path, decode_times=False).rhd
+        rho    = xr.open_dataset(T_path, decode_times=False).rhop
         depthw = xr.open_dataset(W_path, decode_times=False).depthw
 
         # shift to w-pts
@@ -399,7 +403,7 @@ class KE(object):
         
         # get variables
         chunk = {'time_counter':1}
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW.nc', chunks=chunk).rhd
+        rhoW  = xr.open_dataset(self.preamble + 'rhoW.nc', chunks=chunk).rhop
         e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
         wvel = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).wo
         e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
@@ -407,7 +411,7 @@ class KE(object):
         # calc buoyancy flux on w-pts
         rho0 = 1026
         g = 9.81
-        z_conv = g * rhoW * wvel * e3w 
+        z_conv = g * (1 - (rhoW / rho0)) * wvel * e3w 
      
         # shift to t-pts
         z_convT = 0.5 * ( z_conv + self.km1(z_conv, dvar='depthw') )
@@ -435,7 +439,7 @@ class KE(object):
         
         # get variables
         chunk = {'time_counter':1}
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW_rey.nc', chunks=chunk).rhd
+        rhoW  = xr.open_dataset(self.preamble + 'rhoW_rey.nc', chunks=chunk).rhop
         e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
         wvel = xr.open_dataset(self.preamble + 'wvel_rey.nc', chunks=chunk).wo
         e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
@@ -443,7 +447,7 @@ class KE(object):
         # calc buoyancy flux on w-pts
         rho0 = 1026
         g = 9.81
-        z_conv = g * rhoW * wvel * e3w 
+        z_conv = g * (1 - (rhoW / rho0)) * wvel * e3w 
      
         # shift to t-pts
         z_convT = 0.5 * ( z_conv + self.km1(z_conv, dvar='depthw') )
@@ -467,13 +471,14 @@ class KE(object):
 
         # save
         b_flux.name = 'b_flux_rey'
-        b_flux.to_netcdf(self.preamble + 'b_flux_rey.nc')
+        with ProgressBar():
+            b_flux.to_netcdf(self.preamble + 'b_flux_rey.nc')
 
     def calc_z_MKE_budget(self):
         ''' calculate the vertical buoyancy flux '''
         
         # get variables
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW_mean.nc').rhd
+        rhoW  = xr.open_dataset(self.preamble + 'rhoW_mean.nc').rhop
         e3t  = xr.open_dataset(self.preamble + 'grid_T_mean.nc').e3t
         wvel = xr.open_dataset(self.preamble + 'grid_W_mean.nc').wo
         e3w = xr.open_dataset(self.preamble + 'grid_W_mean.nc').e3w
@@ -481,7 +486,7 @@ class KE(object):
         # calc buoyancy flux on w-pts
         rho0 = 1026
         g = 9.81
-        z_conv = g * rhoW * wvel * e3w 
+        z_conv = g * (1 - (rhoW / rho0)) * wvel * e3w 
      
         # shift to t-pts
         z_convT = 0.5 * ( z_conv + self.km1(z_conv, dvar='depthw') )
@@ -527,17 +532,22 @@ class KE(object):
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
      m = KE('TRD00')
-     #m.calc_z_KE_budget()
      #m.calc_rhoW()
+     #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
 
      #m.calc_TKE_budget()
-     m.merge_vertical_buoyancy_flux()
+     #m.merge_vertical_buoyancy_flux()
+
+     # get TKE step 1
+     #m.grid_to_T_pts(save=True)
+
+     # get TKE step 2
+     #m.calc_reynolds_terms()
+     #m.calc_TKE(save=True)
 
      #m.calc_MKE_budget(depth_str='30')
-     #m.calc_z_TKE_budget()
+     m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()
      #m.calc_TKE_steadiness()
      #m.calc_z_TKE_budget()
-     #m.calc_reynolds_terms()
-     #m.calc_TKE(save=True)
