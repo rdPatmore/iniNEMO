@@ -35,8 +35,8 @@ class plot_KE(object):
                            shading='nearest')
 
         bg = xr.open_dataset(self.preamble + 'bg_norm_ice_oce_quantile.nc')
-        bg_ice = bg.bg_norm_ice
-        bg_oce = bg.bg_norm_oce
+        bg_ice = bg.bg_norm_ice.squeeze()
+        bg_oce = bg.bg_norm_oce.squeeze()
         axs[2].fill_between(bg_ice.time_counter,
                                  bg_ice.sel(quantile=0.05),
                                  bg_ice.sel(quantile=0.95),
@@ -86,7 +86,8 @@ class plot_KE(object):
                     va='top', ha='right')
 
         # save
-        plt.savefig(self.preamble + '_ke_oce_ice.png', dpi=600)
+        print (self.case + '_ke_oce_ice.png')
+        plt.savefig(self.case + '_ke_oce_ice.png', dpi=600)
 
     def plot_KE_budget_slices(self):
         ''' plot budget of KE '''

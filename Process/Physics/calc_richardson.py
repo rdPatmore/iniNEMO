@@ -216,8 +216,8 @@ if __name__ == '__main__':
     nc_preamble = 'SOCHIC_PATCH_15mi_20121209_20121211'
     m = richardson('TRD00', nc_preamble)
     start = time.time()
-    m.buoyancy_gradients(save=True)
-    #m.buoyancy_gradient_mod_squared(save=True)
+    #m.buoyancy_gradients(save=True)
+    m.buoyancy_gradient_mod_squared(save=True)
     #m.format_N2(save=True)
     #m.balanced_richardson_number(save=True)
     end = time.time()
