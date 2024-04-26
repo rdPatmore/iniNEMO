@@ -8,7 +8,7 @@
 #SBATCH -o %j.out 
 #SBATCH -e %j.err
 #SBATCH --time=48:00:00
-#SBATCH --mem=100G
+#SBATCH --mem=200G
 
 # executable 
 #python -u calc_mld.py
@@ -17,4 +17,4 @@ conda activate coast
 path='/home/users/ryapat30/iniNEMO/'
 export PYTHONPATH=$path:$PYTHONPATH
 
-python -u ../Budgets/calc_KE.py
+python -u ../Physics/calc_richardson.py
