@@ -425,13 +425,94 @@ class plot_KE(object):
         axs.set_xlabel('Component')
         axs.set_ylabel('EKE')
 
-        plt.savefig(self.case + '_tke_budget_domain_integrated_zoned.png', dpi=600)
+        plt.savefig(self.case + '_tke_budget_domain_integrated_zoned_new.png',
+                    dpi=600)
+
+    def plot_laterally_integrated_TKE_budget_ice_oce_zones(self):
+        ''' plot laterally integrated TKE budget for each ice ocean zone'''
+     
+        # ini figure
+        fig, axs = plt.subplots(1, 3, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.13, right=0.85, top=0.98, bottom=0.19)
+
+        def get_ds_and_combinde_vars(zone):
+            ds = xr.open_dataset(
+                 self.preamble + 'TKE_budget_horizontal_integ_' + zone + '.nc')
+
+            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_hpg'] = ds.trd_hpg
+
+            return ds
+
+        ds_miz = get_ds_and_combinde_vars('miz')
+        ds_ice = get_ds_and_combinde_vars('ice')
+        ds_oce = get_ds_and_combinde_vars('oce')
+
+        # titles
+        titles = ['Horiz.\nPressure\nGradient',
+                  'Lateral\nAdvection ',
+                  'Vertical\nAdvection',
+                  'Vertical\nDiffusion',
+                  'Ice-Ocean\n Drag',
+                  'Wind\nStress',
+                  'Vertical\nBuoyancy\nFlux',
+                  'Tendency' ]
+
+        # set list of terms
+        var_list = [
+        'trd_hpg',
+        'trd_adv',
+        'trd_zad',
+        'trd_zdf',
+        'trd_tfr2d',
+        'trd_tau2d',
+        'trd_bfx',
+        'trd_tot']
+
+        def render_depth_budget(ax, ds, var_list, titles):
+            for i, var in enumerate(var_list):
+                da = ds[var]
+                ax.plot(da, da.deptht, label=titles[i], lw=0.8)
+            var_sum = ds.trd_hpg + ds.trd_adv + ds.trd_zad \
+                    + ds.trd_zdf + ds.trd_tfr2d + ds.trd_tau2d \
+                    + ds.trd_bfx
+            print (var_sum)
+            ax.plot(var_sum, var_sum.deptht, label='sum', lw=0.5)
+
+        # render miz
+        render_depth_budget(axs[0], ds_miz, var_list, titles)
+
+        # render ice
+        render_depth_budget(axs[1], ds_ice, var_list, titles)
+
+        # render oce
+        render_depth_budget(axs[2], ds_oce, var_list, titles)
+
+        for ax in axs:
+            # set limits
+            ax.invert_yaxis()
+            ax.set_ylim(50,0)
+            ax.set_xlim(-3e-8,3e-8)
+
+            # set axis labels
+            ax.set_ylabel('EKE')
+
+        # remove y labels
+        for ax in axs[1:]:
+            ax.set_yticklabels([])
+
+        # plot legend 
+        axs[2].legend(bbox_to_anchor=[1.01,1])
+
+        plt.savefig(self.case + '_tke_budget_horiz_integrated_zoned.png',
+                    dpi=600)
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
+#ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
+ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
 #ke.plot_ml_integrated_TKE_budget()
 #ke.plot_domain_integrated_TKE_budget()
