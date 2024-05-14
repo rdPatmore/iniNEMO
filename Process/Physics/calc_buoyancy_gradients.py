@@ -2,7 +2,7 @@ import xarray as xr
 import config
 import matplotlib.pyplot as plt
 import numpy as np
-import model_object
+import iniNEMO.Process.Common.model_object as model_object
 import dask
 
 dask.config.set(scheduler='single-threaded')
@@ -12,7 +12,8 @@ class buoyancy_gradients(object):
     def __init__(self, case):
         self.case = case
         self.model = model_object.model(case)
-        file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
+        file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
+        #file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
         self.preamble = config.data_path() + case + file_id
         #self.model.ds = self.model.ds['grid_T']
         #self.model.ds['rho'] = xr.open_dataarray(config.data_path() + case + 
@@ -97,7 +98,8 @@ class buoyancy_gradients(object):
         # load mld
         mld = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs
                                    ).mldr10_3
-        mld = mld.isel(x=slice(2,-2), y=slice(2,-2))
+        #mld = mld.isel(x=slice(2,-2), y=slice(2,-2))
+        mld = mld.isel(x=slice(1,-1), y=slice(1,-1))
 
         # mask below mixed layer
         bg_mod2 = bg_mod2.where(bg_mod2.deptht < mld)
@@ -117,9 +119,9 @@ class buoyancy_gradients(object):
 
         # load ice presence
         icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
-                            chunks={'time_counter':10}, decode_cf=True).icepres
+                            chunks={'time_counter':10}, decode_cf=True).siconc
         #icemsk['time_counter'] = icemsk.time_instant
-        icemsk = icemsk.isel(x=slice(2,-2), y=slice(2,-2))
+        icemsk = icemsk.isel(x=slice(1,-1), y=slice(1,-1))
 
         print (icemsk.time_counter)
         print (bg_norm.time_counter)
@@ -219,7 +221,7 @@ class buoyancy_gradients(object):
         bg_stats.to_netcdf(config.data_path() + self.case + 
                            '/buoyancy_gradient_stats.nc')
 
-bg = buoyancy_gradients('EXP10')
+bg = buoyancy_gradients('TRD00')
 bg.split_bg_into_ice_oce_zones()
 bg.get_zoned_quantiles()
 #bg.mixed_layer_buoyancy_gradients()
