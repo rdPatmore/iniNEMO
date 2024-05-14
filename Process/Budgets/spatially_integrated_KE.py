@@ -25,7 +25,10 @@ class KE_integrals(object):
         ds_mean = xr.open_dataset(self.preamble + 'grid_T.nc',
                         **kwargs).mean('time_counter')
 
-        return var.where(ds_mean.e3t < ds_mean.mldr10_3, drop=False)
+        # convert cell thickness to depths
+        deps = ds_mean.e3t.cumsum('deptht')
+
+        return var.where(deps < ds_mean.mldr10_3, drop=False)
 
     def get_ml_masked_tke(self):
         ''' mask tke according to mixed layer depth '''
@@ -44,8 +47,11 @@ class KE_integrals(object):
         kwargs = {'chunks':{'time_counter':100}} 
         tke = xr.open_dataset(self.preamble + 'TKE_budget_full.nc', **kwargs)
 
+        # convert cell thickness to depths
+        deps = ds_mean.e3t.cumsum('deptht')
+
         # mask below time-mean mixed layer
-        self.tke_mld = tke.where(tke.deptht < mld_mean, drop=False)
+        self.tke_mld = tke.where(deps < mld_mean, drop=False)
 
         # restore unmasked 2d variables
         for var in list(tke.keys()):
