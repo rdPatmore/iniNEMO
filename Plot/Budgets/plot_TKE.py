@@ -435,7 +435,7 @@ class plot_KE(object):
         fig, axs = plt.subplots(1, 3, figsize=(6.5,3.5))
         plt.subplots_adjust(left=0.13, right=0.82, top=0.93, bottom=0.15)
 
-        def get_ds_and_combinde_vars(zone):
+        def get_ds_and_combine_vars(zone):
             ds = xr.open_dataset(
                  self.preamble + 'TKE_budget_horizontal_integ_' + zone + '.nc')
 
@@ -444,9 +444,9 @@ class plot_KE(object):
 
             return ds
 
-        ds_miz = get_ds_and_combinde_vars('miz')
-        ds_ice = get_ds_and_combinde_vars('ice')
-        ds_oce = get_ds_and_combinde_vars('oce')
+        ds_miz = get_ds_and_combine_vars('miz')
+        ds_ice = get_ds_and_combine_vars('ice')
+        ds_oce = get_ds_and_combine_vars('oce')
 
         # titles
         titles = ['Horiz.\nPressure\nGradient',
