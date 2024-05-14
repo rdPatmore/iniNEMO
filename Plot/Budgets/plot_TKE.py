@@ -4,6 +4,7 @@ import config
 import matplotlib.dates as mdates
 import matplotlib
 import cmocean
+import numpy as np
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -356,10 +357,166 @@ class plot_KE(object):
 
         plt.savefig(self.case + '_tke_budget_domain_integrated.png', dpi=600)
 
+    def plot_domain_integrated_TKE_budget_ice_oce_zones(self):
+        ''' plot domain integrated TKE budget for each ice ocean zone'''
+     
+        # ini figure
+        fig, axs = plt.subplots(1, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.95, bottom=0.19)
+
+        def get_ds_and_combinde_vars(zone):
+            ds = xr.open_dataset(
+                     self.preamble + 'TKE_budget_domain_integ_' + zone + '.nc')
+
+            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_hpg'] = ds.trd_hpg
+
+            return ds
+
+        ds_miz = get_ds_and_combinde_vars('miz')
+        ds_ice = get_ds_and_combinde_vars('ice')
+        ds_oce = get_ds_and_combinde_vars('oce')
+
+        # plot
+        self.vmin, self.vmax = -1e-5, 1e-5
+        self.cmap=cmocean.cm.balance
+
+        # titles
+        titles = ['Horiz.\nPressure\nGradient',
+                  'Lateral\nAdvection ',
+                  'Vertical\nAdvection',
+                  'Vertical\nDiffusion',
+                  'Ice-Ocean\n Drag',
+                  'Wind\nStress',
+                  'Vertical\nBuoyancy\nFlux',
+                  'Tendency' ]
+
+        # set list of terms
+        var_list = [
+        'trd_hpg',
+        'trd_adv',
+        'trd_zad',
+        'trd_zdf',
+        'trd_tfr2d',
+        'trd_tau2d',
+        'trd_bfx',
+        'trd_tot']
+
+        # render data
+        x = np.arange(len(var_list))
+        width = 0.25
+
+        # render miz
+        data_miz = [ds_miz[var].values for var in var_list]
+        axs.bar(x, data_miz, width, label='MIZ')
+
+        # render ice
+        data_ice = [ds_ice[var].values for var in var_list]
+        axs.bar(x + width, data_ice, width, label='Ice')
+
+        # render oce
+        data_oce = [ds_oce[var].values for var in var_list]
+        axs.bar(x + width * 2, data_oce, width, label='Oce')
+
+        # set tickes
+        axs.set_xticks(x + width, titles)
+
+        # set axis labels
+        axs.set_xlabel('Component')
+        axs.set_ylabel(r'EKE (m$^2$s$^{-3})$')
+
+        plt.savefig(self.case + '_tke_budget_domain_integrated_zoned_new.png',
+                    dpi=600)
+
+    def plot_laterally_integrated_TKE_budget_ice_oce_zones(self):
+        ''' plot laterally integrated TKE budget for each ice ocean zone'''
+     
+        # ini figure
+        fig, axs = plt.subplots(1, 3, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.13, right=0.82, top=0.93, bottom=0.15)
+
+        def get_ds_and_combinde_vars(zone):
+            ds = xr.open_dataset(
+                 self.preamble + 'TKE_budget_horizontal_integ_' + zone + '.nc')
+
+            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_hpg'] = ds.trd_hpg
+
+            return ds
+
+        ds_miz = get_ds_and_combinde_vars('miz')
+        ds_ice = get_ds_and_combinde_vars('ice')
+        ds_oce = get_ds_and_combinde_vars('oce')
+
+        # titles
+        titles = ['Horiz.\nPressure\nGradient',
+                  'Lateral\nAdvection ',
+                  'Vertical\nAdvection',
+                  'Vertical\nDiffusion',
+                  'Ice-Ocean\n Drag',
+                  'Wind\nStress',
+                  'Vertical\nBuoyancy\nFlux',
+                  'Tendency' ]
+
+        # set list of terms
+        var_list = [
+        'trd_hpg',
+        'trd_adv',
+        'trd_zad',
+        'trd_zdf',
+        'trd_tfr2d',
+        'trd_tau2d',
+        'trd_bfx',
+        'trd_tot']
+
+        def render_depth_budget(ax, ds, var_list, titles):
+            for i, var in enumerate(var_list):
+                da = ds[var]
+                ax.plot(da, da.deptht, label=titles[i], lw=1.0)
+            var_sum = ds.trd_hpg + ds.trd_adv + ds.trd_zad \
+                    + ds.trd_zdf + ds.trd_tfr2d + ds.trd_tau2d \
+                    + ds.trd_bfx
+            print (var_sum)
+            ax.plot(var_sum, var_sum.deptht, label='sum', lw=0.5)
+
+        # render miz
+        render_depth_budget(axs[0], ds_miz, var_list, titles)
+        axs[0].set_title('Marginal Ice Zone')
+
+        # render ice
+        render_depth_budget(axs[1], ds_ice, var_list, titles)
+        axs[1].set_title('Sea Ice Zone')
+
+        # render oce
+        render_depth_budget(axs[2], ds_oce, var_list, titles)
+        axs[2].set_title('Open Ocean')
+
+        for ax in axs:
+            # set limits
+            ax.invert_yaxis()
+            ax.set_ylim(50,0)
+            ax.set_xlim(-3e-8,3e-8)
+
+            # set axis labels
+            ax.set_xlabel(r'EKE (m$^2$s$^{-3}$)')
+        axs[0].set_ylabel('Depth (m)')
+
+        # remove y labels
+        for ax in axs[1:]:
+            ax.set_yticklabels([])
+
+        # plot legend 
+        axs[2].legend(bbox_to_anchor=[1.01,1])
+
+        plt.savefig(self.case + '_tke_budget_horiz_integrated_zoned.png',
+                    dpi=600)
+
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
-ke.plot_ke_time_series()
+#ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
+ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
+#ke.plot_ke_time_series()
 #ke.plot_ml_integrated_TKE_budget()
 #ke.plot_domain_integrated_TKE_budget()
