@@ -362,7 +362,7 @@ class plot_KE(object):
      
         # ini figure
         fig, axs = plt.subplots(1, figsize=(6.5,3.5))
-        plt.subplots_adjust(left=0.13, right=0.95, top=0.98, bottom=0.19)
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.95, bottom=0.19)
 
         def get_ds_and_combinde_vars(zone):
             ds = xr.open_dataset(
@@ -423,7 +423,7 @@ class plot_KE(object):
 
         # set axis labels
         axs.set_xlabel('Component')
-        axs.set_ylabel('EKE')
+        axs.set_ylabel(r'EKE (m$^2$s$^{-3})$')
 
         plt.savefig(self.case + '_tke_budget_domain_integrated_zoned_new.png',
                     dpi=600)
@@ -433,7 +433,7 @@ class plot_KE(object):
      
         # ini figure
         fig, axs = plt.subplots(1, 3, figsize=(6.5,3.5))
-        plt.subplots_adjust(left=0.13, right=0.85, top=0.98, bottom=0.19)
+        plt.subplots_adjust(left=0.13, right=0.82, top=0.93, bottom=0.15)
 
         def get_ds_and_combinde_vars(zone):
             ds = xr.open_dataset(
@@ -472,7 +472,7 @@ class plot_KE(object):
         def render_depth_budget(ax, ds, var_list, titles):
             for i, var in enumerate(var_list):
                 da = ds[var]
-                ax.plot(da, da.deptht, label=titles[i], lw=0.8)
+                ax.plot(da, da.deptht, label=titles[i], lw=1.0)
             var_sum = ds.trd_hpg + ds.trd_adv + ds.trd_zad \
                     + ds.trd_zdf + ds.trd_tfr2d + ds.trd_tau2d \
                     + ds.trd_bfx
@@ -481,12 +481,15 @@ class plot_KE(object):
 
         # render miz
         render_depth_budget(axs[0], ds_miz, var_list, titles)
+        axs[0].set_title('Marginal Ice Zone')
 
         # render ice
         render_depth_budget(axs[1], ds_ice, var_list, titles)
+        axs[1].set_title('Sea Ice Zone')
 
         # render oce
         render_depth_budget(axs[2], ds_oce, var_list, titles)
+        axs[2].set_title('Open Ocean')
 
         for ax in axs:
             # set limits
@@ -495,7 +498,8 @@ class plot_KE(object):
             ax.set_xlim(-3e-8,3e-8)
 
             # set axis labels
-            ax.set_ylabel('EKE')
+            ax.set_xlabel(r'EKE (m$^2$s$^{-3}$)')
+        axs[0].set_ylabel('Depth (m)')
 
         # remove y labels
         for ax in axs[1:]:
