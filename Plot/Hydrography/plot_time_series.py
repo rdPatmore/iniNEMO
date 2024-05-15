@@ -338,12 +338,17 @@ class time_series(object):
 
         plt.show()
 
+    def plot_glider_relevant_diagnostics(self):
+        '''
+        Plot fundamental diagnostics for comparison with glider
+        '''
 
-#ds = time_series(['EXP04','EXP11','EXP12'], ['2013','up 2013, lat 2012',
-#                                                  'up 2012, lat 2013'])
+        fig, axs = plt.subplots(6, figsize=(6.5,3)) 
+        plt.subplots_adjust()
+
+        
+
+
 ds = time_series(['EXP04'],[''])
-#ds.plot_mld_sip(['2012'], giddy=False, orca=False, satellite=False)
 ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True,
                                           argo=True)
-#ds.plot_heat_fluxes(['2012', '2013', '2014'])
-#ds.add_orca12_sip()

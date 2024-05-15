@@ -18,4 +18,4 @@
 #SBATCH --account=shared
 #export OMP_NUM_THREADS=1
  
-python -u ../Glider/calc_patch_sets.py 
+python -u ../Physics/calc_glider_relevant_diags.py
