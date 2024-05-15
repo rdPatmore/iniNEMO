@@ -346,8 +346,23 @@ class time_series(object):
         fig, axs = plt.subplots(6, figsize=(6.5,3)) 
         plt.subplots_adjust()
 
-        
+        def render(ax, ds):
+            ax.plot(ds.time_counter, ds)
 
+        # data path
+        path = self.path + self.cases[0] + '/TimeSeries/'
+
+        # render mld
+        mld = xr.open_dataset(path + 'mld_horizontal_integ.nc')
+        render(axs[0], mld)
+
+        # render temperature
+        temp = xr.open_dataset(path + 'temperature_domain_integ.nc')
+        render(axs[1], temp)
+
+        # render salinity
+        temp = xr.open_dataset(path + 'salinity_domain_integ.nc')
+        render(axs[1], temp)
 
 ds = time_series(['EXP04'],[''])
 ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True,

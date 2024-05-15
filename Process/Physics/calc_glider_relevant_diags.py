@@ -75,6 +75,6 @@ case = 'EXP10'
 file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 grm = glider_relevant_metrics(case, file_id)
 grm.T_and_S_time_series_ice_partition()
-grm.bg_norm_time_series_ice_partition()
-grm.N2_mld_time_series_ice_partition()
+#grm.bg_norm_time_series_ice_partition()
+#grm.N2_mld_time_series_ice_partition()
 #grm.mld_time_series_ice_partition()

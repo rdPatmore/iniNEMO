@@ -17,8 +17,9 @@ class integrals_and_masks(object):
     def mask_by_ml(self):
         ''' mask variable by mixed layer depth mean '''
 
+# TOO computationally heavy - save first!
         # get time-mean grid_T
-        kwargs = {'chunks': dict(time=1)} 
+        kwargs = {'chunks': dict(time_counter=1)} 
         ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs)
 
         # convert cell thickness to depths
@@ -69,20 +70,23 @@ class integrals_and_masks(object):
         dims = ['x','y','deptht']
 
         # get e3t
-        kwargs = {'chunks': dict(time_counter=1)} 
+        #kwargs = {'chunks': dict(deptht=1)}
+        kwargs = {'chunks': -1}
         e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs).e3t
         e3t = self.cut_edges(e3t)
 
         # find volume of each partition
         t_vol = e3t * cfg.e2t * cfg.e1t
-        t_vol_miz = t_vol.where(miz_msk).sum(dim=dims)#.load()
-        t_vol_ice = t_vol.where(ice_msk).sum(dim=dims)#.load()
-        t_vol_oce = t_vol.where(oce_msk).sum(dim=dims)#.load()
+        t_vol_miz = t_vol.where(miz_msk).sum(dim=dims).load()
+        t_vol_ice = t_vol.where(ice_msk).sum(dim=dims).load()
+        t_vol_oce = t_vol.where(oce_msk).sum(dim=dims).load()
 
         # calculate volume weighted mean
-        var_integ_miz = (var_ml_miz * t_vol).sum(dim=dims) / t_vol_miz
-        var_integ_ice = (var_ml_ice * t_vol).sum(dim=dims) / t_vol_ice
-        var_integ_oce = (var_ml_oce * t_vol).sum(dim=dims) / t_vol_oce
+        #var_integ_miz = (var_ml_miz * t_vol).sum(dim=dims).load() / t_vol_miz
+        #var_integ_ice = (var_ml_ice * t_vol).sum(dim=dims).load() / t_vol_ice
+        #var_integ_oce = (var_ml_oce * t_vol).sum(dim=dims).load() / t_vol_oce
+        var_integ_oce = (var_ml_oce).sum(dim=dims) / t_vol_oce
+        print ('done')
 
         # set variable names
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'

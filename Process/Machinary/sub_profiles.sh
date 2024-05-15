@@ -11,7 +11,7 @@
  
 # time limit and memory allocation 
 #SBATCH --time=0-8:00:00 #(2 days and 0 hours, default is 24 hours) 
-#SBATCH --mem=100GB #(8 GB, default is 1G)
+#SBATCH --mem=64G #(8 GB, default is 1G)
  
 #again, these are the defaults anyway
 #SBATCH --partition=cluster
