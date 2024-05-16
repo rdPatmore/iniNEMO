@@ -22,6 +22,17 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, mld, 'mld')
         im.horizontal_mean_ice_oce_zones()
 
+    def save_ml_bg(self):
+        ''' save mixed layer buoyancy gradients '''
+
+        # get bg norm
+        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'bg_mod2.nc'
+        bg = xr.open_dataset(fn, chunks={'time_counter':1}).bg_mod2
+
+        # restrict to mixed layer and save
+        im = sim.integrals_and_masks(self.case, self.file_id, bg, 'bg_mod2')
+        im.mask_by_ml(save=True, cut=[slice(2,-2), slice(2,-2)])
+
     def bg_norm_time_series_ice_partition(self):
         ''' get bg norm time series partitioned according to sea ice cover ''' 
 
@@ -47,34 +58,58 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, N2_mld, 'N2_mld')
         im.horizontal_mean_ice_oce_zones()
 
-    def T_and_S_time_series_ice_partition(self):
+    def save_ml_T_and_S(self):
+        ''' save mixed layer temperature and salinity '''
+
+        # get temperature and salinity
+        fn = self.raw_preamble + 'grid_T.nc'
+        ds = xr.open_dataset(fn, chunks={'time_counter':1})
+        salt = ds.vosaline
+        temp = ds.votemper
+
+        # restrict temperature to mixed layer and save
+        im = sim.integrals_and_masks(self.case, self.file_id, temp, 'votemper')
+        im.mask_by_ml(save=True)
+
+        # restrict salinity to mixed layer and save
+        im = sim.integrals_and_masks(self.case, self.file_id, salt, 'vosaline')
+        im.mask_by_ml(save=True)
+
+    def temperature_time_series_ice_partition(self):
         '''
-        get temperature and salinity time series partitioned according
+        get temperature time series partitioned according
         to sea ice cover 
         ''' 
     
         # get data
-        fn = self.raw_preamble + 'grid_T.nc'
-        ds = xr.open_dataset(fn, chunks={'time_counter':1})
-
-        # get temperature 
-        temp = ds.votemper
-        salt = ds.vosaline
+        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'votemper_ml.nc'
+        temp = xr.open_dataarray(fn, chunks={'time_counter':1})
 
         # partition temperature into zones
-        im = sim.integrals_and_masks(self.case, self.file_id, temp,
-                                    'temperature')
+        im = sim.integrals_and_masks(self.case, self.file_id, temp, 'votemper')
         im.domain_mean_ice_oce_zones()
 
+    def salinity_time_series_ice_partition(self):
+        '''
+        get and salinity time series partitioned according
+        to sea ice cover 
+        ''' 
+    
+        # get data
+        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'vosaline_ml.nc'
+        salt = xr.open_dataarray(fn, chunks={'time_counter':1})
+
         # partition salinity into zones
-        im = sim.integrals_and_masks(self.case, self.file_id, salt, 'salinity')
+        im = sim.integrals_and_masks(self.case, self.file_id, salt, 'vosaline')
         im.domain_mean_ice_oce_zones()
 
 
 case = 'EXP10'
 file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 grm = glider_relevant_metrics(case, file_id)
-grm.T_and_S_time_series_ice_partition()
+grm.temperature_time_series_ice_partition()
+#grm.salinity_time_series_ice_partition()
 #grm.bg_norm_time_series_ice_partition()
 #grm.N2_mld_time_series_ice_partition()
+#grm.save_ml_T_and_S()
 #grm.mld_time_series_ice_partition()

@@ -14,18 +14,26 @@ class integrals_and_masks(object):
         self.path = config.data_path() + case + '/'
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
-    def mask_by_ml(self):
+    def mask_by_ml(self, save=False, cut=None):
         ''' mask variable by mixed layer depth mean '''
 
-# TOO computationally heavy - save first!
         # get time-mean grid_T
         kwargs = {'chunks': dict(time_counter=1)} 
         ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs)
 
-        # convert cell thickness to depths
-        deps = ds.e3t.cumsum('deptht')
+        # cut edges of grid_T
+        if cut:
+            ds = ds.isel(x=cut[0], y=cut[1]) 
 
-        self.var_ml =  self.var.where(deps < ds.mldr10_3, drop=False)
+        # convert cell thickness to depths
+        deps = ds.e3t.cumsum('deptht').load()
+
+        var_ml =  self.var.where(deps <= ds.mldr10_3, drop=False)
+
+        if save:
+            with ProgressBar():
+                fn = self.path + 'ProcessedVars/' + self.file_id + '{}_ml.nc'
+                var_ml.to_netcdf(fn.format(self.var_str))
 
     def cut_edges(self, var, rim=slice(10,-10)):
         ''' cut forcing rim '''
@@ -41,18 +49,15 @@ class integrals_and_masks(object):
         then integrate over domain and weight by volume
         '''
 
-        # get data and domain_cfg
-        self.mask_by_ml()
+        # get domain_cfg and ice concentration
         cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
                               chunks=-1).squeeze()
-
-        # load ice concentration
         icemsk = xr.open_dataset(
                          self.path + 'RawOutput/' + self.file_id + 'icemod.nc',
                             chunks={'time_counter':1}).siconc
 
         # cut edges
-        self.var_ml = self.cut_edges(self.var_ml)
+        var = self.cut_edges(self.var)
         cfg = self.cut_edges(cfg)
         icemsk = self.cut_edges(icemsk)
 
@@ -62,47 +67,48 @@ class integrals_and_masks(object):
         oce_msk = (icemsk < threshold).load()
 
         # mask by ice concentration
-        var_ml_miz = self.var_ml.where(miz_msk)
-        var_ml_ice = self.var_ml.where(ice_msk)
-        var_ml_oce = self.var_ml.where(oce_msk)
+        var_ml_miz = var.where(miz_msk)
+        var_ml_ice = var.where(ice_msk)
+        var_ml_oce = var.where(oce_msk)
 
         # define mean dims
         dims = ['x','y','deptht']
 
         # get e3t
-        #kwargs = {'chunks': dict(deptht=1)}
         kwargs = {'chunks': -1}
         e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs).e3t
         e3t = self.cut_edges(e3t)
 
         # find volume of each partition
-        t_vol = e3t * cfg.e2t * cfg.e1t
-        t_vol_miz = t_vol.where(miz_msk).sum(dim=dims).load()
-        t_vol_ice = t_vol.where(ice_msk).sum(dim=dims).load()
-        t_vol_oce = t_vol.where(oce_msk).sum(dim=dims).load()
+        t_vol = e3t * cfg.e2t * cfg.e1t.load()
+        t_vol_miz = t_vol.where(miz_msk).sum(dim=dims)
+        t_vol_ice = t_vol.where(ice_msk).sum(dim=dims)
+        t_vol_oce = t_vol.where(oce_msk).sum(dim=dims)
 
         # calculate volume weighted mean
-        #var_integ_miz = (var_ml_miz * t_vol).sum(dim=dims).load() / t_vol_miz
-        #var_integ_ice = (var_ml_ice * t_vol).sum(dim=dims).load() / t_vol_ice
-        #var_integ_oce = (var_ml_oce * t_vol).sum(dim=dims).load() / t_vol_oce
-        var_integ_oce = (var_ml_oce).sum(dim=dims) / t_vol_oce
-        print ('done')
+        var_integ_miz = (var_ml_miz * t_vol).sum(dim=dims) / t_vol_miz
+        var_integ_ice = (var_ml_ice * t_vol).sum(dim=dims) / t_vol_ice
+        var_integ_oce = (var_ml_oce * t_vol).sum(dim=dims) / t_vol_oce
+        #var_integ_oce = (var_ml_oce).sum(dim=dims) / t_vol_oce
+        #print ('done')
 
         # set variable names
+        print (var_integ_miz)
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'
         var_integ_ice.name = self.var_str + '_ice_weighted_mean'
         var_integ_oce.name = self.var_str + '_oce_weighted_mean'
 
-        ## merge variables
-        #var_integ = xr.merge([var_integ_miz.load(),
-        #                      var_integ_ice.load(),
-        #                      var_integ_oce.load()])
+        # merge variables
+        var_integ = xr.merge([var_integ_miz,
+                              var_integ_ice,
+                              var_integ_oce])
 
-        ## save
-        #fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
-        #var_integ.to_netcdf(fn)
-        fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ_{}.nc'
+        # save
+        #with ProgressBar():
+        #   fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
+        #   var_integ.to_netcdf(fn)
         with ProgressBar():
+            fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ_{}.nc'
             var_integ_oce.to_netcdf(fn.format('oce'))
 
     def horizontal_mean_ice_oce_zones(self, threshold=0.2):
