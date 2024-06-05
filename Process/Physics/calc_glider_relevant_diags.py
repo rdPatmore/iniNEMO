@@ -104,12 +104,13 @@ class glider_relevant_metrics(object):
         im.domain_mean_ice_oce_zones()
 
 
-case = 'EXP10'
-file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-grm = glider_relevant_metrics(case, file_id)
-grm.temperature_time_series_ice_partition()
-#grm.salinity_time_series_ice_partition()
-#grm.bg_norm_time_series_ice_partition()
-#grm.N2_mld_time_series_ice_partition()
-#grm.save_ml_T_and_S()
-#grm.mld_time_series_ice_partition()
+if __name__ == '__main__':
+    case = 'EXP10'
+    file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+    grm = glider_relevant_metrics(case, file_id)
+    #grm.temperature_time_series_ice_partition()
+    #grm.salinity_time_series_ice_partition()
+    #grm.bg_norm_time_series_ice_partition()
+    grm.N2_mld_time_series_ice_partition()
+    #grm.save_ml_T_and_S()
+    #grm.mld_time_series_ice_partition()

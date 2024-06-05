@@ -56,15 +56,27 @@ class integrals_and_masks(object):
                          self.path + 'RawOutput/' + self.file_id + 'icemod.nc',
                             chunks={'time_counter':1}).siconc
 
+        # check index sizes
+        x_diff = int((cfg.x.size - self.var.x.size) / 2)
+        y_diff = int((cfg.y.size - self.var.y.size) / 2)
+        if x_diff == y_diff:
+            size_diff = x_diff
+        else:
+            print ('WARNING: x and y are being cut incorrectly')
+
+        # trim edges accounting to size mismatch
+        var_rim = 10 - size_diff
+
         # cut edges
-        var = self.cut_edges(self.var)
+        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
         cfg = self.cut_edges(cfg)
         icemsk = self.cut_edges(icemsk)
 
         # get masks
-        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
-        ice_msk = (icemsk > (1 - threshold)).load()
-        oce_msk = (icemsk < threshold).load()
+        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold)))
+        ice_msk = (icemsk > (1 - threshold))
+        oce_msk = (icemsk < threshold)
+        print (oce_msk)
 
         # mask by ice concentration
         var_ml_miz = var.where(miz_msk)
@@ -80,7 +92,7 @@ class integrals_and_masks(object):
         e3t = self.cut_edges(e3t)
 
         # find volume of each partition
-        t_vol = e3t * cfg.e2t * cfg.e1t.load()
+        t_vol = e3t * cfg.e2t * cfg.e1t
         t_vol_miz = t_vol.where(miz_msk).sum(dim=dims)
         t_vol_ice = t_vol.where(ice_msk).sum(dim=dims)
         t_vol_oce = t_vol.where(oce_msk).sum(dim=dims)
@@ -93,7 +105,6 @@ class integrals_and_masks(object):
         #print ('done')
 
         # set variable names
-        print (var_integ_miz)
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'
         var_integ_ice.name = self.var_str + '_ice_weighted_mean'
         var_integ_oce.name = self.var_str + '_oce_weighted_mean'
@@ -104,12 +115,12 @@ class integrals_and_masks(object):
                               var_integ_oce])
 
         # save
-        #with ProgressBar():
-        #   fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
-        #   var_integ.to_netcdf(fn)
         with ProgressBar():
-            fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ_{}.nc'
-            var_integ_oce.to_netcdf(fn.format('oce'))
+           fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
+           var_integ.to_netcdf(fn)
+        #with ProgressBar():
+        #    fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ_{}.nc'
+        #    var_integ_oce.to_netcdf(fn.format('oce'))
 
     def horizontal_mean_ice_oce_zones(self, threshold=0.2):
         '''
@@ -137,6 +148,10 @@ class integrals_and_masks(object):
         var = self.cut_edges(var)
         cfg = self.cut_edges(cfg)
         icemsk = self.cut_edges(icemsk)
+
+        # ensure time conformance
+        if not icemsk.time_counter.identical(var.time_counter):
+            var['time_counter'] = icemsk.time_counter
 
         # get masks
         miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
