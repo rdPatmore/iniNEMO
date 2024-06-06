@@ -58,6 +58,48 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, N2_mld, 'N2_mld')
         im.horizontal_mean_ice_oce_zones()
 
+    def wind_speed_time_series_ice_partition(self):
+        '''
+        get wind speed time series partitioned according
+        to sea ice cover 
+        ''' 
+
+        # get wind speed
+        wind = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                               chunks={'time_counter':1}).windsp
+
+        # partition into zones
+        im = sim.integrals_and_masks(self.case, self.file_id, wind, 'windsp')
+        im.horizontal_mean_ice_oce_zones()
+
+    def taum_time_series_ice_partition(self):
+        '''
+        get wind stess time series partitioned according
+        to sea ice cover 
+        ''' 
+
+        # get wind speed
+        taum = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                               chunks={'time_counter':1}).taum
+
+        # partition into zones
+        im = sim.integrals_and_masks(self.case, self.file_id, taum, 'taum')
+        im.horizontal_mean_ice_oce_zones()
+
+    def fresh_water_flux_time_series_ice_partition(self):
+        '''
+        get surface fresh water flux time series partitioned according
+        to sea ice cover 
+        ''' 
+
+        # get fresh water flux 
+        wfo = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                               chunks={'time_counter':1}).wfo
+
+        # partition into zones
+        im = sim.integrals_and_masks(self.case, self.file_id, wfo, 'wfo')
+        im.horizontal_mean_ice_oce_zones()
+
     def save_ml_T_and_S(self):
         ''' save mixed layer temperature and salinity '''
 
@@ -111,6 +153,8 @@ if __name__ == '__main__':
     #grm.temperature_time_series_ice_partition()
     #grm.salinity_time_series_ice_partition()
     #grm.bg_norm_time_series_ice_partition()
-    grm.N2_mld_time_series_ice_partition()
+    #grm.N2_mld_time_series_ice_partition()
+    grm.taum_time_series_ice_partition()
+    grm.fresh_water_flux_time_series_ice_partition()
     #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()

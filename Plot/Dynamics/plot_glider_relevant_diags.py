@@ -18,7 +18,7 @@ def plot_time_series(case):
     """
 
     # initialise figure
-    fig, axs = plt.subplots(5, figsize=(5.5,6))
+    fig, axs = plt.subplots(8, figsize=(5.5,7))
     plt.subplots_adjust()
 
     # data source
@@ -59,7 +59,28 @@ def plot_time_series(case):
     axs[4].plot(bg.time_counter, bg.bg_mod2_ice_weighted_mean)
     axs[4].set_ylabel(r"$|\mathbf{\nabla}b|$")
 
-    for ax in axs[:4]:
+    # render wind speed gradinets
+    wind = xr.open_dataset(path + "windsp_horizontal_integ.nc")
+    axs[5].plot(wind.time_counter, wind.windsp_oce_weighted_mean)
+    axs[5].plot(wind.time_counter, wind.windsp_miz_weighted_mean)
+    axs[5].plot(wind.time_counter, wind.windsp_ice_weighted_mean)
+    axs[5].set_ylabel(r"$U_{10}$")
+
+    # render buoyancy gradinets
+    wfo = xr.open_dataset(path + "wfo_horizontal_integ.nc")
+    axs[6].plot(wfo.time_counter, wfo.wfo_oce_weighted_mean)
+    axs[6].plot(wfo.time_counter, wfo.wfo_miz_weighted_mean)
+    axs[6].plot(wfo.time_counter, wfo.wfo_ice_weighted_mean)
+    axs[6].set_ylabel(r"$Q_{fw}$")
+
+    # render wind stress 
+    taum = xr.open_dataset(path + "taum_horizontal_integ.nc")
+    axs[7].plot(taum.time_counter, taum.taum_oce_weighted_mean)
+    axs[7].plot(taum.time_counter, taum.taum_miz_weighted_mean)
+    axs[7].plot(taum.time_counter, taum.taum_ice_weighted_mean)
+    axs[7].set_ylabel(r"$|\mathbf{\tau}_s|$")
+
+    for ax in axs[:7]:
         ax.set_xticks([])
 
     axs[0].legend()
