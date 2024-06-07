@@ -154,7 +154,7 @@ if __name__ == '__main__':
     #grm.salinity_time_series_ice_partition()
     #grm.bg_norm_time_series_ice_partition()
     #grm.N2_mld_time_series_ice_partition()
-    grm.taum_time_series_ice_partition()
+    #grm.taum_time_series_ice_partition()
     grm.fresh_water_flux_time_series_ice_partition()
     #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()

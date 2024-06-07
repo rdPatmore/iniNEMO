@@ -1,6 +1,7 @@
 import xarray as xr
 import config
 from dask.diagnostics import ProgressBar
+import matplotlib.pyplot as plt
 
 class integrals_and_masks(object):
     '''
@@ -76,7 +77,6 @@ class integrals_and_masks(object):
         miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold)))
         ice_msk = (icemsk > (1 - threshold))
         oce_msk = (icemsk < threshold)
-        print (oce_msk)
 
         # mask by ice concentration
         var_ml_miz = var.where(miz_msk)
@@ -93,16 +93,11 @@ class integrals_and_masks(object):
 
         # find volume of each partition
         t_vol = e3t * cfg.e2t * cfg.e1t
-        t_vol_miz = t_vol.where(miz_msk).sum(dim=dims)
-        t_vol_ice = t_vol.where(ice_msk).sum(dim=dims)
-        t_vol_oce = t_vol.where(oce_msk).sum(dim=dims)
 
         # calculate volume weighted mean
-        var_integ_miz = (var_ml_miz * t_vol).sum(dim=dims) / t_vol_miz
-        var_integ_ice = (var_ml_ice * t_vol).sum(dim=dims) / t_vol_ice
-        var_integ_oce = (var_ml_oce * t_vol).sum(dim=dims) / t_vol_oce
-        #var_integ_oce = (var_ml_oce).sum(dim=dims) / t_vol_oce
-        #print ('done')
+        var_integ_miz = var_ml_miz.weighted(t_vol).mean(dim=dims)
+        var_integ_ice = var_ml_ice.weighted(t_vol).mean(dim=dims)
+        var_integ_oce = var_ml_oce.weighted(t_vol).mean(dim=dims)
 
         # set variable names
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'
@@ -163,18 +158,14 @@ class integrals_and_masks(object):
         var_ice = var.where(ice_msk)
         var_oce = var.where(oce_msk)
 
+
         # find area of each partition
         area = cfg.e2t * cfg.e1t
-        dims= ['x','y']
-        area_miz = area.where(miz_msk).sum(dim=dims).load()
-        area_ice = area.where(ice_msk).sum(dim=dims).load()
-        area_oce = area.where(oce_msk).sum(dim=dims).load()
-
 
         # calculate lateral weighted mean
-        var_integ_miz = (var_miz * area).sum(dim=['x','y']) / area_miz
-        var_integ_ice = (var_ice * area).sum(dim=['x','y']) / area_ice
-        var_integ_oce = (var_oce * area).sum(dim=['x','y']) / area_oce
+        var_integ_miz = var_miz.weighted(area).mean(dim=['x','y'])
+        var_integ_ice = var_ice.weighted(area).mean(dim=['x','y'])
+        var_integ_oce = var_oce.weighted(area).mean(dim=['x','y'])
 
         # set variable names
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'
