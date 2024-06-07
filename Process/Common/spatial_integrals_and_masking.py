@@ -16,9 +16,9 @@ class integrals_and_masks(object):
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
     def mask_by_ml(self, save=False, cut=None):
-        ''' mask variable by mixed layer depth mean '''
+        ''' mask variable by mixed layer depth '''
 
-        # get time-mean grid_T
+        # get grid_T
         kwargs = {'chunks': dict(time_counter=1)} 
         ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs)
 
@@ -40,7 +40,49 @@ class integrals_and_masks(object):
         ''' cut forcing rim '''
 
         return var.isel(x=rim, y=rim)
+
+    def extract_by_depth_at_mld_mid_pt(self, save=False):
+        '''
+        get data at mid point of mixed layer depth
+        '''
+
+        # get mld
+        kwargs = {'chunks': dict(time_counter=1)} 
+        mld = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                              **kwargs).mldr10_3
+
+        # check index sizes match
+        size_diff = self.check_index_size_diff(mld, self.var)
+        if size_diff:
+            mld = self.cut_edges(mld, rim=slice(size_diff, -size_diff))
+
+        # get mid point
+        mld_mid = mld / 2.0
+
+        # nearest neighbour interpolation to mid point
+        var_mld_mid = self.var.sel(deptht=mld_mid, method='nearest')
+
+        # assign to var object
+        self.var =  var_mld_mid
+
+        if save:
+            with ProgressBar():
+                fn = self.path + 'ProcessedVars/' + self.file_id + \
+                    '{}_ml_mid.nc'
+                var_ml.to_netcdf(fn.format(self.var_str))
         
+    def check_index_size_diff(self, ds_a, ds_b):
+        ''' check index sizes of two datasets '''
+
+        x_diff = int((ds_a.x.size - ds_b.x.size) / 2)
+        y_diff = int((ds_a.y.size - ds_b.y.size) / 2)
+        if x_diff == y_diff:
+            size_diff = x_diff
+        else:
+            print ('WARNING: x and y are being cut incorrectly')
+
+        return size_diff
+
     def domain_mean_ice_oce_zones(self, threshold=0.2):
         '''
         split TKE budget into three variables
@@ -48,6 +90,11 @@ class integrals_and_masks(object):
             - ocean area
             - MIZ area
         then integrate over domain and weight by volume
+
+        Parameters
+        ----------
+
+        threshold: sea ice concentration for partition between ice, oce and miz
         '''
 
         # get domain_cfg and ice concentration
@@ -58,12 +105,7 @@ class integrals_and_masks(object):
                             chunks={'time_counter':1}).siconc
 
         # check index sizes
-        x_diff = int((cfg.x.size - self.var.x.size) / 2)
-        y_diff = int((cfg.y.size - self.var.y.size) / 2)
-        if x_diff == y_diff:
-            size_diff = x_diff
-        else:
-            print ('WARNING: x and y are being cut incorrectly')
+        size_diff = self.check_index_size_diff(cfg, self.var)
 
         # trim edges accounting to size mismatch
         var_rim = 10 - size_diff
@@ -83,13 +125,13 @@ class integrals_and_masks(object):
         var_ml_ice = var.where(ice_msk)
         var_ml_oce = var.where(oce_msk)
 
-        # define mean dims
-        dims = ['x','y','deptht']
-
         # get e3t
         kwargs = {'chunks': -1}
         e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs).e3t
         e3t = self.cut_edges(e3t)
+
+        # define mean dims
+        dims = ['x','y','deptht']
 
         # find volume of each partition
         t_vol = e3t * cfg.e2t * cfg.e1t
@@ -113,9 +155,6 @@ class integrals_and_masks(object):
         with ProgressBar():
            fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
            var_integ.to_netcdf(fn)
-        #with ProgressBar():
-        #    fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ_{}.nc'
-        #    var_integ_oce.to_netcdf(fn.format('oce'))
 
     def horizontal_mean_ice_oce_zones(self, threshold=0.2):
         '''
@@ -128,9 +167,10 @@ class integrals_and_masks(object):
 
         # get data and domain_cfg
         if 'deptht' in self.var.dims:
-            var = self.mask_by_ml()
+            var = self.mask_by_ml().mean('deptht')
         else:
             var = self.var
+
         cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
                               chunks=-1).squeeze()
 
