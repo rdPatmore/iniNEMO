@@ -41,9 +41,9 @@ class integrals_and_masks(object):
 
         return var.isel(x=rim, y=rim)
 
-    def extract_by_depth_at_mld_mid_pt(self, save=False):
+    def save_mld_mid_pt(self, save=False):
         '''
-        get data at mid point of mixed layer depth
+        save mid point of mixed layer depth (chopped for bg norm)
         '''
 
         # get mld
@@ -59,17 +59,33 @@ class integrals_and_masks(object):
         # get mid point
         mld_mid = mld / 2.0
 
-        # nearest neighbour interpolation to mid point
-        var_mld_mid = self.var.sel(deptht=mld_mid, method='nearest')
+        with ProgressBar():
+            fn = self.path + 'ProcessedVars/' + self.file_id + 'ml_mid.nc'
+            mld_mid.to_netcdf(fn)
 
-        # assign to var object
-        self.var =  var_mld_mid
+    def extract_by_depth_at_mld_mid_pt(self, save=False):
+        '''
+        get data at mid point of mixed layer depth
+        '''
+
+        # get mld
+        
+        fn = self.path + 'ProcessedVars/' + self.file_id + 'ml_mid.nc'
+        mld_mid = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # check index sizes match
+        size_diff = self.check_index_size_diff(self.var, mld_mid)
+        if size_diff:
+            self.var = self.cut_edges(self.var, 
+                                      rim=slice(size_diff, -size_diff))
+
+        var_ml_mid = self.var.sel(deptht=mld_mid, method='nearest')
 
         if save:
             with ProgressBar():
                 fn = self.path + 'ProcessedVars/' + self.file_id + \
                     '{}_ml_mid.nc'
-                var_ml.to_netcdf(fn.format(self.var_str))
+                var_ml_mid.to_netcdf(fn.format(self.var_str))
         
     def check_index_size_diff(self, ds_a, ds_b):
         ''' check index sizes of two datasets '''
@@ -179,8 +195,14 @@ class integrals_and_masks(object):
                          self.path + 'RawOutput/' + self.file_id + 'icemod.nc',
                             chunks={'time_counter':1}).siconc
 
+        # check index sizes
+        size_diff = self.check_index_size_diff(cfg, var)
+
+        # trim edges accounting to size mismatch
+        var_rim = 10 - size_diff
+
         # cut edges
-        var = self.cut_edges(var)
+        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
         cfg = self.cut_edges(cfg)
         icemsk = self.cut_edges(icemsk)
 
