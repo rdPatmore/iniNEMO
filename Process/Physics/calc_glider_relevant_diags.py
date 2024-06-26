@@ -7,9 +7,9 @@ class glider_relevant_metrics(object):
     def __init__(self, case, file_id):
         self.case = case
         self.file_id = file_id
-        self.raw_preamble = config.data_path() + case + '/RawOutput/' +\
-                            self.file_id
         self.data_path = config.data_path() + case + '/'
+        self.raw_preamble = self.data_path + '/RawOutput/' + self.file_id
+        self.proc_preamble = self.data_path + 'ProcessedVars/' + self.file_id
 
     def mld_time_series_ice_partition(self):
         ''' get mld time series partitioned according to sea ice cover ''' 
@@ -26,7 +26,7 @@ class glider_relevant_metrics(object):
         ''' save mixed layer buoyancy gradients '''
 
         # get bg norm
-        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'bg_mod2.nc'
+        fn = self.proc_preamble + 'bg_mod2.nc'
         bg = xr.open_dataset(fn, chunks={'time_counter':1}).bg_mod2
 
         # restrict to mixed layer and save
@@ -43,8 +43,7 @@ class glider_relevant_metrics(object):
             append = '.nc'
 
         # get bg norm
-        fn = self.data_path + 'ProcessedVars/' + self.file_id +'bg_mod2'\
-           + append
+        fn = self.proc_preamble +'bg_mod2' + append
         bg = xr.open_dataset(fn, chunks={'time_counter':1}).bg_mod2
 
         # intialise partitioning
@@ -56,11 +55,11 @@ class glider_relevant_metrics(object):
         else:
             im.domain_mean_ice_oce_zones()
 
-    def save_ml_mid_bg_norm(self):
-        ''' save mixed layer mid point of bg norm '''
+    def save_ml_mid_bg_mod2(self):
+        ''' save mixed layer mid point of buoyancy gradient norm'''
 
         # get bg norm
-        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'bg_mod2.nc'
+        fn = self.proc_preamble + 'bg_mod2.nc'
         bg = xr.open_dataset(fn, chunks={'time_counter':1}).bg_mod2
 
         # save bg norm at ml mid point
@@ -74,7 +73,7 @@ class glider_relevant_metrics(object):
         ''' 
 
         # get N at mld 
-        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'N2_mld.nc'
+        fn = self.proc_preamble + 'N2_mld.nc'
         N2_mld = xr.open_dataset(fn, chunks={'time_counter':1}).bn2
 
         # partition into zones
@@ -147,7 +146,7 @@ class glider_relevant_metrics(object):
         ''' 
     
         # get data
-        fn = self.data_path + 'ProcessedVars/' + self.file_id + 'votemper_ml.nc'
+        fn = self.proc_preamble + 'votemper_ml.nc'
         temp = xr.open_dataarray(fn, chunks={'time_counter':1})
 
         # partition temperature into zones
