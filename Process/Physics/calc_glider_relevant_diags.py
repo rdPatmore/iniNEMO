@@ -139,17 +139,17 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, salt, 'vosaline')
         im.mask_by_ml(save=True)
 
-    def save_ml_mid_var(self, var='votemper'):
+    def save_ml_mid_raw_var(self, var='votemper'):
         ''' save mixed layer mid point of variable '''
 
         # get bg norm
-        fn = self.proc_preamble + var + '.nc'
+        fn = self.raw_preamble + 'grid_T.nc'
         da = xr.open_dataset(fn, chunks={'time_counter':100})[var]
 
         # save bg norm at ml mid point
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
-        self.save_mld_mid_pt(save=True)
-        #im.extract_by_depth_at_mld_mid_pt(save=True)
+        #im.save_mld_mid_pt(save=True)
+        im.extract_by_depth_at_mld_mid_pt(save=True)
 
     def var_time_series_ice_partition(self):
         '''
@@ -179,7 +179,7 @@ if __name__ == '__main__':
     case = 'EXP10'
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
-    grm.save_ml_mid_var()
+    grm.save_ml_mid_raw_var()
     #grm.bg_norm_time_series_ice_partition(mld_mid=True)
     #grm.N2_mld_time_series_ice_partition()
     #grm.taum_time_series_ice_partition()
