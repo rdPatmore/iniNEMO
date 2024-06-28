@@ -213,5 +213,5 @@ class KE_integrals(object):
 
 ke = KE_integrals('TRD00')
 ke.domain_mean_ml_KE_ice_oce_zones()
-#ke.horizontal_mean_ml_KE_ice_oce_zones()
+ke.horizontal_mean_ml_KE_ice_oce_zones()
 #ke.vertically_integrated_ml_KE()
