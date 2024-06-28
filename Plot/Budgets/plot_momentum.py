@@ -21,13 +21,15 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78, hspace=0.25, wspace=0.1, top=0.9)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'mom' + vec + '.nc')
+        ds = xr.open_dataset(self.preamble + vec + 'mom.nc')
         ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
         ds = ds.isel(time_counter=1).load()            # time
             
-        var_list = ['trd_hpg', 'trd_spg', 'trd_keg', 'trd_rvo',
+        # dyn_spg is added to trd_hpg for dynspg_ts
+        var_list = ['trd_hpg', 'trd_keg', 'trd_rvo',
                     'trd_pvo', 'trd_zad', 'trd_ldf', 'trd_zdf',
                     'trd_tot', 'trd_atf', 'trd_udx']
+
 
         # titles
         titles = ['hyd\npressure grad',      'surf\npressure grad',
@@ -76,13 +78,14 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78, hspace=0.25, wspace=0.1, top=0.9)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'mom' + vec + '.nc')
+        ds = xr.open_dataset(self.preamble + vec + 'mom.nc',
+                             chunks={"depth"+vec:1})
         print (ds)
         ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
         ds = ds.isel(time_counter=1).load()            # time
 
             
-        var_list = ['trd_hpg', 'trd_keg', 'trd_rvo', 
+        var_list = ['trd_atm2d', 'trd_hpg', 'trd_rvo', 
                     'trd_pvo', 'trd_zad', 'trd_ldf', 'trd_zdf', 'trd_tot']
         #var_list = ['trd_hpg', 'trd_spg', 'trd_keg', 'trd_rvo',
         #            'trd_pvo', 'trd_zad', 'trd_zdf', 'trd_tot']
@@ -95,11 +98,12 @@ class plot_momentum(object):
         titles = ['hyd\npressure grad',
                   'lateral\n advection (KE)', 'lateral\nadvection (zeta)',
                   'Coriolis',               'vertical\nadvection',
-                  'lateral\diffusion',
+                  'lateral\ndiffusion',
                   'vertical\ndiffusion',     'tendency' ]
 
         # plot
         vmin, vmax = -1e-4, 1e-4
+        vmin, vmax = -1e-5, 1e-5
         cmap=cmocean.cm.balance
         for i, ax in enumerate(axs.flatten()):
             p = ax.pcolor(ds[vec + var_list[i]],
@@ -134,7 +138,7 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'mom' + vec + '.nc')
+        ds = xr.open_dataset(self.preamble + vec + 'mom.nc')
         ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
         ds = ds.isel(time_counter=1)                       # time
 
@@ -143,8 +147,9 @@ class plot_momentum(object):
             mom_sum = ds.utrd_hpg + ds.utrd_ldf + ds.utrd_keg + \
                       ds.utrd_rvo + ds.utrd_pvo + ds.utrd_zad + ds.utrd_zdf 
         if vec == 'v':
-            mom_sum = ds.vtrd_hpg + ds.vtrd_spg + ds.vtrd_keg + \
-                      ds.vtrd_rvo + ds.vtrd_pvo + ds.vtrd_zad
+            # dyn_spg is added to trd_hpg for dynspg_ts
+            mom_sum = ds.vtrd_hpg + ds.vtrd_ldf + ds.vtrd_keg + \
+                      ds.vtrd_rvo + ds.vtrd_pvo + ds.vtrd_zad + ds.vtrd_zdf
 
         # plot
         vmin, vmax = -1e-5, 1e-5
@@ -176,9 +181,10 @@ class plot_momentum(object):
         plt.savefig(self.case + '_' + vec + '_mom_mld_budget_resid.png')
 
     
-#file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-#file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
-file_id = 'SOCHIC_PATCH_1h_20121209_20121209_'
-mom = plot_momentum('TRD00', file_id)
-mom.plot_mom_residule_budget(vec='u')
-#mom.plot_mom_residule_budget(vec='v')
+if __name__ == "__main__":
+    #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+    #file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
+    file_id = 'SOCHIC_PATCH_1h_20121209_20121209_'
+    mom = plot_momentum('TRD00', file_id)
+    mom.plot_mom_residule_budget(vec='u')
+    #mom.plot_mom_residule_budget(vec='v')
