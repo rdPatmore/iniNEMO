@@ -72,6 +72,18 @@ class integrals_and_masks(object):
         
         fn = self.path + 'ProcessedVars/' + self.file_id + 'ml_mid.nc'
         mld_mid = xr.open_dataarray(fn, chunks={'time_counter':100})
+        #print ('')
+        #print ('')
+        #print ('')
+        #print (self.var)
+        #print ('')
+        #print ('')
+        #print ('')
+        #print (mld_mid)
+        #print ('')
+        #print ('')
+        #print ('')
+        #print (sdkjfh)
 
         # check index sizes match
         size_diff = self.check_index_size_diff(self.var, mld_mid)
@@ -219,7 +231,6 @@ class integrals_and_masks(object):
         var_miz = var.where(miz_msk)
         var_ice = var.where(ice_msk)
         var_oce = var.where(oce_msk)
-
 
         # find area of each partition
         area = cfg.e2t * cfg.e1t

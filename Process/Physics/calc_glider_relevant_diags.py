@@ -139,8 +139,8 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, salt, 'vosaline')
         im.mask_by_ml(save=True)
 
-    def save_ml_mid_raw_var(self, var='votemper'):
-        ''' save mixed layer mid point of variable '''
+    def save_ml_mid_raw_var_tpt(self, var='votemper'):
+        ''' save mixed layer mid point of t-point variable '''
 
         # get bg norm
         fn = self.raw_preamble + 'grid_T.nc'
@@ -148,12 +148,30 @@ class glider_relevant_metrics(object):
 
         # save bg norm at ml mid point
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
-        #im.save_mld_mid_pt(save=True)
         im.extract_by_depth_at_mld_mid_pt(save=True)
 
-    def var_time_series_ice_partition(self):
+    def save_ml_mid_raw_var_wpt(self, var='bn2'):
+        ''' save mixed layer mid point of w-point variable '''
+
+        # get bg norm
+        fn = self.raw_preamble + 'grid_W.nc'
+        da = xr.open_dataset(fn, chunks={'time_counter':100})[var]
+
+        # unify time
+        fn = self.raw_preamble + 'grid_T.nc'
+        ds_T = xr.open_dataset(fn, chunks={'time_counter':100})
+        da['time_counter'] = ds_T.time_counter
+
+        # rename depth
+        da = da.rename({'depthw':'deptht'})
+
+        # save bg norm at ml mid point
+        im = sim.integrals_and_masks(self.case, self.file_id, da, var)
+        im.extract_by_depth_at_mld_mid_pt(save=True)
+
+    def var_time_series_ice_partition(self, var, ml_mid=True):
         '''
-        get temperature time series partitioned according
+        get 3D variable time series partitioned according
         to sea ice cover 
         ''' 
 
@@ -170,19 +188,29 @@ class glider_relevant_metrics(object):
         # partition temperature into zones
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
         # partition into zones
-        if mld_mid:
+        if ml_mid:
             im.horizontal_mean_ice_oce_zones()
         else:
             im.domain_mean_ice_oce_zones()
 
 if __name__ == '__main__':
+    import time
+    import dask
+    dask.config.set(scheduler='single-threaded')
+    start = time.time()
     case = 'EXP10'
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
-    grm.save_ml_mid_raw_var()
+    grm.var_time_series_ice_partition(var='vosaline', ml_mid=True)
+    grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
+    #grm.save_ml_mid_raw_var()
+    #grm.save_ml_mid_raw_var_wpt()
+    #grm.save_ml_mid_raw_var(var='vosaline')
     #grm.bg_norm_time_series_ice_partition(mld_mid=True)
     #grm.N2_mld_time_series_ice_partition()
     #grm.taum_time_series_ice_partition()
     #grm.fresh_water_flux_time_series_ice_partition()
     #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()
+    end = time.time()
+    print('time elapsed (minutes): ', (end - start)/60)
