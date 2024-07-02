@@ -193,6 +193,47 @@ class glider_relevant_metrics(object):
         else:
             im.domain_mean_ice_oce_zones()
 
+    def ice_miz_open_partition_area(self, threshold=0.2):
+        '''
+        get area of open ocean, marginal ice zone and sea ice covered
+        regions
+        '''
+
+        cfg = xr.open_dataset(self.data_path + 'Grid/domain_cfg.nc',
+                              chunks=-1).squeeze()
+
+        # load ice concentration
+        icemsk = xr.open_dataset(
+                     self.data_path + 'RawOutput/' + self.file_id + 'icemod.nc',
+                     chunks={'time_counter':1}).siconc
+
+        # get masks
+        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
+        ice_msk = (icemsk > (1 - threshold)).load()
+        oce_msk = (icemsk < threshold).load()
+
+        # find area 
+        area = cfg.e2t * cfg.e1t
+
+        # mask by ice concentration
+        area_integ_miz = area.where(miz_msk).sum(['x','y'])
+        area_integ_ice = area.where(ice_msk).sum(['x','y'])
+        area_integ_oce = area.where(oce_msk).sum(['x','y'])
+
+        # set variable names
+        area_integ_miz.name = 'area_miz'
+        area_integ_ice.name = 'area_ice'
+        area_integ_oce.name = 'area_oce'
+
+        # merge variables
+        area_integ = xr.merge([area_integ_miz.load(),
+                               area_integ_ice.load(),
+                               area_integ_oce.load()])
+ 
+        # save
+        fn = self.data_path + 'TimeSeries/area_ice_oce_miz.nc'
+        area_integ.to_netcdf(fn)
+ 
 if __name__ == '__main__':
     import time
     import dask
@@ -201,8 +242,9 @@ if __name__ == '__main__':
     case = 'EXP10'
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
-    grm.var_time_series_ice_partition(var='vosaline', ml_mid=True)
-    grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
+    grm.ice_miz_open_partition_area()
+    #grm.var_time_series_ice_partition(var='vosaline', ml_mid=True)
+    #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
     #grm.save_ml_mid_raw_var_wpt()
     #grm.save_ml_mid_raw_var(var='vosaline')

@@ -15,7 +15,9 @@ class integrals_and_masks(object):
         self.path = config.data_path() + case + '/'
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
+
     def mask_by_ml(self, save=False, cut=None):
+
         ''' mask variable by mixed layer depth '''
 
         # get grid_T
