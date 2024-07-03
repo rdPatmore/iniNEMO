@@ -195,11 +195,7 @@ class integrals_and_masks(object):
         then integrate in the horizontal and weight by area
         '''
 
-        # get data and domain_cfg
-        if 'deptht' in self.var.dims:
-            var = self.mask_by_ml().mean('deptht')
-        else:
-            var = self.var
+        var = self.var
 
         cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
                               chunks=-1).squeeze()

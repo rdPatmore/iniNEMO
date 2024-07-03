@@ -77,6 +77,8 @@ def plot_time_series(case, ml_mid=False, date_range=[None,None]):
         render(axs[4], "bg_mod2", "domain_integ", r"$|\mathbf{\nabla}b|$", prop_area)
 
     render(axs[2], "mld", "horizontal_integ", "MLD", prop_area)
+    # positive down mld
+    axs[2].invert_yaxis()
     #render(axs[5], "windsp", "horizontal_integ", r"$U_{10}$")
     render(axs[5], "wfo", "horizontal_integ", r"$Q_{fw}$", prop_area)
     dates = render(axs[6], "taum", "horizontal_integ", r"$|\mathbf{\tau}_s|$", prop_area)
@@ -114,4 +116,4 @@ def plot_time_series(case, ml_mid=False, date_range=[None,None]):
 
 if __name__ == "__main__":
 
-    plot_time_series("EXP10", ml_mid=False, date_range=[None,"2013-01-11"])
+    plot_time_series("EXP10", ml_mid=True, date_range=[None,"2013-01-11"])

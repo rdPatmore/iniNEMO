@@ -127,7 +127,7 @@ class glider_relevant_metrics(object):
 
         # get temperature and salinity
         fn = self.raw_preamble + 'grid_T.nc'
-        ds = xr.open_dataset(fn, chunks={'time_counter':1})
+        ds = xr.open_dataset(fn, chunks={'time_counter':100})
         salt = ds.vosaline
         temp = ds.votemper
 
@@ -169,7 +169,7 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
         im.extract_by_depth_at_mld_mid_pt(save=True)
 
-    def var_time_series_ice_partition(self, var, ml_mid=True):
+    def var_time_series_ice_partition(self, var, ml_mid=True, depth_integral=False):
         '''
         get 3D variable time series partitioned according
         to sea ice cover 
@@ -178,6 +178,7 @@ class glider_relevant_metrics(object):
         # get bg norm
         if ml_mid:
             append = '_ml_mid.nc'
+            depth_integral = False
         else:
             append = '_ml.nc'
     
@@ -188,10 +189,10 @@ class glider_relevant_metrics(object):
         # partition temperature into zones
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
         # partition into zones
-        if ml_mid:
-            im.horizontal_mean_ice_oce_zones()
-        else:
+        if depth_integral:
             im.domain_mean_ice_oce_zones()
+        else:
+            im.horizontal_mean_ice_oce_zones()
 
     def ice_miz_open_partition_area(self, threshold=0.2):
         '''
@@ -242,8 +243,9 @@ if __name__ == '__main__':
     case = 'EXP10'
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
-    grm.ice_miz_open_partition_area()
-    #grm.var_time_series_ice_partition(var='vosaline', ml_mid=True)
+    #grm.ice_miz_open_partition_area()
+    grm.var_time_series_ice_partition(var='vosaline', ml_mid=False)
+    grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
     #grm.save_ml_mid_raw_var_wpt()
@@ -252,7 +254,7 @@ if __name__ == '__main__':
     #grm.N2_mld_time_series_ice_partition()
     #grm.taum_time_series_ice_partition()
     #grm.fresh_water_flux_time_series_ice_partition()
-    #grm.save_ml_T_and_S()
+    grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()
     end = time.time()
     print('time elapsed (minutes): ', (end - start)/60)
