@@ -100,6 +100,10 @@ class KE(object):
     def calc_reynolds_terms(self):
         ''' calculate spatial-mean and spatial-deviations of velocities '''
 
+        # open domain config
+        cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
+                              chunks=-1).squeeze()
+
         # open T-pt velocities
         vels = xr.open_dataset(self.preamble + 'vels_Tpt.nc',
                                chunks={'time_counter':10})
@@ -109,25 +113,37 @@ class KE(object):
         icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
                                  chunks={'time_counter':10} ).siconc
         icemsk['time_counter'] = vels.time_counter
-        print (vels.time_counter.values)
-        print (icemsk.time_counter.values)
 
-        # ice mask
-        vel_ice = vels.where(icemsk > 0)
-        vel_oce = vels.where(icemsk == 0)
+        # get masks - the next few lines are duplicated in /Common/spatial...
+        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
+        ice_msk = (icemsk > (1 - threshold)).load()
+        oce_msk = (icemsk < threshold).load()
 
-        # reynolds
-        self.vel_bar_ice = vel_ice.mean(['x','y'])
-        self.vel_bar_oce = vel_oce.mean(['x','y'])
+        # mask by ice concentration
+        vel_miz = var.where(miz_msk)
+        vel_ice = var.where(ice_msk)
+        vel_oce = var.where(oce_msk)
+
+        # find area of each partition
+        area = cfg.e2t * cfg.e1t
+
+        # calculate lateral weighted mean
+        self.vel_bar_miz = var_miz.weighted(area).mean(dim=['x','y'])
+        self.vel_bar_ice = var_ice.weighted(area).mean(dim=['x','y'])
+        self.vel_bar_oce = var_oce.weighted(area).mean(dim=['x','y'])
 
         # get primes
+        self.vel_prime_miz = self.remove_edges(self.vel_bar_miz - vel_miz)
         self.vel_prime_ice = self.remove_edges(self.vel_bar_ice - vel_ice)
         self.vel_prime_oce = self.remove_edges(self.vel_bar_oce - vel_oce)
 
-        print (self.vel_prime_ice)
         # get prime mean squared
-        self.vel_prime_ice_sqmean = (self.vel_prime_ice ** 2).mean(['x','y'])
-        self.vel_prime_oce_sqmean = (self.vel_prime_oce ** 2).mean(['x','y'])
+        self.vel_prime_miz_sqmean = (self.vel_prime_miz ** 2
+                                    ).weighted(area).mean(['x','y'])
+        self.vel_prime_ice_sqmean = (self.vel_prime_ice ** 2
+                                    ).weighted(area).mean(['x','y'])
+        self.vel_prime_oce_sqmean = (self.vel_prime_oce ** 2
+                                    ).weighted(area).mean(['x','y'])
 
     def calc_TKE(self, save=False):
         ''' get turbulent kinetic energy '''
@@ -138,17 +154,23 @@ class KE(object):
                                self.vel_prime_ice_sqmean.wT ).load()
         self.TKE_ice.name = 'TKE_ice'
 
+        # TKE in marginal ice zone
+        self.TKE_ice = 0.5 * ( self.vel_prime_miz_sqmean.uT + 
+                               self.vel_prime_miz_sqmean.vT +
+                               self.vel_prime_miz_sqmean.wT ).load()
+        self.TKE_ice.name = 'TKE_ice'
+
         # TKE over open ocean
         self.TKE_oce = 0.5 * ( self.vel_prime_oce_sqmean.uT + 
                                self.vel_prime_oce_sqmean.vT +
                                self.vel_prime_oce_sqmean.wT ).load()
         self.TKE_oce.name = 'TKE_oce'
 
-        TKE = xr.merge([self.TKE_ice, self.TKE_oce])
+        TKE = xr.merge([self.TKE_ice, self.TKE_miz, self.TKE_oce])
     
         if save:
             with ProgressBar():
-                TKE.to_netcdf(self.preamble + 'TKE_oce_ice.nc')
+                TKE.to_netcdf(self.preamble + 'TKE_oce_miz_ice.nc')
 
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
         ''' 
@@ -531,7 +553,7 @@ class KE(object):
        
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
-     m = KE('TRD00')
+     m = KE('EXP10')
      #m.calc_rhoW()
      #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
@@ -540,14 +562,14 @@ if __name__ == '__main__':
      #m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
-     #m.grid_to_T_pts(save=True)
+     m.grid_to_T_pts(save=True)
 
      # get TKE step 2
      #m.calc_reynolds_terms()
      #m.calc_TKE(save=True)
 
      #m.calc_MKE_budget(depth_str='30')
-     m.calc_z_TKE_budget()
+     #m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()
      #m.calc_TKE_steadiness()
      #m.calc_z_TKE_budget()

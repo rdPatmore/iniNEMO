@@ -76,10 +76,10 @@ def render_2d_time_series(path, fig, axs, var, integ_type, title, area, date_ran
 
     pos0 = axs[0].get_position()
     pos1 = axs[2].get_position()
-    cbar_ax = fig.add_axes([0.82, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+    cbar_ax = fig.add_axes([0.85, pos1.y0, 0.02, pos0.y1 - pos1.y0])
     cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
-    cbar.ax.text(1.5, 0.5, title, fontsize=8,
-               rotation=0, transform=cbar.ax.transAxes, va='top', ha='center')
+    cbar.ax.text(4.5, 0.5, title, fontsize=8, rotation=90,
+                 transform=cbar.ax.transAxes, va='center', ha='left')
 
     axs[0].text(0.98, 0.1, "Oce", va="bottom", ha="right", rotation=0,
                 transform=axs[0].transAxes)
@@ -193,7 +193,8 @@ def plot_t_s_M_and_N(case, date_range=[None,None]):
 
     # initialise figure
     fig, axs = plt.subplots(8, figsize=(5.5,7))
-    plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
+    plt.subplots_adjust(left=0.15, right=0.83, 
+                        hspace=0.25, top=0.98, bottom=0.07)
 
     # data source
     path = config.data_path() + case + "/TimeSeries/"
@@ -243,6 +244,8 @@ def plot_t_s_M_and_N(case, date_range=[None,None]):
 
     plt.savefig("density_gradient_controls_{0}_{1}.png".format(d0, d1,),
                 dpi=600)
+
+def plot_tke_time_series():
 
 if __name__ == "__main__":
 
