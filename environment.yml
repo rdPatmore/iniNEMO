@@ -6,3 +6,4 @@ dependencies:
   - xarray
   - cmocean
   - netcdf4
+  - dask
