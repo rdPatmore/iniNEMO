@@ -9,18 +9,22 @@ class KE(object):
 
     def __init__(self, case):
         self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
-        self.preamble = config.data_path() + case +  self.file_id
+        self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
+        self.proc_preamble = config.data_path() + case + '/ProcessedVars' \
+                           +  self.file_id
+        self.raw_preamble = config.data_path() + case + '/RawOutput' \
+                           +  self.file_id
         self.path = config.data_path() + case + '/'
 
     def get_basic_vars(self):
         kwargs = {'chunks':{'time_counter':100} ,'decode_cf':False} 
         #kwargs = {'chunks':'auto' ,'decode_cf':False} 
-        self.u = xr.open_dataset(self.preamble + 'grid_U.nc', **kwargs).uo
-        self.v = xr.open_dataset(self.preamble + 'grid_V.nc', **kwargs).vo
-        self.w = xr.open_dataset(self.preamble + 'grid_W.nc', **kwargs).wo
-        self.e3w = xr.open_dataset(self.preamble + 'grid_W.nc', **kwargs
+        self.u = xr.open_dataset(self.raw_preamble + 'grid_U.nc', **kwargs).uo
+        self.v = xr.open_dataset(self.raw_preamble + 'grid_V.nc', **kwargs).vo
+        self.w = xr.open_dataset(self.raw_preamble + 'grid_W.nc', **kwargs).wo
+        self.e3w = xr.open_dataset(self.raw_preamble + 'grid_W.nc', **kwargs
                                    ).e3w
-        self.mld = xr.open_dataset(self.preamble + 'grid_T.nc', **kwargs
+        self.mld = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs
                                    ).mldr10_3
         #print (self.mld)
         # conform time
@@ -84,7 +88,7 @@ class KE(object):
             return da.swap_dims({dep_str:'z'}).drop(dep_str)
 
         # fix depth coords
-        z = xr.open_dataset(self.preamble + 'grid_T.nc').deptht.values
+        z = xr.open_dataset(self.raw_preamble + 'grid_T.nc').deptht.values
         self.uT = conform_z_coords(self.uT, z, 'depthu')
         self.vT = conform_z_coords(self.vT, z, 'depthv')
         self.wT = conform_z_coords(self.wT, z, 'depthw')
@@ -95,9 +99,9 @@ class KE(object):
        
         if save:
             with ProgressBar():
-                vels_T.to_netcdf(self.preamble + 'vels_Tpt.nc')
+                vels_T.to_netcdf(self.proc_preamble + 'vels_Tpt.nc')
 
-    def calc_reynolds_terms(self):
+    def calc_reynolds_terms(self, threshold=0.2):
         ''' calculate spatial-mean and spatial-deviations of velocities '''
 
         # open domain config
@@ -105,12 +109,12 @@ class KE(object):
                               chunks=-1).squeeze()
 
         # open T-pt velocities
-        vels = xr.open_dataset(self.preamble + 'vels_Tpt.nc',
+        vels = xr.open_dataset(self.proc_preamble + 'vels_Tpt.nc',
                                chunks={'time_counter':10})
 
         # open ice mask
         #icemsk = xr.open_dataset(self.preamble + 'icemod.nc', decode_cf=False,
-        icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
+        icemsk = xr.open_dataset(self.raw_preamble + 'icemod.nc',
                                  chunks={'time_counter':10} ).siconc
         icemsk['time_counter'] = vels.time_counter
 
@@ -120,22 +124,25 @@ class KE(object):
         oce_msk = (icemsk < threshold).load()
 
         # mask by ice concentration
-        vel_miz = var.where(miz_msk)
-        vel_ice = var.where(ice_msk)
-        vel_oce = var.where(oce_msk)
+        vel_miz = vels.where(miz_msk)
+        vel_ice = vels.where(ice_msk)
+        vel_oce = vels.where(oce_msk)
 
         # find area of each partition
         area = cfg.e2t * cfg.e1t
 
         # calculate lateral weighted mean
-        self.vel_bar_miz = var_miz.weighted(area).mean(dim=['x','y'])
-        self.vel_bar_ice = var_ice.weighted(area).mean(dim=['x','y'])
-        self.vel_bar_oce = var_oce.weighted(area).mean(dim=['x','y'])
+        self.vel_bar_miz = vel_miz.weighted(area).mean(dim=['x','y'])
+        self.vel_bar_ice = vel_ice.weighted(area).mean(dim=['x','y'])
+        self.vel_bar_oce = vel_oce.weighted(area).mean(dim=['x','y'])
 
         # get primes
         self.vel_prime_miz = self.remove_edges(self.vel_bar_miz - vel_miz)
         self.vel_prime_ice = self.remove_edges(self.vel_bar_ice - vel_ice)
         self.vel_prime_oce = self.remove_edges(self.vel_bar_oce - vel_oce)
+
+        # trim area
+        area = self.remove_edges(area)
 
         # get prime mean squared
         self.vel_prime_miz_sqmean = (self.vel_prime_miz ** 2
@@ -170,7 +177,7 @@ class KE(object):
     
         if save:
             with ProgressBar():
-                TKE.to_netcdf(self.preamble + 'TKE_oce_miz_ice.nc')
+                TKE.to_netcdf(self.proc_preamble + 'TKE_oce_miz_ice.nc')
 
     def calc_TKE_budget(self, depth_str='mld', rey_str='15mi'):
         ''' 
@@ -184,8 +191,8 @@ class KE(object):
 
         # get momentum budgets
         append = 'rey.nc'
-        umom = xr.open_dataset(self.preamble + 'momu_' + append, chunks=chunksu)
-        vmom = xr.open_dataset(self.preamble + 'momv_' + append, chunks=chunksv)
+        umom = xr.open_dataset(self.proc_preamble + 'momu_' + append, chunks=chunksu)
+        vmom = xr.open_dataset(self.proc_preamble + 'momv_' + append, chunks=chunksv)
 
         # remove u and v from variable names for combining
         for var in umom.data_vars:
@@ -194,15 +201,15 @@ class KE(object):
             vmom = vmom.rename({var:var.lstrip('v')})
 
         # get velocities
-        uvel = xr.open_dataset(self.preamble + 'uvel_' + append,
+        uvel = xr.open_dataset(self.proc_preamble + 'uvel_' + append,
                                chunks=chunksu).uo
-        vvel = xr.open_dataset(self.preamble + 'vvel_' + append,
+        vvel = xr.open_dataset(self.proc_preamble + 'vvel_' + append,
                                chunks=chunksv).vo
 
         # get scale factors
-        e3u = xr.open_dataset(self.preamble + 'uvel.nc', chunks=chunksu).e3u
-        e3v = xr.open_dataset(self.preamble + 'vvel.nc', chunks=chunksv).e3v
-        e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunkst)
+        e3u = xr.open_dataset(self.proc_preamble + 'uvel.nc', chunks=chunksu).e3u
+        e3v = xr.open_dataset(self.proc_preamble + 'vvel.nc', chunks=chunksv).e3v
+        e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunkst)
 
         # use time that is consistent with grid_W
         e3t['time_counter'] = e3t.time_instant
@@ -214,30 +221,30 @@ class KE(object):
 
         # save
         with ProgressBar():
-            TKE.to_netcdf(self.preamble + 'TKE_budget.nc')#_' + append)
+            TKE.to_netcdf(self.proc_preamble + 'TKE_budget.nc')#_' + append)
 
     def merge_vertical_buoyancy_flux(self):
         ''' add vertical buoyancy flux to TKE dataset '''
 
         kwargs = {'chunks': {'time_counter': 100}}
-        TKE = xr.open_dataset(self.preamble + 'TKE_budget.nc', **kwargs)
-        b_flux = xr.open_dataarray(self.preamble + 'b_flux_rey.nc', **kwargs)
+        TKE = xr.open_dataset(self.proc_preamble + 'TKE_budget.nc', **kwargs)
+        b_flux = xr.open_dataarray(self.proc_preamble + 'b_flux_rey.nc', **kwargs)
 
         # merge in buoyancy flux
         TKE['trd_bfx'] = b_flux
 
         with ProgressBar():
-            TKE.to_netcdf(self.preamble + 'TKE_budget_full.nc')
+            TKE.to_netcdf(self.proc_preamble + 'TKE_budget_full.nc')
 
 
     def calc_MKE_budget(self, depth_str='mld'):
 
         # load and slice
-        umom = xr.open_dataset(self.preamble + 'momu_' + depth_str + '.nc')
-        vmom = xr.open_dataset(self.preamble + 'momv_' + depth_str + '.nc')
-        uvel = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc')
-        vvel = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc')
-        e3t  = xr.open_dataset(self.preamble + 'grid_T_' + depth_str + '.nc').e3t
+        umom = xr.open_dataset(self.proc_preamble + 'momu_' + depth_str + '.nc')
+        vmom = xr.open_dataset(self.proc_preamble + 'momv_' + depth_str + '.nc')
+        uvel = xr.open_dataset(self.proc_preamble + 'uvel_' + depth_str + '.nc')
+        vvel = xr.open_dataset(self.proc_preamble + 'vvel_' + depth_str + '.nc')
+        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T_' + depth_str + '.nc').e3t
 
         for var in umom.data_vars:
             umom = umom.rename({var:var.lstrip('u')})
@@ -255,15 +262,15 @@ class KE(object):
                       uvel_mean, vvel_mean, e3t_mean)
 
         # save
-        MKE.to_netcdf(self.preamble + 'MKE_' + depth_str + '_budget.nc')
+        MKE.to_netcdf(self.proc_preamble + 'MKE_' + depth_str + '_budget.nc')
 
     def calc_KE_budget(self, depth_str='mld'):
         # load and slice
-        umom = xr.open_dataset(self.preamble + 'momu_' + depth_str + '.nc')
-        vmom = xr.open_dataset(self.preamble + 'momv_' + depth_str + '.nc')
-        uvel = xr.open_dataset(self.preamble + 'uvel_' + depth_str + '.nc')
-        vvel = xr.open_dataset(self.preamble + 'vvel_' + depth_str + '.nc')
-        e3t  = xr.open_dataset(self.preamble + 'grid_T_' + depth_str + '.nc').e3t
+        umom = xr.open_dataset(self.proc_preamble + 'momu_' + depth_str + '.nc')
+        vmom = xr.open_dataset(self.proc_preamble + 'momv_' + depth_str + '.nc')
+        uvel = xr.open_dataset(self.proc_preamble + 'uvel_' + depth_str + '.nc')
+        vvel = xr.open_dataset(self.proc_preamble + 'vvel_' + depth_str + '.nc')
+        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T_' + depth_str + '.nc').e3t
 
         # drop time
         umom = umom.drop_vars(['time_instant','time_instant_bounds',
@@ -293,7 +300,7 @@ class KE(object):
                      uvel_snap, vvel_snap, e3t_snap)
 
         # save
-        KE.to_netcdf(self.preamble + 'KE_' + depth_str + '_budget.nc')
+        KE.to_netcdf(self.proc_preamble + 'KE_' + depth_str + '_budget.nc')
 
     def KE(self, umom, vmom, uvel, vvel, e3u, e3v, e3t, chunks=-1):
         ''' 
@@ -364,10 +371,10 @@ class KE(object):
     def calc_cori_err(self):
         ''' calculate the gridding error arrising due to cori gridding'''
 
-        uvel = xr.open_dataset(self.preamble + 'grid_U.nc').uo
-        vvel = xr.open_dataset(self.preamble + 'grid_V.nc').vo
-        e3u = xr.open_dataset(self.preamble + 'grid_U.nc').uo
-        e3v = xr.open_dataset(self.preamble + 'grid_V.nc').vo
+        uvel = xr.open_dataset(self.raw_preamble + 'grid_U.nc').uo
+        vvel = xr.open_dataset(self.raw_preamble + 'grid_V.nc').vo
+        e3u = xr.open_dataset(self.raw_preamble + 'grid_U.nc').uo
+        e3v = xr.open_dataset(self.raw_preamble + 'grid_V.nc').vo
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc')
         ff_f = xr.open_dataset(self.path + 'domain_cfg.nc').ff_f
 
@@ -391,15 +398,15 @@ class KE(object):
                                         +          f3_nw  * self.im1(uflux)
                                         +          f3_ne  * uflux )
 
-        uPVO.to_netcdf(self.preamble + 'utrd_pvo_bta.nc')
-        vPVO.to_netcdf(self.preamble + 'vtrd_pvo_bta.nc')
+        uPVO.to_netcdf(self.raw_preamble + 'utrd_pvo_bta.nc')
+        vPVO.to_netcdf(self.raw_preamble + 'vtrd_pvo_bta.nc')
 
     def calc_rhoW(self):
         ''' get rho on w-pts '''
 
         # get variables
-        T_path = self.preamble + 'grid_T.nc'
-        W_path = self.preamble + 'grid_W.nc'
+        T_path = self.raw_preamble + 'grid_T.nc'
+        W_path = self.raw_preamble + 'grid_W.nc'
         rho    = xr.open_dataset(T_path, decode_times=False).rhop
         depthw = xr.open_dataset(W_path, decode_times=False).depthw
 
@@ -418,17 +425,17 @@ class KE(object):
         rhoW['time_counter'] = rhoW.time_instant
 
         # save
-        rhoW.to_netcdf(self.preamble + 'rhoW.nc')
+        rhoW.to_netcdf(self.proc_preamble + 'rhoW.nc')
 
     def calc_z_KE_budget(self):
         ''' calculate the vertical buoyancy flux '''
         
         # get variables
         chunk = {'time_counter':1}
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW.nc', chunks=chunk).rhop
-        e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
+        rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW.nc', chunks=chunk).rhop
+        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunk).e3t
+        wvel = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -454,17 +461,17 @@ class KE(object):
 
         # save
         b_flux.name = 'b_flux'
-        b_flux.to_netcdf(self.preamble + 'b_flux.nc')
+        b_flux.to_netcdf(self.proc_preamble + 'b_flux.nc')
 
     def calc_z_TKE_budget(self):
         ''' calculate the vertical buoyancy flux '''
         
         # get variables
         chunk = {'time_counter':1}
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW_rey.nc', chunks=chunk).rhop
-        e3t  = xr.open_dataset(self.preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.preamble + 'wvel_rey.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.preamble + 'wvel.nc', chunks=chunk).e3w
+        rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW_rey.nc', chunks=chunk).rhop
+        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunk).e3t
+        wvel = xr.open_dataset(self.proc_preamble + 'wvel_rey.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -494,16 +501,16 @@ class KE(object):
         # save
         b_flux.name = 'b_flux_rey'
         with ProgressBar():
-            b_flux.to_netcdf(self.preamble + 'b_flux_rey.nc')
+            b_flux.to_netcdf(self.proc_preamble + 'b_flux_rey.nc')
 
     def calc_z_MKE_budget(self):
         ''' calculate the vertical buoyancy flux '''
         
         # get variables
-        rhoW  = xr.open_dataset(self.preamble + 'rhoW_mean.nc').rhop
-        e3t  = xr.open_dataset(self.preamble + 'grid_T_mean.nc').e3t
-        wvel = xr.open_dataset(self.preamble + 'grid_W_mean.nc').wo
-        e3w = xr.open_dataset(self.preamble + 'grid_W_mean.nc').e3w
+        rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW_mean.nc').rhop
+        e3t  = xr.open_dataset(self.proc_preamble + 'grid_T_mean.nc').e3t
+        wvel = xr.open_dataset(self.proc_preamble + 'grid_W_mean.nc').wo
+        e3w = xr.open_dataset(self.proc_preamble + 'grid_W_mean.nc').e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -526,15 +533,17 @@ class KE(object):
 
         # save
         b_flux.name = 'b_flux_mean'
-        b_flux.to_netcdf(self.preamble + 'b_flux_mean.nc')
+        b_flux.to_netcdf(self.proc_preamble + 'b_flux_mean.nc')
 
 
     def calc_TKE_steadiness(self):
         ''' plot time series of TKE and dTKE/dt at mixed later depth '''
        
         kwargs = {'decode_cf':False} 
-        uvel_prime = xr.load_dataarray(self.preamble + 'uvel_mld_rey.nc', **kwargs)
-        vvel_prime = xr.load_dataarray(self.preamble + 'vvel_mld_rey.nc', **kwargs)
+        uvel_prime = xr.load_dataarray(self.proc_preamble + 'uvel_mld_rey.nc',
+                                       **kwargs)
+        vvel_prime = xr.load_dataarray(self.proc_preamble + 'vvel_mld_rey.nc',
+                                       **kwargs)
 
         # regrid to t-pts
         uvelT_prime = (uvel_prime + uvel_prime.roll(x=1, roll_coords=False)) / 2
@@ -549,7 +558,7 @@ class KE(object):
                                 vvelT_prime_sqmean).mean(['x','y'])
 
         # save
-        TKE_timeseries.to_netcdf(self.preamble + 'TKE_mld.nc')
+        TKE_timeseries.to_netcdf(self.proc_preamble + 'TKE_mld.nc')
        
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
@@ -562,11 +571,11 @@ if __name__ == '__main__':
      #m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
-     m.grid_to_T_pts(save=True)
+     #m.grid_to_T_pts(save=True)
 
      # get TKE step 2
-     #m.calc_reynolds_terms()
-     #m.calc_TKE(save=True)
+     m.calc_reynolds_terms()
+     m.calc_TKE(save=True)
 
      #m.calc_MKE_budget(depth_str='30')
      #m.calc_z_TKE_budget()
