@@ -8,6 +8,33 @@ import numpy as np
 
 matplotlib.rcParams.update({"font.size": 8})
 
+def render_2d_map(ax, da, cmap, vmin=None, vmax=None):
+    
+    ax.pcolor(da.nav_lon, da.nav_lat, da, cmap=cmap, vmin=vmin, vmax=vmax)
+
+def plot_2d_maps(case):
+    """ render 2d maps at mid depth of mixed layer """
+
+    # initialise figure
+    fig, axs = plt.subplots(2, 2, figsize=(5.5,7))
+    plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
+    
+
+    # data source
+    path = config.data_path() + case \
+         + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
+
+    da = xr.open_dataarray(path + "votemper_ml_mid.nc")
+    da = da.sel(time_counter="2012-12-23 12:00:00", method="nearest")
+    render_2d_map(axs[0,0], da, cmocean.cm.thermal)
+    da = xr.open_dataarray(path + "vosaline_ml_mid.nc")
+    da = da.sel(time_counter="2012-12-23 12:00:00", method="nearest")
+    render_2d_map(axs[0,1], da, cmocean.cm.haline, vmin=33)
+    plt.show()
+
+if __name__ == "__main__":
+    plot_2d_maps("EXP10")
+
 def render_1d_time_series(path, ax, var, integ_type, title, area, date_range):
     """ render line plot on axis for given variable """
 
@@ -299,9 +326,3 @@ def plot_eke_time_series(case, date_range=[None,None]):
     # save figure
     plt.savefig("EKE_{0}_{1}.png".format(d0, d1,), dpi=600)
 
-
-if __name__ == "__main__":
-
-    #plot_time_series("EXP10", ml_mid=True, date_range=[None,"2013-01-11"])
-    #plot_t_s_M_and_N("EXP10", date_range=[None,"2013-01-11"])
-    plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])

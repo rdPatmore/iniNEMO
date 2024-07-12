@@ -162,10 +162,10 @@ class KE(object):
         self.TKE_ice.name = 'TKE_ice'
 
         # TKE in marginal ice zone
-        self.TKE_ice = 0.5 * ( self.vel_prime_miz_sqmean.uT + 
+        self.TKE_miz = 0.5 * ( self.vel_prime_miz_sqmean.uT + 
                                self.vel_prime_miz_sqmean.vT +
                                self.vel_prime_miz_sqmean.wT ).load()
-        self.TKE_ice.name = 'TKE_ice'
+        self.TKE_miz.name = 'TKE_miz'
 
         # TKE over open ocean
         self.TKE_oce = 0.5 * ( self.vel_prime_oce_sqmean.uT + 
