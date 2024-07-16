@@ -33,6 +33,31 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, bg, 'bg_mod2')
         im.mask_by_ml(save=True, cut=[slice(2,-2), slice(2,-2)])
 
+    def partition_quadrant(self, da, quad):
+        ''' 
+        partition domain into one of four quadrents:
+        upper_left, upper_right, lower_left, lower_right
+        '''
+
+        # define mid-latitude and -longitude
+        da_lon_mean = da.nav_lon.mean().values
+        da_lat_mean = da.nav_lat.mean().values
+
+        # get quadrent bounds
+        if quadrant == 'upper_left':
+            self.bounds = (nav_lon < da_lon_mean) & (nav_lat > da_lat_mean)
+        elif quadrant == 'upper_right':
+            self.bounds = (nav_lon > da_lon_mean) & (nav_lat > da_lat_mean)
+        elif quadrant == 'lower_left':
+            self.bounds = (nav_lon < da_lon_mean) & (nav_lat < da_lat_mean)
+        elif quadrant == 'lower_right':
+            self.bounds = (nav_lon > da_lon_mean) & (nav_lat < da_lat_mean)
+
+        # cut to quadrent
+        da_quad = da.where(self.bounds, drop=True)
+
+        return da_quad
+
     def bg_norm_time_series_ice_partition(self, ml_mid=False):
         ''' get bg norm time series partitioned according to sea ice cover ''' 
 
@@ -169,22 +194,26 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
         im.extract_by_depth_at_mld_mid_pt(save=True)
 
-    def var_time_series_ice_partition(self, var, ml_mid=True, depth_integral=False):
+    def var_time_series_ice_partition(self, var, ml_mid=True, quadrant=None,
+                                      depth_integral=False):
         '''
-        get 3D variable time series partitioned according
-        to sea ice cover 
+        get 3D variable time series partitioned according to sea ice cover 
         ''' 
 
-        # get bg norm
+        # set integral parameters
         if ml_mid:
             append = '_ml_mid.nc'
             depth_integral = False
         else:
             append = '_ml.nc'
-    
+
         # get data
         fn = self.proc_preamble + var + append
         da = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # partition by lat-lon quadrant
+        if quadrant:
+            da  = self.quadrant_partition(da, quadrant)
 
         # partition temperature into zones
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
