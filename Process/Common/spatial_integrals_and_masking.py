@@ -15,7 +15,6 @@ class integrals_and_masks(object):
         self.path = config.data_path() + case + '/'
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
-
     def mask_by_ml(self, save=False, cut=None):
 
         ''' mask variable by mixed layer depth '''
@@ -113,18 +112,9 @@ class integrals_and_masks(object):
 
         return size_diff
 
-    def domain_mean_ice_oce_zones(self, threshold=0.2):
+    def get_domain_vars_and_cut_rims(self):
         '''
-        split TKE budget into three variables
-            - ice area
-            - ocean area
-            - MIZ area
-        then integrate over domain and weight by volume
-
-        Parameters
-        ----------
-
-        threshold: sea ice concentration for partition between ice, oce and miz
+        get cfg and icemsk and cut rims along with with var
         '''
 
         # get domain_cfg and ice concentration
@@ -141,14 +131,28 @@ class integrals_and_masks(object):
         var_rim = 10 - size_diff
 
         # cut edges
-        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
-        cfg = self.cut_edges(cfg)
-        icemsk = self.cut_edges(icemsk)
+        self.var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
+        self.cfg = self.cut_edges(cfg)
+        self.icemsk = self.cut_edges(icemsk)
+
+    def domain_mean_ice_oce_zones(self, threshold=0.2):
+        '''
+        split TKE budget into three variables
+            - ice area
+            - ocean area
+            - MIZ area
+        then integrate over domain and weight by volume
+
+        Parameters
+        ----------
+
+        threshold: sea ice concentration for partition between ice, oce and miz
+        '''
 
         # get masks
-        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold)))
-        ice_msk = (icemsk > (1 - threshold))
-        oce_msk = (icemsk < threshold)
+        miz_msk = ((self.icemsk > threshold) & (self.icemsk < (1 - threshold)))
+        ice_msk = (self.icemsk > (1 - threshold))
+        oce_msk = (self.icemsk < threshold)
 
         # mask by ice concentration
         var_ml_miz = var.where(miz_msk)
@@ -164,7 +168,7 @@ class integrals_and_masks(object):
         dims = ['x','y','deptht']
 
         # find volume of each partition
-        t_vol = e3t * cfg.e2t * cfg.e1t
+        t_vol = e3t * self.cfg.e2t * self.cfg.e1t
 
         # calculate volume weighted mean
         var_integ_miz = var_ml_miz.weighted(t_vol).mean(dim=dims)
@@ -197,33 +201,15 @@ class integrals_and_masks(object):
 
         var = self.var
 
-        cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
-                              chunks=-1).squeeze()
-
-        # load ice concentration
-        icemsk = xr.open_dataset(
-                         self.path + 'RawOutput/' + self.file_id + 'icemod.nc',
-                            chunks={'time_counter':1}).siconc
-
-        # check index sizes
-        size_diff = self.check_index_size_diff(cfg, var)
-
-        # trim edges accounting to size mismatch
-        var_rim = 10 - size_diff
-
-        # cut edges
-        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
-        cfg = self.cut_edges(cfg)
-        icemsk = self.cut_edges(icemsk)
-
         # ensure time conformance
-        if not icemsk.time_counter.identical(var.time_counter):
-            var['time_counter'] = icemsk.time_counter
+        if not self.icemsk.time_counter.identical(var.time_counter):
+            var['time_counter'] = self.icemsk.time_counter
 
         # get masks
-        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
-        ice_msk = (icemsk > (1 - threshold)).load()
-        oce_msk = (icemsk < threshold).load()
+        miz_msk = ((self.icemsk > threshold) \
+                 & (self.icemsk < (1 - threshold))).load()
+        ice_msk = (self.icemsk > (1 - threshold)).load()
+        oce_msk = (self.icemsk < threshold).load()
 
         # mask by ice concentration
         var_miz = var.where(miz_msk)
@@ -231,7 +217,7 @@ class integrals_and_masks(object):
         var_oce = var.where(oce_msk)
 
         # find area of each partition
-        area = cfg.e2t * cfg.e1t
+        area = self.cfg.e2t * self.cfg.e1t
 
         # calculate lateral weighted mean
         var_integ_miz = var_miz.weighted(area).mean(dim=['x','y'])

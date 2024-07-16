@@ -33,9 +33,9 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, bg, 'bg_mod2')
         im.mask_by_ml(save=True, cut=[slice(2,-2), slice(2,-2)])
 
-    def partition_quadrant(self, da, quad):
+    def quadrant_partition(self, da, quadrant):
         ''' 
-        partition domain into one of four quadrents:
+        partition domain into one of four quadrants:
         upper_left, upper_right, lower_left, lower_right
         '''
 
@@ -43,18 +43,18 @@ class glider_relevant_metrics(object):
         da_lon_mean = da.nav_lon.mean().values
         da_lat_mean = da.nav_lat.mean().values
 
-        # get quadrent bounds
+        # get quadrant bounds
         if quadrant == 'upper_left':
-            self.bounds = (nav_lon < da_lon_mean) & (nav_lat > da_lat_mean)
+            bounds = (da.nav_lon < da_lon_mean) & (da.nav_lat > da_lat_mean)
         elif quadrant == 'upper_right':
-            self.bounds = (nav_lon > da_lon_mean) & (nav_lat > da_lat_mean)
+            bounds = (da.nav_lon > da_lon_mean) & (da.nav_lat > da_lat_mean)
         elif quadrant == 'lower_left':
-            self.bounds = (nav_lon < da_lon_mean) & (nav_lat < da_lat_mean)
+            bounds = (da.nav_lon < da_lon_mean) & (da.nav_lat < da_lat_mean)
         elif quadrant == 'lower_right':
-            self.bounds = (nav_lon > da_lon_mean) & (nav_lat < da_lat_mean)
+            bounds = (da.nav_lon > da_lon_mean) & (da.nav_lat < da_lat_mean)
 
-        # cut to quadrent
-        da_quad = da.where(self.bounds, drop=True)
+        # cut to quadrant
+        da_quad = da.where(bounds.compute(), drop=True)
 
         return da_quad
 
@@ -211,13 +211,20 @@ class glider_relevant_metrics(object):
         fn = self.proc_preamble + var + append
         da = xr.open_dataarray(fn, chunks={'time_counter':100})
 
+        # initialise partitioning object
+        im = sim.integrals_and_masks(self.case, self.file_id, da, var)
+
+        # get cfg and icemsk and cut rims
+        im.get_domain_vars_and_cut_rims()
+
         # partition by lat-lon quadrant
         if quadrant:
-            da  = self.quadrant_partition(da, quadrant)
+            im.var  = self.quadrant_partition(im.var, quadrant)
+            im.icemsk = self.quadrant_partition(im.icemsk, quadrant)
+            im.cfg = self.quadrant_partition(im.cfg, quadrant)
+            im.var_str = var + '_' + quadrant # update save name
 
         # partition temperature into zones
-        im = sim.integrals_and_masks(self.case, self.file_id, da, var)
-        # partition into zones
         if depth_integral:
             im.domain_mean_ice_oce_zones()
         else:
@@ -273,8 +280,15 @@ if __name__ == '__main__':
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
     #grm.ice_miz_open_partition_area()
-    grm.var_time_series_ice_partition(var='vosaline', ml_mid=False)
-    grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
+    #var_list = ['votemper', 'vosaline', 'bn2', 'bg_mod2']
+    var_list = ['votemper', 'vosaline']
+    for var in var_list:
+        print ('var:', var)
+        for quad in ['upper_right','upper_left','lower_right','lower_left']:
+            print ('quad:', quad)
+            grm.var_time_series_ice_partition(var=var, ml_mid=False,
+                                  quadrant=quad)
+    #grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
     #grm.save_ml_mid_raw_var_wpt()
@@ -283,7 +297,7 @@ if __name__ == '__main__':
     #grm.N2_mld_time_series_ice_partition()
     #grm.taum_time_series_ice_partition()
     #grm.fresh_water_flux_time_series_ice_partition()
-    grm.save_ml_T_and_S()
+    #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()
     end = time.time()
     print('time elapsed (minutes): ', (end - start)/60)
