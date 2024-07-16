@@ -32,11 +32,9 @@ class glider_relevant_vars(object):
         """ render line plot on axis for given variable """
     
         if self.quad:
-            fn_var = var + "_" + quad
-        else:
-            fn_var = var
+            var = var + "_" + self.quad
 
-        fn_path = self.timeseries_path + fn_var + "_" + integ_type + ".nc"
+        fn_path = self.timeseries_path + var + "_" + integ_type + ".nc"
         ds = xr.open_dataset(fn_path)
         ds[var + "_miz_weighted_mean"] = ds[var + "_miz_weighted_mean"].where(
                                           self.ice_area.area_miz > 1)
@@ -61,12 +59,10 @@ class glider_relevant_vars(object):
         """ render 2d colour map on axis for given variable """
     
         if self.quad:
-            fn_var = var + "_" + quad
-        else:
-            fn_var = var
+            var = var + "_" + self.quad
 
         # get data
-        fn_path = self.proc_path + fn_var + "_" + integ_type + ".nc"
+        fn_path = self.timeseries_path + var + "_" + integ_type + ".nc"
         ds = xr.open_dataset(fn_path)
     
         # check time - hack via overwrite
@@ -136,7 +132,7 @@ class glider_relevant_vars(object):
         """ render ice, ocean, miz partition on given axis """
     
         # get sea ice area partitions
-        date_range_slice = slice(self.date_range[0], self.date_range[1]))
+        date_range_slice = slice(self.date_range[0], self.date_range[1])
         ice_area = ice_area.sel(time_counter=date_range_slice)
         ax.plot(ice_area.time_counter, self.ice_area["area_oce"], label="Oce")
         ax.plot(ice_area.time_counter, self.ice_area["area_miz"], label="MIZ")
@@ -151,8 +147,16 @@ class glider_relevant_vars(object):
     def get_ice_cover_stats(self):
         """ get percentage of area covered by ice, oce and miz """
     
+        # check subseting
+        if self.quad:
+            fn = "area_{}_ice_oce_miz.nc".format(self.quad)
+        else:
+            fn = "area_ice_oce_miz.nc"
+
+        # get partition data
+        area_partition = xr.open_dataset(self.timeseries_path + fn)
+
         # get percentage ice cover for full domain weighted by area
-        area_partition = xr.open_dataset(path + "area_ice_oce_miz.nc")
         total_area = area_partition["area_oce"] \
                    + area_partition["area_ice"] \
                    + area_partition["area_miz"]
@@ -254,13 +258,13 @@ class glider_relevant_vars(object):
         # plot "M" and "N"
         integ_str = "ml_mid_horizontal_integ"
         self.render_1d_time_series(axs[0], "bn2", integ_str, r"N$^2$")
-        dates = self.render_1d_time_series(path, axs[1], "bg_mod2", integ_str,
+        dates = self.render_1d_time_series(axs[1], "bg_mod2", integ_str,
                                       r"$|\mathbf{\nabla}b|$")
     
-        self.render_2d_time_series(path, fig, axs[2:5], "votemper",
+        self.render_2d_time_series(fig, axs[2:5], "votemper",
                               "ml_horizontal_integ",
                               "Temperature", cmocean.cm.thermal)
-        self.render_2d_time_series(path, fig, axs[5:8], "vosaline", 
+        self.render_2d_time_series(fig, axs[5:8], "vosaline", 
                               "ml_horizontal_integ",
                               "Salinity", cmocean.cm.haline)
         # date labels
@@ -284,7 +288,7 @@ class glider_relevant_vars(object):
         d1 = dates.max().dt.strftime("%Y%m%d").values
 
         if self.quad:
-            append = "_" + quad
+            append = "_" + self.quad
         else:
             append =""
     
@@ -329,9 +333,11 @@ class glider_relevant_vars(object):
 
 if __name__ == "__main__":
 
-    grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
-                              quad="lower_right")
-    plot_time_series_core_vars("EXP10", ml_mid=True,
-                               date_range=[None,"2013-01-11"])
-    #plot_t_s_M_and_N("EXP10", date_range=[None,"2013-01-11"])
-    #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
+    for quad in ["upper_right","upper_left","lower_left","lower_right"]:
+        grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
+                                  quad=quad)
+        #plot_time_series_core_vars("EXP10", ml_mid=True,
+        #                           date_range=[None,"2013-01-11"])
+        grv.get_ice_cover_stats()
+        grv.plot_t_s_M_and_N()
+        #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
