@@ -11,25 +11,90 @@ matplotlib.rcParams.update({"font.size": 8})
 def render_2d_map(ax, da, cmap, vmin=None, vmax=None):
     
     ax.pcolor(da.nav_lon, da.nav_lat, da, cmap=cmap, vmin=vmin, vmax=vmax)
+    
+    # set labels
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("latitude")
+
+def cut_rim(ds, rim_size):
+    """cut edges from domain"""
+
+    slice_ind = slice(rim_size, -rim_size)
+    return ds.isel(x=slice_ind, y=slice_ind)
+
+def get_symetric_limits(da):
+    """ return symetric colour bar limits"""
+
+    # get min, max
+    vmin = da.min()
+    vmax = da.max()
+
+    # set symetric
+    abs_max = max(abs(vmin), abs(vmax))
+    vmin = -abs_max
+    vmax = abs_max
+     
+    return vmin, vmax
 
 def plot_2d_maps(case):
     """ render 2d maps at mid depth of mixed layer """
 
     # initialise figure
-    fig, axs = plt.subplots(2, 2, figsize=(5.5,7))
+    fig, axs = plt.subplots(3, 2, figsize=(5.5,7))
     plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
     
 
     # data source
     path = config.data_path() + case \
          + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
+    date = "2012-12-23 12:00:00"
 
+    # render temperature
     da = xr.open_dataarray(path + "votemper_ml_mid.nc")
-    da = da.sel(time_counter="2012-12-23 12:00:00", method="nearest")
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
     render_2d_map(axs[0,0], da, cmocean.cm.thermal)
+
+    # render salinity
     da = xr.open_dataarray(path + "vosaline_ml_mid.nc")
-    da = da.sel(time_counter="2012-12-23 12:00:00", method="nearest")
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
     render_2d_map(axs[0,1], da, cmocean.cm.haline, vmin=33)
+
+    # render N2
+    da = xr.open_dataarray(path + "bn2_ml_mid.nc")
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
+    render_2d_map(axs[1,0], da, plt.cm.binary)
+
+    # render bg
+    da = xr.open_dataarray(path + "bg_mod2_ml_mid.nc")
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
+    render_2d_map(axs[1,1], da, plt.cm.binary)
+
+    path = config.data_path() + case \
+         + "/RawOutput/SOCHIC_PATCH_3h_20121209_20130331_"
+
+    # render surface salt flux
+    da = xr.open_dataset(path + "grid_T.nc").sfx
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
+    vmin, vmax = get_symetric_limits(da)
+    render_2d_map(axs[2,0], da, plt.cm.RdBu, vmin=vmin, vmax=vmax)
+
+    # render surface heat flux
+    da = xr.open_dataset(path + "grid_T.nc").qt_oce
+    da = da.sel(time_counter=date, method="nearest")
+    da = cut_rim(da, 10)
+    vmin, vmax = get_symetric_limits(da)
+    render_2d_map(axs[2,1], da, plt.cm.RdBu, vmin=vmin, vmax=vmax)
+
+    for ax in axs.flatten()[:-2]:
+        ax.set_xticklabels([])
+    for ax in axs[1]:
+        ax.set_yticklabels([])
+
     plt.show()
 
 if __name__ == "__main__":

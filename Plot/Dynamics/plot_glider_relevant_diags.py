@@ -100,7 +100,7 @@ def render_2d_time_series(path, fig, axs, var, integ_type, title, area,
 
     return ds.time_counter
 
-def render_sea_ice_area(ax, area):
+def render_sea_ice_area(ax, area, date_range):
     """ render ice, ocean, miz partition on given axis """
 
     # get sea ice area partitions
@@ -145,25 +145,41 @@ def plot_time_series_core_vars(case, ml_mid=False, date_range=[None,None]):
 
     if ml_mid:
         integ_str = "ml_mid_horizontal_integ"
-        render(axs[0], "votemper", integ_str, "Temperature", prop_area)
-        render(axs[1], "vosaline", integ_str, "Salinity", prop_area)
-        render(axs[3], "bn2", integ_str, r"N$^2$", prop_area)
-        render(axs[4], "bg_mod2", integ_str, r"$|\mathbf{\nabla}b|$", prop_area)
+        render_1d_time_series(path, axs[0], "votemper", integ_str, 
+                             "Temperature", prop_area, date_range)
+        render_1d_time_series(path, axs[1], "vosaline", integ_str, "Salinity",
+                             prop_area, date_range)
+        render_1d_time_series(path, axs[3], "bn2", integ_str, r"N$^2$", prop_area,
+                              date_range)
+        render_1d_time_series(path, axs[4], "bg_mod2", integ_str,
+                             r"$|\mathbf{\nabla}b|$", prop_area, date_range)
     else:
-        render(axs[0], "votemper", "domain_integ", "Temperature", prop_area)
-        render(axs[1], "vosaline", "domain_integ", "Salinity", prop_area)
-        render(axs[3], "N2_mld", "horizontal_integ", r"N$^2$", prop_area)
-        render(axs[4], "bg_mod2", "domain_integ", r"$|\mathbf{\nabla}b|$",
-               prop_area)
+        render_1d_time_series(path, axs[0], "votemper", "domain_integ", "Temperature", prop_area, date_range)
+        render_1d_time_series(path, axs[1], "vosaline", "domain_integ", "Salinity", prop_area, date_range)
+        render_1d_time_series(path, axs[3], "N2_mld", "horizontal_integ", r"N$^2$", prop_area, date_range)
+        render_1d_time_series(path, axs[4], "bg_mod2", "domain_integ", r"$|\mathbf{\nabla}b|$",
+               prop_area, date_range)
 
-    render(axs[2], "mld", "horizontal_integ", "MLD", prop_area)
+    render_1d_time_series(path, axs[2], "mld", "horizontal_integ", "MLD", prop_area, date_range)
     # positive down mld
     axs[2].invert_yaxis()
     #render(axs[5], "windsp", "horizontal_integ", r"$U_{10}$")
-    render(axs[5], "wfo", "horizontal_integ", r"$Q_{fw}$", prop_area)
-    dates = render(axs[6], "taum", "horizontal_integ", r"$|\mathbf{\tau}_s|$",
-                   prop_area)
-    render_sea_ice_area(axs[7], prop_area)
+    render_1d_time_series(path, axs[5], "wfo", "horizontal_integ", r"$Q_{fw}$", prop_area, date_range)
+    dates = render_1d_time_series(path, axs[6], "taum", "horizontal_integ", r"$|\mathbf{\tau}_s|$",
+                   prop_area, date_range)
+    render_sea_ice_area(axs[7], prop_area, date_range)
+
+    ## render sea ice mass loss
+    #path = config.data_path() + case + \
+    #         "/RawOutput/SOCHIC_PATCH_3h_20121209_20130331_"
+    #ice_melt = xr.open_dataset(path + "icemod.nc").vfxice
+    #ice_melt_mean = ice_melt.mean(["x","y"])
+    #axs[8].plot(ice_melt_mean.time_counter, ice_melt_mean)
+    #ice_melt_mean = ice_melt_mean.sel(time_counter=slice(date_range[0], date_range[1]))
+    ## axes formatting
+    #date_lims = (ice_melt_mean.time_counter.min().values, 
+    #             ice_melt_mean.time_counter.max().values)
+    #axs[8].set_xlim(date_lims)
 
     # date labels
     for ax in axs:
@@ -190,8 +206,9 @@ def plot_time_series_core_vars(case, ml_mid=False, date_range=[None,None]):
     d0 = dates.min().dt.strftime("%Y%m%d").values
     d1 = dates.max().dt.strftime("%Y%m%d").values
 
-    plt.savefig("glider_relevant_diags_{0}_{1}{2}.pdf".format(d0, d1,
-                                                               append))
+    plt.show()
+    #plt.savefig("glider_relevant_diags_{0}_{1}{2}.pdf".format(d0, d1,
+    #                                                           append))
 
 def plot_t_s_M_and_N(case, date_range=[None,None]):
     """
@@ -302,6 +319,7 @@ def plot_eke_time_series(case, date_range=[None,None]):
 
 if __name__ == "__main__":
 
-    #plot_time_series("EXP10", ml_mid=True, date_range=[None,"2013-01-11"])
+    plot_time_series_core_vars("EXP10", ml_mid=True,
+                               date_range=[None,"2013-01-11"])
     #plot_t_s_M_and_N("EXP10", date_range=[None,"2013-01-11"])
-    plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
+    #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
