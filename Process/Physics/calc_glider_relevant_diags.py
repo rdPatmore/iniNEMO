@@ -42,17 +42,6 @@ class glider_relevant_metrics(object):
         # partition into zones, mean horizontally and save
         im.horizontal_mean_ice_oce_zones()
 
-    def mld_time_series_ice_partition(self):
-        ''' get mld time series partitioned according to sea ice cover ''' 
-
-        # get mld
-        mld = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
-                            chunks={'time_counter':1}).mldr10_3
-
-        # partition into zones
-        im = sim.integrals_and_masks(self.case, self.file_id, mld, 'mld')
-        im.horizontal_mean_ice_oce_zones()
-
     def save_ml_bg(self):
         ''' save mixed layer buoyancy gradients '''
 
