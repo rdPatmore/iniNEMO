@@ -73,18 +73,6 @@ class integrals_and_masks(object):
         
         fn = self.path + 'ProcessedVars/' + self.file_id + 'ml_mid.nc'
         mld_mid = xr.open_dataarray(fn, chunks={'time_counter':100})
-        #print ('')
-        #print ('')
-        #print ('')
-        #print (self.var)
-        #print ('')
-        #print ('')
-        #print ('')
-        #print (mld_mid)
-        #print ('')
-        #print ('')
-        #print ('')
-        #print (sdkjfh)
 
         # check index sizes match
         size_diff = self.check_index_size_diff(self.var, mld_mid)
@@ -105,6 +93,8 @@ class integrals_and_masks(object):
 
         x_diff = int((ds_a.x.size - ds_b.x.size) / 2)
         y_diff = int((ds_a.y.size - ds_b.y.size) / 2)
+
+        # check rim differences in x and y match
         if x_diff == y_diff:
             size_diff = x_diff
         else:
@@ -190,7 +180,7 @@ class integrals_and_masks(object):
            fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
            var_integ.to_netcdf(fn)
 
-    def horizontal_mean_ice_oce_zones(self, threshold=0.2):
+    def horizontal_mean_ice_oce_zones(self, threshold=0.2, save=False):
         '''
         split TKE budget into three variables
             - ice area
@@ -230,12 +220,13 @@ class integrals_and_masks(object):
         var_integ_oce.name = self.var_str + '_oce_weighted_mean'
 
         # merge variables
-        var_integ = xr.merge([var_integ_miz.load(),
-                              var_integ_ice.load(),
-                              var_integ_oce.load()])
+        self.var_integ = xr.merge([var_integ_miz.load(),
+                                   var_integ_ice.load(),
+                                   var_integ_oce.load()])
  
         # save
-        fn = self.path + 'TimeSeries/' +\
-             self.var_str + '_horizontal_integ.nc'
-        var_integ.to_netcdf(fn)
+        if save:
+            fn = self.path + 'TimeSeries/' +\
+                 self.var_str + '_horizontal_integ.nc'
+            self.var_integ.to_netcdf(fn)
  
