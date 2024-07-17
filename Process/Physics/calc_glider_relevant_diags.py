@@ -11,6 +11,37 @@ class glider_relevant_metrics(object):
         self.raw_preamble = self.data_path + '/RawOutput/' + self.file_id
         self.proc_preamble = self.data_path + 'ProcessedVars/' + self.file_id
 
+    def raw_var_time_series_ice_partition(self, var_str, fn='grid_T',
+                                          quadrant=None):
+        '''
+        get raw var time series partitioned according to sea ice cover
+
+        parameters
+        ---------
+        var: variable name in source file
+        var_str: name used in output variables and file name
+        fn: input file appendage
+        quadrant: enact quadran subsetting
+        ''' 
+
+        # get var
+        ds = xr.open_dataset(self.raw_preamble + fn + '.nc',
+                            chunks={'time_counter':1})[var_str]
+
+        im = sim.integrals_and_masks(self.case, self.file_id, ds, var_str)
+        # get cfg and icemsk and cut rims
+        im.get_domain_vars_and_cut_rims()
+
+        # partition by lat-lon quadrant
+        if quadrant:
+            im.var  = self.quadrant_partition(im.var, quadrant)
+            im.icemsk = self.quadrant_partition(im.icemsk, quadrant)
+            im.cfg = self.quadrant_partition(im.cfg, quadrant)
+            im.var_str = var_str + '_' + quadrant # update save name
+
+        # partition into zones, mean horizontally and save
+        im.horizontal_mean_ice_oce_zones()
+
     def mld_time_series_ice_partition(self):
         ''' get mld time series partitioned according to sea ice cover ''' 
 
@@ -299,7 +330,10 @@ if __name__ == '__main__':
         print ('quad:', quad)
         #grm.var_time_series_ice_partition(var=var, ml_mid=False,
         #                      quadrant=quad)
-        grm.ice_miz_open_partition_area(quadrant=quad)
+        #grm.ice_miz_open_partition_area(quadrant=quad)
+        grm.raw_var_time_series_ice_partition('mldr10_3',
+                                              fn='grid_T',
+                                              quadrant=quad)
     #grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
