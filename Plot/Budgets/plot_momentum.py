@@ -80,12 +80,11 @@ class plot_momentum(object):
         # load and slice
         ds = xr.open_dataset(self.preamble + vec + 'mom.nc',
                              chunks={"depth"+vec:1})
-        print (ds)
-        ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
-        ds = ds.isel(time_counter=1).load()            # time
+        ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
+        ds = ds.isel(time_counter=0).load()            # time
 
             
-        var_list = ['trd_atm2d', 'trd_hpg', 'trd_rvo', 
+        var_list = ['trd_hpg', 'trd_keg', 'trd_rvo', 
                     'trd_pvo', 'trd_zad', 'trd_ldf', 'trd_zdf', 'trd_tot']
         #var_list = ['trd_hpg', 'trd_spg', 'trd_keg', 'trd_rvo',
         #            'trd_pvo', 'trd_zad', 'trd_zdf', 'trd_tot']
@@ -138,12 +137,14 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + vec + 'mom.nc')
-        ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
-        ds = ds.isel(time_counter=1)                       # time
+        ds = xr.open_dataset(self.preamble + vec + 'mom.nc', chunks=-1)
+        ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
+        ds = ds.isel(time_counter=0)                       # time
 
             
         if vec == 'u':
+            #if thickness_weighted:
+            #    ds.utrd_
             mom_sum = ds.utrd_hpg + ds.utrd_ldf + ds.utrd_keg + \
                       ds.utrd_rvo + ds.utrd_pvo + ds.utrd_zad + ds.utrd_zdf 
         if vec == 'v':
