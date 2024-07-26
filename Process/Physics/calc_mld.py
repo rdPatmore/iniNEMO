@@ -3,13 +3,41 @@ import config
 from dask.distributed import Client, LocalCluster
 import dask
 import matplotlib.pyplot as plt
+import iniNEMO.Process.Common.spatial_integrals_and_masking as sim
 
 class mld(object):
     ''' class for mixed layer depth operations'''
 
     def __init__(self, model, nc_preamble):
         self.path = config.data_path() + model
-        self.nc_preamble = self.path + '/' + nc_preamble
+        self.raw_nc_preamble = self.path + '/RawOutput/' + nc_preamble
+        self.proc_nc_preamble = self.path + '/ProcessedVars/' + nc_preamble
+        self.case = model
+        self.file_id = nc_preamble
+
+    def restrict_N2_to_mixed_layer(self):
+        ''' mask input variable by mixed layer '''
+
+        N2 = xr.open_dataset(self.raw_nc_preamble + 'grid_W.nc',
+                chunks={'time_counter':100}).bn2
+
+        iam = sim.integrals_and_masks(self.case,
+                                      self.file_id, 
+                                      N2, 'bn2')
+        iam.mask_by_ml(save=True, grid='grid_W')
+
+    def restrict_bg_to_mixed_layer(self):
+        ''' mask input variable by mixed layer '''
+
+        bg = xr.open_dataarray(self.proc_nc_preamble + 'bg_mod2.nc',
+                chunks={'time_counter':100})
+
+        iam = sim.integrals_and_masks(self.case,
+                                      self.file_id, 
+                                      bg, 'bg_mod2')
+        iam.mask_by_ml(save=True,
+                       cut=[slice(2,-2),slice(2,-2)],
+                       grid='grid_T')
 
     def season_mean(ds):
         # Number of days in each month
@@ -355,8 +383,8 @@ if __name__=='__main__':
     nc_preamble = 'SOCHIC_PATCH_3h_20121209_20130331_'
 
     m = mld('EXP10', nc_preamble)
-    print ('start')
-    m.calculate_seasonal_and_spatial_mean_mld()
+    m.restrict_bg_to_mixed_layer()
+#    m.calculate_seasonal_and_spatial_mean_mld()
 #    m.find_var_at_middepth('b_flux', 'deptht', depth=30)
     #m.find_var_at_middepth('grid_T', 'deptht', depth=30)
     #m.reduce_uvel_vars()

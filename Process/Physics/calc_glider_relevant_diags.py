@@ -40,7 +40,7 @@ class glider_relevant_metrics(object):
             im.var_str = var_str + '_' + quadrant # update save name
 
         # partition into zones, mean horizontally and save
-        im.horizontal_mean_ice_oce_zones()
+        im.horizontal_mean_ice_oce_zones(save=True)
 
     def save_ml_bg(self):
         ''' save mixed layer buoyancy gradients '''
@@ -72,6 +72,9 @@ class glider_relevant_metrics(object):
             bounds = (da.nav_lon < da_lon_mean) & (da.nav_lat < da_lat_mean)
         elif quadrant == 'lower_right':
             bounds = (da.nav_lon > da_lon_mean) & (da.nav_lat < da_lat_mean)
+        else:
+            print ("no quadrent selected: do nothing")
+            return da
 
         # cut to quadrant
         da_quad = da.where(bounds.compute(), drop=True)
@@ -214,7 +217,7 @@ class glider_relevant_metrics(object):
         im = sim.integrals_and_masks(self.case, self.file_id, da, var)
         im.extract_by_depth_at_mld_mid_pt(save=True)
 
-    def var_time_series_ice_partition(self, var, ml_mid=True, quadrant=None,
+    def var_time_series_ice_partition(self, var_str, ml_mid=True, quadrant=None,
                                       depth_integral=False):
         '''
         get 3D variable time series partitioned according to sea ice cover 
@@ -224,17 +227,17 @@ class glider_relevant_metrics(object):
         # TODO: these names do not propogate to the save name, which is expected
         #       by the plotting routines
         if ml_mid:
-            append = '_ml_mid.nc'
+            var_str = var_str + '_ml_mid'
             depth_integral = False
         else:
-            append = '_ml.nc'
+            var_str = '_ml'
 
         # get data
-        fn = self.proc_preamble + var + append
+        fn = self.proc_preamble + var_str + '.nc'
         da = xr.open_dataarray(fn, chunks={'time_counter':100})
 
         # initialise partitioning object
-        im = sim.integrals_and_masks(self.case, self.file_id, da, var)
+        im = sim.integrals_and_masks(self.case, self.file_id, da, var_str)
 
         # get cfg and icemsk and cut rims
         im.get_domain_vars_and_cut_rims()
@@ -244,13 +247,13 @@ class glider_relevant_metrics(object):
             im.var  = self.quadrant_partition(im.var, quadrant)
             im.icemsk = self.quadrant_partition(im.icemsk, quadrant)
             im.cfg = self.quadrant_partition(im.cfg, quadrant)
-            im.var_str = var + '_' + quadrant # update save name
+            im.var_str = var_str + '_' + quadrant # update save name
 
         # partition temperature into zones
         if depth_integral:
             im.domain_mean_ice_oce_zones()
         else:
-            im.horizontal_mean_ice_oce_zones()
+            im.horizontal_mean_ice_oce_zones(save=True)
 
     def ice_miz_open_partition_area(self, threshold=0.2, quadrant=None):
         '''
@@ -311,18 +314,24 @@ if __name__ == '__main__':
     file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
     grm = glider_relevant_metrics(case, file_id)
     #grm.ice_miz_open_partition_area()
-    #var_list = ['votemper', 'vosaline', 'bn2', 'bg_mod2']
-    var_list = ['votemper', 'vosaline']
+
+    #var_list = ['bn2']
     #for var in var_list:
     #    print ('var:', var)
-    for quad in ['upper_right','upper_left','lower_right','lower_left']:
-        print ('quad:', quad)
-        #grm.var_time_series_ice_partition(var=var, ml_mid=False,
-        #                      quadrant=quad)
-        #grm.ice_miz_open_partition_area(quadrant=quad)
-        grm.raw_var_time_series_ice_partition('mldr10_3',
-                                              fn='grid_T',
-                                              quadrant=quad)
+    #    for quad in ['upper_right','upper_left','lower_right','lower_left']:
+    #        print ('quad:', quad)
+    #        grm.var_time_series_ice_partition(var_str=var, ml_mid=True,
+    #                              quadrant=quad)
+    #        #grm.ice_miz_open_partition_area(quadrant=quad)
+
+    var_list = ['mldr10_3']
+    for var in var_list:
+        print ('var:', var)
+        for quad in ['upper_right','upper_left','lower_right','lower_left']:
+            print ('quad:', quad)
+            grm.raw_var_time_series_ice_partition(var,
+                                                  fn='grid_T',
+                                                  quadrant=quad)
     #grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()

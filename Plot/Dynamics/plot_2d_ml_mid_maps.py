@@ -5,16 +5,21 @@ import matplotlib
 import matplotlib.dates as mdates
 import cmocean
 import numpy as np
+import iniNEMO.Process.Physics.calc_glider_relevant_diags as grd
 
-matplotlib.rcParams.update({"font.size": 8})
+matplotlib.rcParams.update({"font.size": 6})
 
-def render_2d_map(ax, da, cmap, vmin=None, vmax=None):
+def render_2d_map(fig, ax, da, cmap, title, vmin=None, vmax=None):
     
-    ax.pcolor(da.nav_lon, da.nav_lat, da, cmap=cmap, vmin=vmin, vmax=vmax)
+    p = ax.pcolor(da.nav_lon, da.nav_lat, da, cmap=cmap, vmin=vmin, vmax=vmax)
     
-    # set labels
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("latitude")
+
+    pos = ax.get_position()
+    cbar_ax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.01, pos.y1 - pos.y0])
+    cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+    #cbar.ax.text(8.5, 0.5, title, fontsize=8, rotation=90,
+    #             transform=cbar.ax.transAxes, va='center', ha='left')
+    cbar.ax.set_ylabel(title)
 
 def cut_rim(ds, rim_size):
     """cut edges from domain"""
@@ -34,73 +39,124 @@ def get_symetric_limits(da):
     vmin = -abs_max
     vmax = abs_max
      
-    return vmin, vmax
+    return vmin.values, vmax.values
 
-def plot_2d_maps(case):
+def add_MIZ_contours(case, ax, grm, quadrant, date, bounds=[0.2,0.8]):
+    """ add contours that bound the marginal ice zone """
+
+    ice_path = config.data_path() + case \
+             + '/RawOutput/SOCHIC_PATCH_3h_20121209_20130331_icemod.nc'
+    ice_conc = xr.open_dataset(ice_path, chunks=-1).siconc
+
+    ice_conc = grm.quadrant_partition(ice_conc, quadrant)
+    ice_conc = ice_conc.sel(time_counter=date, method="nearest")
+    ice_conc = cut_rim(ice_conc, 10)
+
+    p = ax.contour(ice_conc.nav_lon, ice_conc.nav_lat,
+               ice_conc, levels=bounds, linewidths=0.8)
+
+    plt.clabel(p, fontsize=6, inline=True)
+
+
+def plot_2d_maps(case, date="2012-12-23 12:00:00", quadrant=None):
     """ render 2d maps at mid depth of mixed layer """
 
     # initialise figure
-    fig, axs = plt.subplots(3, 2, figsize=(5.5,7))
-    plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
+    fig, axs = plt.subplots(2, 3, figsize=(6.5,3.0))
+    plt.subplots_adjust(left=0.1, hspace=0.2, wspace=0.7,
+                        top=0.9, bottom=0.15, right=0.85)
     
-
     # data source
     path = config.data_path() + case \
          + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
-    date = "2012-12-23 12:00:00"
 
+    # get class for quadrant partitioning
+    case = 'EXP10'
+    file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+    grm = grd.glider_relevant_metrics(case, file_id)
+                               
     # render temperature
-    da = xr.open_dataarray(path + "votemper_ml_mid.nc")
+    da = xr.open_dataarray(path + "votemper_ml_mid.nc", chunks=-1)
+    da = grm.quadrant_partition(da, quadrant)
     da = da.sel(time_counter=date, method="nearest")
     da = cut_rim(da, 10)
-    render_2d_map(axs[0,0], da, cmocean.cm.thermal)
+    render_2d_map(fig, axs[0,0], da, cmocean.cm.thermal, "Temperature",
+                  vmin=-2, vmax=0)
+
 
     # render salinity
-    da = xr.open_dataarray(path + "vosaline_ml_mid.nc")
+    da = xr.open_dataarray(path + "vosaline_ml_mid.nc", chunks=-1)
     da = da.sel(time_counter=date, method="nearest")
+    da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
-    render_2d_map(axs[0,1], da, cmocean.cm.haline, vmin=33)
+    render_2d_map(fig, axs[1,0], da, cmocean.cm.haline, "Salinity", 
+                  vmin=33.0, vmax=34.5)
 
     # render N2
-    da = xr.open_dataarray(path + "bn2_ml_mid.nc")
+    da = xr.open_dataarray(path + "bn2_ml_mid.nc", chunks=-1)
     da = da.sel(time_counter=date, method="nearest")
+    da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
-    render_2d_map(axs[1,0], da, plt.cm.binary)
+    render_2d_map(fig, axs[0,1], da, plt.cm.binary, r"$N^2$",
+                  vmin=0, vmax=0.0002)
 
     # render bg
-    da = xr.open_dataarray(path + "bg_mod2_ml_mid.nc")
+    da = xr.open_dataarray(path + "bg_mod2_ml_mid.nc", chunks=-1)
     da = da.sel(time_counter=date, method="nearest")
+    da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
-    render_2d_map(axs[1,1], da, plt.cm.binary)
+    render_2d_map(fig, axs[1,1], da, plt.cm.binary, r"$|\mathbf{\nabla}b|$",
+                  vmin=0, vmax=1e-13)
 
     path = config.data_path() + case \
          + "/RawOutput/SOCHIC_PATCH_3h_20121209_20130331_"
 
     # render surface salt flux
-    da = xr.open_dataset(path + "grid_T.nc").sfx
+    da = xr.open_dataset(path + "grid_T.nc", chunks=-1).sfx
     da = da.sel(time_counter=date, method="nearest")
+    da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
     vmin, vmax = get_symetric_limits(da)
-    render_2d_map(axs[2,0], da, plt.cm.RdBu, vmin=vmin, vmax=vmax)
+    render_2d_map(fig, axs[0,2], da, plt.cm.RdBu, "Surface Salt Flux",
+                  vmin=vmin, vmax=vmax)
 
     # render surface heat flux
-    da = xr.open_dataset(path + "grid_T.nc").qt_oce
+    da = xr.open_dataset(path + "grid_T.nc", chunks=-1).qt_oce
     da = da.sel(time_counter=date, method="nearest")
+    da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
     vmin, vmax = get_symetric_limits(da)
-    render_2d_map(axs[2,1], da, plt.cm.RdBu, vmin=vmin, vmax=vmax)
+    render_2d_map(fig, axs[1,2], da, plt.cm.RdBu, "Surface Heat Flux",
+                  vmin=vmin, vmax=vmax)
 
-    for ax in axs.flatten()[:-2]:
+    for ax in axs.flatten():
+        #add_MIZ_contours(case, ax, grm, quadrant, date, bounds=[0.2,0.8])
+        ax.set_aspect("equal")
+    for ax in axs[0]:
         ax.set_xticklabels([])
-    for ax in axs[1]:
+    for ax in axs[:,1:].flatten():
         ax.set_yticklabels([])
 
-    plt.show()
+    # set labels
+    for ax in axs[-1]:
+        ax.set_xlabel("Longitude")
+    for ax in axs[:,0]:
+        ax.set_ylabel("Latitude")
+
+    plt.suptitle(date)
+
+    if quadrant:
+        append = "_" + quadrant
+    else:
+        append =""
+
+    plt.savefig("2d_mld_maps_{}{}.png".format(date[:10], append), dpi=1200)
 
 if __name__ == "__main__":
-    plot_2d_maps("EXP10")
+    plot_2d_maps("EXP10", date="2012-12-22 12:00:00", quadrant=None)
 
-def render_1d_time_series(path, ax, var, integ_type, title, area, date_range):
+def render_1d_time_series(path, ax, var, integ_type, title, area, date_range,
+                          vlims=None):
     """ render line plot on axis for given variable """
 
     ds = xr.open_dataset(path + var + "_" + integ_type + ".nc")
@@ -118,13 +174,15 @@ def render_1d_time_series(path, ax, var, integ_type, title, area, date_range):
     date_lims = (ds.time_counter.min().values, 
                  ds.time_counter.max().values)
     ax.set_xlim(date_lims)
+    if vlims:
+        ax.set_ylim(vlims)
 
     return ds.time_counter
 
 def render_2d_time_series(path, fig, axs, var, integ_type, title, area,
                           date_range,
                           cmap=cmocean.cm.thermal,
-                          var_append="_weighted_mean"):
+                          var_append="_weighted_mean", vlims=None):
     """ render 2d colour map on axis for given variable """
 
     ds = xr.open_dataset(path + var + "_" + integ_type + ".nc")
@@ -143,18 +201,22 @@ def render_2d_time_series(path, fig, axs, var, integ_type, title, area,
                                       area.area_ice > 1)
     ds = ds.sel(time_counter=slice(date_range[0], date_range[1]))
 
-    # hack for finding min across oce, ice and miz variables
-    # it would be better if ice, oce and miz were under a coordinate
-    ds_min = ds.min()
-    vmin = min(ds_min[var + "_ice" + var_append],
-               ds_min[var + "_oce" + var_append],
-               ds_min[var + "_miz" + var_append]
-               ).values
-    ds_max = ds.max()
-    vmax = max(ds_max[var + "_ice" + var_append],
-               ds_max[var + "_oce" + var_append],
-               ds_max[var + "_miz" + var_append]
-               ).values
+    # set value limits
+    if vlims:
+        vmin, vmax = vlims[0], vlims[1]
+    else:
+        # hack for finding min across oce, ice and miz variables
+        # it would be better if ice, oce and miz were under a coordinate
+        ds_min = ds.min()
+        vmin = min(ds_min[var + "_ice" + var_append],
+                   ds_min[var + "_oce" + var_append],
+                   ds_min[var + "_miz" + var_append]
+                   ).values
+        ds_max = ds.max()
+        vmax = max(ds_max[var + "_ice" + var_append],
+                   ds_max[var + "_oce" + var_append],
+                   ds_max[var + "_miz" + var_append]
+                   ).values
 
     axs[0].pcolor(ds.time_counter, ds.deptht,
                   ds[var + "_oce" + var_append].T,
@@ -310,20 +372,20 @@ def plot_t_s_M_and_N(case, date_range=[None,None]):
 
     # plot "M" and "N"
     integ_str = "ml_mid_horizontal_integ"
-    render_1d_time_series(path, axs[0], "bn2", integ_str, r"N$^2$", prop_area,
-                          date_range)
+    render_1d_time_series(path, axs[0], "bn2", integ_str, r"N$^2$ (s$^{-2}$)",
+                          prop_area, date_range, vlims=[0,0.0002])
     dates = render_1d_time_series(path, axs[1], "bg_mod2", integ_str,
-                                  r"$|\mathbf{\nabla}b|$", prop_area,
-                                  date_range)
+                                  r"$|\mathbf{\nabla}b|$ (s$^{-2}$)", prop_area,
+                                  date_range, vlims=[0,2.1e-14])
 
     render_2d_time_series(path, fig, axs[2:5], "votemper",
                           "ml_horizontal_integ",
-                          "Temperature", prop_area, date_range,
-                          cmocean.cm.thermal)
+                          r"Temperature ($^{\circ}$C)", prop_area, date_range,
+                          cmocean.cm.thermal, vlims=[-1.9,-0.1])
     render_2d_time_series(path, fig, axs[5:8], "vosaline", 
                           "ml_horizontal_integ",
-                          "Salinity", prop_area, date_range,
-                          cmocean.cm.haline)
+                          r"Salinity ($10^3$)", prop_area, date_range,
+                          cmocean.cm.haline, vlims=[33.3,34.4])
     # date labels
     for ax in axs:
         ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
@@ -344,7 +406,7 @@ def plot_t_s_M_and_N(case, date_range=[None,None]):
     d0 = dates.min().dt.strftime("%Y%m%d").values
     d1 = dates.max().dt.strftime("%Y%m%d").values
 
-    plt.savefig("density_gradient_controls_{0}_{1}.png".format(d0, d1,),
+    plt.savefig("density_gradient_controls_{0}_{1}.png".format(d0, d1),
                 dpi=600)
 
 def plot_eke_time_series(case, date_range=[None,None]):

@@ -15,23 +15,32 @@ class integrals_and_masks(object):
         self.path = config.data_path() + case + '/'
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
-    def mask_by_ml(self, save=False, cut=None):
+    def mask_by_ml(self, save=False, cut=None, grid='grid_T'):
 
         ''' mask variable by mixed layer depth '''
 
-        # get grid_T
-        kwargs = {'chunks': dict(time_counter=1)} 
-        ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs)
+        # get grid_X
+        kwargs = {'chunks': dict(time_counter=100)} 
+        ds = xr.open_dataset(self.raw_preamble + grid + '.nc', **kwargs)
+
+        # get mld
+        mld = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                             **kwargs).mldr10_3
 
         # cut edges of grid_T
         if cut:
             ds = ds.isel(x=cut[0], y=cut[1]) 
+            mld = mld.isel(x=cut[0], y=cut[1]) 
 
         # convert cell thickness to depths
-        deps = ds.e3t.cumsum('deptht').load()
+        if grid == 'grid_T':
+            deps = ds.e3t.cumsum('deptht').load()
+        elif grid == 'grid_W':
+            deps = ds.e3w.cumsum('depthw').load()
+            mld['time_counter'] = self.var.time_counter
 
-        var_ml =  self.var.where(deps <= ds.mldr10_3, drop=False)
-
+        var_ml =  self.var.where(deps <= mld, drop=False)
+        
         if save:
             with ProgressBar():
                 fn = self.path + 'ProcessedVars/' + self.file_id + '{}_ml.nc'

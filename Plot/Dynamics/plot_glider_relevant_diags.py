@@ -28,7 +28,7 @@ class glider_relevant_vars(object):
         self.case = case
         self.quad = quad
 
-    def render_1d_time_series(self, ax, var, integ_type, title):
+    def render_1d_time_series(self, ax, var, integ_type, title, vlims=None):
         """ render line plot on axis for given variable """
     
         if self.quad:
@@ -40,7 +40,8 @@ class glider_relevant_vars(object):
                                           self.ice_area.area_miz > 1)
         ds[var + "_ice_weighted_mean"] = ds[var + "_ice_weighted_mean"].where(
                                           self.ice_area.area_ice > 1)
-        ds = ds.sel(time_counter=slice(self.date_range[0], self.date_range[1]))
+        time_slice = slice(self.date_range[0], self.date_range[1])
+        ds = ds.sel(time_counter=time_slice)
         ax.plot(ds.time_counter, ds[var + "_oce_weighted_mean"], label="Oce")
         ax.plot(ds.time_counter, ds[var + "_miz_weighted_mean"], label="MIZ")
         ax.plot(ds.time_counter, ds[var + "_ice_weighted_mean"], label="ICE")
@@ -50,12 +51,14 @@ class glider_relevant_vars(object):
         date_lims = (ds.time_counter.min().values, 
                      ds.time_counter.max().values)
         ax.set_xlim(date_lims)
+        if vlims:
+            ax.set_ylim(vlims)
     
         return ds.time_counter
 
     def render_2d_time_series(self, fig, axs, var, integ_type, title,
                               cmap=cmocean.cm.thermal,
-                              var_append="_weighted_mean"):
+                              var_append="_weighted_mean", vlims=None):
         """ render 2d colour map on axis for given variable """
     
         if self.quad:
@@ -79,18 +82,22 @@ class glider_relevant_vars(object):
                                           self.ice_area.area_ice > 1)
         ds = ds.sel(time_counter=slice(self.date_range[0], self.date_range[1]))
     
-        # hack for finding min across oce, ice and miz variables
-        # it would be better if ice, oce and miz were under a coordinate
-        ds_min = ds.min()
-        vmin = min(ds_min[var + "_ice" + var_append],
-                   ds_min[var + "_oce" + var_append],
-                   ds_min[var + "_miz" + var_append]
-                   ).values
-        ds_max = ds.max()
-        vmax = max(ds_max[var + "_ice" + var_append],
-                   ds_max[var + "_oce" + var_append],
-                   ds_max[var + "_miz" + var_append]
-                   ).values
+        # set value limits
+        if vlims:
+            vmin, vmax = vlims[0], vlims[1]
+        else:
+            # hack for finding min across oce, ice and miz variables
+            # it would be better if ice, oce and miz were under a coordinate
+            ds_min = ds.min()
+            vmin = min(ds_min[var + "_ice" + var_append],
+                       ds_min[var + "_oce" + var_append],
+                       ds_min[var + "_miz" + var_append]
+                       ).values
+            ds_max = ds.max()
+            vmax = max(ds_max[var + "_ice" + var_append],
+                       ds_max[var + "_oce" + var_append],
+                       ds_max[var + "_miz" + var_append]
+                       ).values
     
         axs[0].pcolor(ds.time_counter, ds.deptht,
                       ds[var + "_oce" + var_append].T,
@@ -133,15 +140,15 @@ class glider_relevant_vars(object):
     
         # get sea ice area partitions
         date_range_slice = slice(self.date_range[0], self.date_range[1])
-        ice_area = ice_area.sel(time_counter=date_range_slice)
-        ax.plot(ice_area.time_counter, self.ice_area["area_oce"], label="Oce")
-        ax.plot(ice_area.time_counter, self.ice_area["area_miz"], label="MIZ")
-        ax.plot(ice_area.time_counter, self.ice_area["area_ice"], label="ICE")
+        ice_area = self.ice_area.sel(time_counter=date_range_slice)
+        ax.plot(ice_area.time_counter, ice_area["area_oce"], label="Oce")
+        ax.plot(ice_area.time_counter, ice_area["area_miz"], label="MIZ")
+        ax.plot(ice_area.time_counter, ice_area["area_ice"], label="ICE")
         ax.set_ylabel("area (%)")
     
         # axes formatting
-        date_lims = (area.time_counter.min().values, 
-                     area.time_counter.max().values)
+        date_lims = (ice_area.time_counter.min().values, 
+                     ice_area.time_counter.max().values)
         ax.set_xlim(date_lims)
     
     def get_ice_cover_stats(self):
@@ -162,7 +169,7 @@ class glider_relevant_vars(object):
                    + area_partition["area_miz"]
         self.ice_area = area_partition * 100 / total_area
     
-    def plot_time_series_core_vars(self, ml_mid=False, date_range=[None,None]):
+    def plot_time_series_core_vars(self, ml_mid=False):
         """ 
         Plot model time series of:
             - N2
@@ -181,13 +188,14 @@ class glider_relevant_vars(object):
     
     
         if ml_mid:
-            integ_str = "ml_mid_horizontal_integ"
-            self.render_1d_time_series(axs[0], "votemper", integ_str,
+            integ_str = "horizontal_integ"
+            self.render_1d_time_series(axs[0], "votemper_ml_mid", integ_str,
                                        "Temperature")
-            self.render_1d_time_series(axs[1], "vosaline", integ_str,
+            self.render_1d_time_series(axs[1], "vosaline_ml_mid", integ_str,
                                        "Salinity")
-            self.render_1d_time_series(axs[3], "bn2", integ_str, r"N$^2$")
-            self.render_1d_time_series(axs[4], "bg_mod2", integ_str,
+            self.render_1d_time_series(axs[3], "bn2_ml_mid", integ_str,
+                                       r"N$^2$")
+            self.render_1d_time_series(axs[4], "bg_mod2_ml_mid", integ_str,
                                  r"$|\mathbf{\nabla}b|$")
         else:
             self.render_1d_time_series(axs[0], "votemper", "domain_integ",
@@ -199,7 +207,8 @@ class glider_relevant_vars(object):
             self.render_1d_time_series(axs[4], "bg_mod2", "domain_integ",
                                  r"$|\mathbf{\nabla}b|$")
     
-        self.render_1d_time_series(axs[2], "mld", "horizontal_integ", "MLD")
+        self.render_1d_time_series(axs[2], "mldr10_3", "horizontal_integ",
+                                   "MLD")
 
         # positive down mld
         axs[2].invert_yaxis()
@@ -247,7 +256,6 @@ class glider_relevant_vars(object):
             - depth profiles of temperature and salinity
             - ml mid vertical stratification (N^2)
             - ml mid horizontal buoynacy gradients
-    
         """
     
         # initialise figure
@@ -257,16 +265,21 @@ class glider_relevant_vars(object):
     
         # plot "M" and "N"
         integ_str = "ml_mid_horizontal_integ"
-        self.render_1d_time_series(axs[0], "bn2", integ_str, r"N$^2$")
+        self.render_1d_time_series(axs[0], "bn2", integ_str,
+                                  r"N$^2$ (s$^{-2}$)",
+                                  vlims=[0,0.0004])
         dates = self.render_1d_time_series(axs[1], "bg_mod2", integ_str,
-                                      r"$|\mathbf{\nabla}b|$")
+                                  r"$|\mathbf{\nabla}b|$ (s$^{-2}$)",
+                                  vlims=[0,5.2e-14])
     
         self.render_2d_time_series(fig, axs[2:5], "votemper",
                               "ml_horizontal_integ",
-                              "Temperature", cmocean.cm.thermal)
+                              r"Temperature ($^{\circ}$C)", cmocean.cm.thermal,
+                              vlims=[-1.9,-0.1])
         self.render_2d_time_series(fig, axs[5:8], "vosaline", 
                               "ml_horizontal_integ",
-                              "Salinity", cmocean.cm.haline)
+                              r"Salinity ($10^{-3}$)", cmocean.cm.haline,
+                              vlims=[33.3,34.4])
         # date labels
         for ax in axs:
             ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
@@ -291,6 +304,17 @@ class glider_relevant_vars(object):
             append = "_" + self.quad
         else:
             append =""
+
+        # add date lines
+        dates = [
+                np.datetime64("2012-12-23 12:00:00"),
+                np.datetime64("2012-12-24 12:00:00"),
+                np.datetime64("2012-12-25 12:00:00")
+                ]
+
+        for ax in axs:
+            for date in dates:
+                ax.axvline(date, ls=":", lw=0.8, c="grey")
     
         plt.savefig("density_gradient_controls_{0}_{1}{2}.png".format(d0, d1,
                     append), dpi=600)
@@ -336,8 +360,7 @@ if __name__ == "__main__":
     for quad in ["upper_right","upper_left","lower_left","lower_right"]:
         grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
                                   quad=quad)
-        #plot_time_series_core_vars("EXP10", ml_mid=True,
-        #                           date_range=[None,"2013-01-11"])
         grv.get_ice_cover_stats()
+        #grv.plot_time_series_core_vars(ml_mid=True)
         grv.plot_t_s_M_and_N()
         #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
