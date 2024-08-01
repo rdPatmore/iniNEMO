@@ -84,9 +84,30 @@ class model_hist(object):
         self.var = M2/N2
         self.var_name = 'M2_over_N2_ml_mid'
 
+    def get_M2_and_N2(self):
+        ''' get M2 and N2 as separate variable assignments '''
+
+        path = self.data_path + 'ProcessedVars' + self.file_id
+        M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+                   chunks='auto')
+        N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+                   chunks='auto')
+        N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+        M2['time_counter'] = N2.time_counter
+
+        self.var0 = M2
+        self.var1 = N2
+
     def cut_time(self, dates):
         ''' reduce time period to bounds '''
         self.var = self.var.sel(time_counter=slice(dates[0],dates[1]))
+        self.d0 = dates[0]
+        self.d1 = dates[1]
+
+    def cut_time_2var(self, dates):
+        ''' reduce time period to bounds '''
+        self.var0 = self.var0.sel(time_counter=slice(dates[0],dates[1]))
+        self.var1 = self.var1.sel(time_counter=slice(dates[0],dates[1]))
         self.d0 = dates[0]
         self.d1 = dates[1]
 
@@ -114,21 +135,73 @@ class model_hist(object):
               + self.var_name + '_model_hist.nc')
         return hist_ds
 
+    def get_2d_var_z_hist(self, lims0, lims1, bins=20, save=True, density=True):
+        ''' calculate 2d histogram and assign to xarray dataset '''
+
+        # stack dimensions
+        v0_stacked = self.var0.stack(z=('time_counter','x','y'))
+        v1_stacked = self.var1.stack(z=('time_counter','x','y'))
+
+        # histogram
+        hist_var, x_bins, y_bins = np.histogram2d(
+                            v0_stacked.dropna('z', how='all'),
+                            v1_stacked.dropna('z', how='all'),
+                            range=[lims0,lims1], density=density, bins=bins)
+        x_bin_centers = (x_bins[:-1] + x_bins[1:]) / 2
+        y_bin_centers = (y_bins[:-1] + y_bins[1:]) / 2
+
+        # assign to dataset
+        hist_ds = xr.Dataset(
+                   {'hist_' + self.var1.name + '_' + self.var1.name:(
+                                           ['x_bin_centers','y_bin_centers'],
+                                           hist_var)},
+                   coords={'x_bin_centers': (['x_bin_centers'], x_bin_centers),
+                           'x_bin_left'   : (['x_bin_centers'], x_bins[:-1]),
+                           'x_bin_right'  : (['x_bin_centers'], x_bins[1:]),
+                           'y_bin_centers': (['y_bin_centers'], y_bin_centers),
+                           'y_bin_left'   : (['y_bin_centers'], y_bins[:-1]),
+                           'y_bin_right'  : (['y_bin_centers'], y_bins[1:])})
+        if save:
+            hist_ds.to_netcdf(self.data_path + 
+            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_{2}_{3}'.format(
+                self.d0, self.d1, self.var0.name, self.var1.name) +
+               '_model_hist.nc')
+        return hist_ds
+
 if __name__ == "__main__":
-    hist = model_hist('EXP10')
-    hist.get_M2_over_N2()
-    hist.cut_time(['20121209','20130111'])
-    hist.var = hist.var.compute()
-    print (hist.var)
-    hist.get_var_z_hist(lims=[0, 1e-14], bins=50, density=False)
 
-    hist = model_hist('EXP10')
-    hist.get_M2()
-    hist.cut_time(['20121209','20130111'])
-    hist.get_var_z_hist(lims=[0, 2e-4], bins=50, density=False)
+    def M2_over_N2_hist():
+        hist = model_hist('EXP10')
+        hist.get_M2_over_N2()
+        hist.cut_time(['20121209','20130111'])
+        hist.var = hist.var.compute()
+        bins = np.logspace(-16,0,50)
+        hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
-    hist = model_hist('EXP10')
-    hist.get_N2()
-    hist.cut_time(['20121209','20130111'])
-    hist.get_var_z_hist(lims=[0, 1e-13], bins=50, density=False)
+    def M2_hist():
+        hist = model_hist('EXP10')
+        hist.get_M2()
+        hist.cut_time(['20121209','20130111'])
+        bins = np.logspace(-27,-11,50)
+        hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
+    def N2_hist():
+        hist = model_hist('EXP10')
+        hist.get_N2()
+        hist.cut_time(['20121209','20130111'])
+        bins = np.logspace(-16,-2,50)
+        hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
+
+    def M2_N2_2d_hist():
+        hist = model_hist('EXP10')
+        hist.get_M2_and_N2()
+        hist.cut_time_2var(['20121209','20130111'])
+        hist.var0 = hist.var0.compute()
+        hist.var1 = hist.var1.compute()
+        lims0=[0,1e-12]
+        lims1=[0,1e-5]
+        hist.get_2d_var_z_hist(lims0, lims1, bins=20, save=True, density=True)
+
+    M2_over_N2_hist()
+    N2_hist()
+    M2_hist()

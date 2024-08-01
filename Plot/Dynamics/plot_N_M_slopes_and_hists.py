@@ -17,7 +17,8 @@ def plot_N_M_histogram():
                            
 
     # initailise plot
-    fig, axs = plt.subplots(3)
+    fig, axs = plt.subplots(3,figsize=(5.5,6.5))
+    plt.subplots_adjust(hspace=0.5)
 
     # plot
     axs[0].bar(N2.bin_left, N2, align="edge", width=N2.bin_right - N2.bin_left)
@@ -25,15 +26,18 @@ def plot_N_M_histogram():
     axs[2].bar(M2N2.bin_left, M2N2, align="edge", width=M2N2.bin_right - M2N2.bin_left)
     
     for ax in axs:
-        ax.set_yscale('log')
-    #axs[2].hist2d(N2, M2)
+        ax.set_xscale('log')
+        #ax.set_yscale('log')
+        ax.set_ylabel('PDF')
+    axs[0].set_xlabel(r'$N^2$')
+    axs[1].set_xlabel(r'$M^2$')
+    axs[2].set_xlabel(r'$M^2N^{-2}$')
 
     plt.show()
+    #plt.savefig('N_M_slope.png', dpi=600)
 plot_N_M_histogram()
 
 
 #def plot_slope_historgram():
-#
+
 #def plot_slope_map():
-
-
