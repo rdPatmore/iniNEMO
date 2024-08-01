@@ -9,9 +9,15 @@ matplotlib.rcParams.update({'font.size': 8})
 
 class plot_momentum(object):
 
-    def __init__(self, case, file_id):
+    def __init__(self, case, file_id, date, mean=False):
         self.case = case
         self.preamble = config.data_path() + case + '/' + file_id
+        self.date = date
+
+        if mean:
+            self.fn_mom = 'mom_mean'
+        else:
+            self.fn_mom = 'mom'
 
     def plot_full_mom_budget_slices(self, vec='u'):
         ''' plot budget of KE - all terms '''
@@ -21,7 +27,7 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78, hspace=0.25, wspace=0.1, top=0.9)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + vec + 'mom.nc')
+        ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc')
         ds = ds.sel({'depth' + vec: 30}, method='nearest') # depth
         ds = ds.isel(time_counter=1).load()            # time
             
@@ -43,7 +49,7 @@ class plot_momentum(object):
         vmin, vmax = -1e-4, 1e-4
         cmap=cmocean.cm.balance
         for i, ax in enumerate(axs.flatten()[:-2]):
-            p = ax.pcolor(ds[vec + var_list[i]],
+            p = ax.pcolor(ds.nav_lon, ds.nav_lat, ds[vec + var_list[i]],
                              vmin=vmin, vmax=vmax, cmap=cmap)
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
                     transform=ax.transAxes, fontsize=8)
@@ -67,21 +73,22 @@ class plot_momentum(object):
         ax.text(0.5, 0.99, vec + ' momentum', va='top', ha='center',
                 fontsize=10, transform=fig.transFigure)
     
-        plt.savefig(self.case + '_' + vec + '_mom_full_mld_budget.png')
+        plt.savefig(self.case + '_' + vec + '_' + self.fn_mom + 
+                    '_full_mld_budget.png')
 
 
     def plot_mom_budget_slices(self, vec='u'):
         ''' plot budget of KE - important terms only '''
         
         # ini figure
-        fig, axs = plt.subplots(2, 4, figsize=(5.5,5.5))
+        fig, axs = plt.subplots(2, 4, figsize=(6.5,5.5))
         plt.subplots_adjust(right=0.78, hspace=0.25, wspace=0.1, top=0.9)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + vec + 'mom.nc',
-                             chunks={"depth"+vec:1})
+        ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc',
+                             chunks=-1)
         ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
-        ds = ds.isel(time_counter=0).load()            # time
+        ds = ds.sel(time_counter=self.date, method='nearest').load() # time
 
             
         var_list = ['trd_hpg', 'trd_keg', 'trd_rvo', 
@@ -105,7 +112,7 @@ class plot_momentum(object):
         vmin, vmax = -1e-5, 1e-5
         cmap=cmocean.cm.balance
         for i, ax in enumerate(axs.flatten()):
-            p = ax.pcolor(ds[vec + var_list[i]],
+            p = ax.pcolor(ds.nav_lon, ds.nav_lat, ds[vec + var_list[i]],
                              vmin=vmin, vmax=vmax, cmap=cmap)
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
                     transform=ax.transAxes, fontsize=8)
@@ -129,17 +136,19 @@ class plot_momentum(object):
         ax.text(0.5, 0.99, vec + ' momentum', va='top', ha='center',
                 fontsize=10, transform=fig.transFigure)
     
-        plt.savefig(self.case + '_' + vec + '_mom_mld_budget.png')
+        plt.savefig(self.case + '_' + vec + '_' + self.fn_mom + '_' + self.date
+                    + '_mld_budget.png')
 
-    def plot_mom_residule_budget(self, vec='u'):
+    def plot_mom_residual_budget(self, vec='u'):
         # ini figure
         fig, axs = plt.subplots(1, 3, figsize=(5.5,3))
         plt.subplots_adjust(right=0.78)
 
         # load and slice
-        ds = xr.open_dataset(self.preamble + vec + 'mom.nc', chunks=-1)
+        ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc',
+                             chunks=-1)
         ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
-        ds = ds.isel(time_counter=0)                       # time
+        ds = ds.sel(time_counter=self.date, method='nearest').load() # time
 
             
         if vec == 'u':
@@ -156,9 +165,12 @@ class plot_momentum(object):
         vmin, vmax = -1e-5, 1e-5
         cmap=cmocean.cm.balance
         #axs[0].pcolor(ts, vmin=vmin, vmax=vmax, cmap=cmap)
-        p = axs[0].pcolor(ds[vec + 'trd_tot'], vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1].pcolor(mom_sum, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[2].pcolor(mom_sum-ds[vec+'trd_tot'], vmin=vmin, vmax=vmax, cmap=cmap)
+        p = axs[0].pcolor(ds.nav_lon, ds.nav_lat, ds[vec + 'trd_tot'],
+                         vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1].pcolor(ds.nav_lon, ds.nav_lat, mom_sum,
+                      vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2].pcolor(ds.nav_lon, ds.nav_lat, mom_sum-ds[vec+'trd_tot'],
+                      vmin=vmin, vmax=vmax, cmap=cmap)
         #axs[2].pcolor(mom_sum-ts, vmin=vmin, vmax=vmax, cmap=cmap)
         axs[0].set_title('tendency')
         axs[1].set_title('sum of RHS')
@@ -176,16 +188,17 @@ class plot_momentum(object):
         for ax in axs:
             ax.set_xlabel('x')
         axs[0].set_ylabel('y')
-        for ax in axs:
-            ax.set_aspect('equal')
+        #for ax in axs:
+        #    ax.set_aspect('equal')
 
-        plt.savefig(self.case + '_' + vec + '_mom_mld_budget_resid.png')
+        plt.show()
+        plt.savefig(self.case + '_' + vec + self.fn_mom + '_' + self.date +
+                    '_mld_budget_resid.png')
 
     
 if __name__ == "__main__":
     #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-    #file_id = 'SOCHIC_PATCH_1h_20121209_20121211_'
     file_id = 'SOCHIC_PATCH_1h_20121209_20121209_'
     mom = plot_momentum('TRD00', file_id)
-    mom.plot_mom_residule_budget(vec='u')
-    #mom.plot_mom_residule_budget(vec='v')
+    mom.plot_mom_residual(vec='u')
+    #mom.plot_mom_residual_budget(vec='v')
