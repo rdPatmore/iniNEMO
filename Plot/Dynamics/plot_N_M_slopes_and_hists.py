@@ -2,6 +2,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import config
 import numpy as np
+import matplotlib.colors as mc
 
 
 def plot_N_M_histogram():
@@ -27,7 +28,7 @@ def plot_N_M_histogram():
     
     for ax in axs:
         ax.set_xscale('log')
-        #ax.set_yscale('log')
+        ax.set_yscale('log')
         ax.set_ylabel('PDF')
     axs[0].set_xlabel(r'$N^2$')
     axs[1].set_xlabel(r'$M^2$')
@@ -35,9 +36,36 @@ def plot_N_M_histogram():
 
     plt.show()
     #plt.savefig('N_M_slope.png', dpi=600)
-plot_N_M_histogram()
 
 
-#def plot_slope_historgram():
+def plot_N_M_histogram_2d():
+    case = "EXP10"
+    nc_preamble="SOCHIC_PATCH_3h_20121209_20130111_"
+    # get N and M in mixed layer
+    path = config.data_path() + case + "/BGHists/" + nc_preamble 
+    N2 = xr.open_dataarray(path + "bn2_ml_mid_model_hist.nc")
+    M2 = xr.open_dataarray(path + "bg_mod2_ml_mid_model_hist.nc")
+    M2N2_2d = xr.open_dataarray(path + "bg_mod2_bn2_model_hist.nc")
 
-#def plot_slope_map():
+    # initailise plot
+    fig, axs = plt.subplots(1,figsize=(5.5,6.5))
+
+    # plot
+    axs.pcolor(M2N2_2d.x_bin_centers, M2N2_2d.y_bin_centers, M2N2_2d,
+               norm=mc.LogNorm())
+    
+    axs.set_xscale('log')
+    axs.set_yscale('log')
+
+    axs.set_xlabel('M2')
+    axs.set_ylabel('N2')
+
+    axs.set_aspect('equal')
+
+    plt.show()
+
+def plot_N_M_scatter():
+
+
+plot_N_M_histogram_2d()
+#plot_N_M_histogram()
