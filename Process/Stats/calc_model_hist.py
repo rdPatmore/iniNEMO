@@ -86,7 +86,7 @@ class model_hist(object):
 
     def get_M2_and_N2(self):
         ''' get M2 and N2 as separate variable assignments '''
-
+contourf
         path = self.data_path + 'ProcessedVars' + self.file_id
         M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
                    chunks='auto')
@@ -135,7 +135,7 @@ class model_hist(object):
               + self.var_name + '_model_hist.nc')
         return hist_ds
 
-    def get_2d_var_z_hist(self, lims0, lims1, bins=20, save=True, density=True):
+    def get_2d_var_z_hist(self, bins=20, save=True, density=True):
         ''' calculate 2d histogram and assign to xarray dataset '''
 
         # stack dimensions
@@ -146,7 +146,7 @@ class model_hist(object):
         hist_var, x_bins, y_bins = np.histogram2d(
                             v0_stacked.dropna('z', how='all'),
                             v1_stacked.dropna('z', how='all'),
-                            range=[lims0,lims1], density=density, bins=bins)
+                            density=density, bins=bins)
         x_bin_centers = (x_bins[:-1] + x_bins[1:]) / 2
         y_bin_centers = (y_bins[:-1] + y_bins[1:]) / 2
 
@@ -198,10 +198,11 @@ if __name__ == "__main__":
         hist.cut_time_2var(['20121209','20130111'])
         hist.var0 = hist.var0.compute()
         hist.var1 = hist.var1.compute()
-        lims0=[0,1e-12]
-        lims1=[0,1e-5]
-        hist.get_2d_var_z_hist(lims0, lims1, bins=20, save=True, density=True)
+        M2_bins = np.logspace(-27,-11,100)
+        N2_bins = np.logspace(-16,-2,100)
+        hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins], save=True, density=True)
 
-    M2_over_N2_hist()
-    N2_hist()
-    M2_hist()
+    #M2_over_N2_hist()
+    #N2_hist()
+    #M2_hist()
+    M2_N2_2d_hist()
