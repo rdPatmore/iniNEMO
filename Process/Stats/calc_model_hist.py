@@ -55,43 +55,72 @@ class model_hist(object):
         # cut to glider time span
         self.Ro = Ro.sel(time_counter=slice(start,end))
 
-    def get_N2(self):
+    def get_N2(self, partition=None):
         ''' get N2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
-        self.var = xr.open_dataarray(path + 'bn2_ml_mid.nc',
-                   chunks={'time_counter':1})
-        self.var_name = 'bn2_ml_mid'
 
-    def get_M2(self):
+        if partition:
+            self.var = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bn2_ml_mid_' + partition]
+            self.var_name = 'bn2_ml_mid_' + partition
+        else:
+            self.var = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+                       chunks={'time_counter':1})
+            self.var_name = 'bn2_ml_mid'
+
+    def get_M2(self, partition=None):
         ''' get M2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
-        self.var = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
-                   chunks='auto')
-        self.var_name = 'bg_mod2_ml_mid'
 
-    def get_M2_over_N2(self):
+        if partition:
+            self.var = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bg_mod2_ml_mid_' + partition]
+            self.var_name = 'bg_mod2_ml_mid_' + partition
+        else:
+            self.var = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+                       chunks='auto')
+            self.var_name = 'bg_mod2_ml_mid'
+
+    def get_M2_over_N2(self, partition=None):
         ''' get M2/N2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
-        M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
-                   chunks='auto')
-        N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
-                   chunks='auto')
-        N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+        if partition:
+            M2 = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bg_mod2_ml_mid_' + partition]
+            N2 = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bn2_ml_mid_' + partition]
+            self.var_name = 'M2_over_N2_ml_mid_' + partition
+        else:
+            M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+                       chunks='auto')
+            N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+                       chunks='auto')
+            N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+            self.var_name = 'M2_over_N2_ml_mid'
+
         M2['time_counter'] = N2.time_counter
         self.var = M2/N2
-        self.var_name = 'M2_over_N2_ml_mid'
 
-    def get_M2_and_N2(self):
+    def get_M2_and_N2(self, partition=None):
         ''' get M2 and N2 as separate variable assignments '''
+
         path = self.data_path + 'ProcessedVars' + self.file_id
-        M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
-                   chunks='auto')
-        N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
-                   chunks='auto')
-        N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+
+        if partition:
+            M2 = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bg_mod2_ml_mid_' + partition]
+            N2 = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
+                       chunks='auto')['bn2_ml_mid_' + partition]
+        else:
+            M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+                       chunks='auto')
+            N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+                       chunks='auto')
+            N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+
         M2['time_counter'] = N2.time_counter
 
         self.var0 = M2
@@ -151,7 +180,7 @@ class model_hist(object):
 
         # assign to dataset
         hist_ds = xr.Dataset(
-                   {'hist_' + self.var1.name + '_' + self.var1.name:(
+                   {'hist_' + self.var0.name + '_' + self.var1.name:(
                                            ['x_bin_centers','y_bin_centers'],
                                            hist_var)},
                    coords={'x_bin_centers': (['x_bin_centers'], x_bin_centers),
@@ -177,6 +206,21 @@ if __name__ == "__main__":
         bins = np.logspace(-16,0,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
+    def M2_over_N2_hist_partition():
+        hist = model_hist('EXP10')
+        hist_list = []
+        for partition in ['ice','oce','miz']:
+            hist.get_M2_over_N2(partition=partition)
+            hist.cut_time(['20121209','20130111'])
+            hist.var = hist.var.compute()
+            bins = np.logspace(-16,0,50)
+            hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
+                             density=False, save=False))
+        hist_partition = xr.merge(hist_list)
+        hist_partition.to_netcdf(hist.data_path +
+            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+              + 'M2_over_N2_ml_mid_ice_oce_miz_model_hist.nc')
+
     def M2_hist():
         hist = model_hist('EXP10')
         hist.get_M2()
@@ -184,12 +228,40 @@ if __name__ == "__main__":
         bins = np.logspace(-27,-11,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
+    def M2_hist_partition():
+        hist = model_hist('EXP10')
+        hist_list = []
+        for partition in ['ice','oce','miz']:
+            hist.get_M2(partition=partition)
+            hist.cut_time(['20121209','20130111'])
+            bins = np.logspace(-27,-11,50)
+            hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
+                             density=False, save=False))
+        hist_partition = xr.merge(hist_list)
+        hist_partition.to_netcdf(hist.data_path +
+            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+              + 'bg_mod2_ml_mid_ice_oce_miz_model_hist.nc')
+
     def N2_hist():
         hist = model_hist('EXP10')
         hist.get_N2()
         hist.cut_time(['20121209','20130111'])
         bins = np.logspace(-16,-2,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
+
+    def N2_hist_partition():
+        hist = model_hist('EXP10')
+        hist_list = []
+        for partition in ['ice','oce','miz']:
+            hist.get_N2(partition=partition)
+            hist.cut_time(['20121209','20130111'])
+            bins = np.logspace(-16,-2,50)
+            hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
+                             density=False, save=False))
+        hist_partition = xr.merge(hist_list)
+        hist_partition.to_netcdf(hist.data_path +
+            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+              + 'bn2_ml_mid_ice_oce_miz_model_hist.nc')
 
     def M2_N2_2d_hist():
         hist = model_hist('EXP10')
@@ -199,9 +271,30 @@ if __name__ == "__main__":
         hist.var1 = hist.var1.compute()
         M2_bins = np.logspace(-27,-11,100)
         N2_bins = np.logspace(-16,-2,100)
-        hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins], save=True, density=True)
+        hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins], save=True, density=False)
+
+    def M2_N2_2d_hist_partition():
+        hist = model_hist('EXP10')
+        hist_list = []
+        for partition in ['ice','oce','miz']:
+            hist.get_M2_and_N2(partition=partition)
+            hist.cut_time_2var(['20121209','20130111'])
+            hist.var0 = hist.var0.compute()
+            hist.var1 = hist.var1.compute()
+            M2_bins = np.logspace(-27,-11,100)
+            N2_bins = np.logspace(-16,-2,100)
+            hist_list.append(hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins],
+                             save=False, density=False))
+        hist_partition = xr.merge(hist_list)
+        hist_partition.to_netcdf(hist.data_path + 
+        '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+         + 'bg_mod2_bn2_ml_mid_ice_oce_miz_model_hist.nc')
 
     #M2_over_N2_hist()
     #N2_hist()
     #M2_hist()
-    M2_N2_2d_hist()
+    #M2_N2_2d_hist()
+    #M2_hist_partition()
+    #N2_hist_partition()
+    #M2_over_N2_hist_partition()
+    M2_N2_2d_hist_partition()
