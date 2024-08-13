@@ -304,15 +304,66 @@ class glider_relevant_metrics(object):
         else:
             fn = self.data_path + 'TimeSeries/area_ice_oce_miz.nc'
         area_integ.to_netcdf(fn)
+
+    def var_ice_partition(self, var_str, ml_mid=True):
+        ''' partition variable by ice concentration '''
+
+        # set integral parameters
+        # TODO: these names do not propogate to the save name, which is expected
+        #       by the plotting routines
+        if ml_mid:
+            var_str = var_str + '_ml_mid'
+            depth_integral = False
+        else:
+            var_str = '_ml'
+
+        # get data
+        fn = self.proc_preamble + var_str + '.nc'
+        da = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # initialise partitioning object
+        im = sim.integrals_and_masks(self.case, self.file_id, da, var_str)
+
+        # get cfg and icemsk and cut rims
+        im.get_domain_vars_and_cut_rims()
+
+        # save partitioned variable
+        im.get_ice_oce_masked_var()
  
 if __name__ == '__main__':
     import time
     import dask
     dask.config.set(scheduler='single-threaded')
+
+    def ice_partition_N_M():
+        case = 'EXP10'
+        file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        grm = glider_relevant_metrics(case, file_id)
+        grm.var_ice_partition('bn2', ml_mid=True)
+        grm.var_ice_partition('bg_mod2', ml_mid=True)
+
+    def get_mld_quadrant_time_series():
+        case = 'EXP10'
+        file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+        var_list = ['mldr10_3']
+        for var in var_list:
+            print ('var:', var)
+            for quad in ['upper_right','upper_left','lower_right','lower_left']:
+                print ('quad:', quad)
+                grm.raw_var_time_series_ice_partition(var,
+                                                      fn='grid_T',
+                                                      quadrant=quad)
+
+    # start timer
     start = time.time()
-    case = 'EXP10'
-    file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-    grm = glider_relevant_metrics(case, file_id)
+
+    ice_partition_N_M()
+
+    # end timer
+    start = time.time()
+    end = time.time()
+    print('time elapsed (minutes): ', (end - start)/60)
+
     #grm.ice_miz_open_partition_area()
 
     #var_list = ['bn2']
@@ -323,15 +374,6 @@ if __name__ == '__main__':
     #        grm.var_time_series_ice_partition(var_str=var, ml_mid=True,
     #                              quadrant=quad)
     #        #grm.ice_miz_open_partition_area(quadrant=quad)
-
-    var_list = ['mldr10_3']
-    for var in var_list:
-        print ('var:', var)
-        for quad in ['upper_right','upper_left','lower_right','lower_left']:
-            print ('quad:', quad)
-            grm.raw_var_time_series_ice_partition(var,
-                                                  fn='grid_T',
-                                                  quadrant=quad)
     #grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
@@ -343,5 +385,3 @@ if __name__ == '__main__':
     #grm.fresh_water_flux_time_series_ice_partition()
     #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()
-    end = time.time()
-    print('time elapsed (minutes): ', (end - start)/60)

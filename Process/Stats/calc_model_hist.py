@@ -86,7 +86,6 @@ class model_hist(object):
 
     def get_M2_and_N2(self):
         ''' get M2 and N2 as separate variable assignments '''
-contourf
         path = self.data_path + 'ProcessedVars' + self.file_id
         M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
                    chunks='auto')

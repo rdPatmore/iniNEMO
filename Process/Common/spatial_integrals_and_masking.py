@@ -134,6 +134,59 @@ class integrals_and_masks(object):
         self.cfg = self.cut_edges(cfg)
         self.icemsk = self.cut_edges(icemsk)
 
+    def mask_by_ice_oce_zones(self, threshold=0.2):
+        '''
+        split TKE budget into three variables
+            - ice area
+            - ocean area
+            - MIZ area
+
+        Parameters
+        ----------
+
+        threshold: sea ice concentration for partition between ice, oce and miz
+        '''
+
+        var = self.var
+
+        # ensure time conformance
+        if not self.icemsk.time_counter.identical(var.time_counter):
+            var['time_counter'] = self.icemsk.time_counter
+
+        # get masks
+        miz_msk = ((self.icemsk > threshold) & (self.icemsk < (1 - threshold)))
+        ice_msk = (self.icemsk > (1 - threshold))
+        oce_msk = (self.icemsk < threshold)
+
+        # mask by ice concentration
+        var_ml_miz = var.where(miz_msk)
+        var_ml_ice = var.where(ice_msk)
+        var_ml_oce = var.where(oce_msk)
+
+        return var_ml_miz, var_ml_ice, var_ml_oce
+
+    def get_ice_oce_masked_var(self):
+        '''
+        mask by ice region and save
+        '''
+
+        # mask
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
+
+        # set variable names
+        var_ml_miz.name = self.var_str + '_miz'
+        var_ml_ice.name = self.var_str + '_ice'
+        var_ml_oce.name = self.var_str + '_oce'
+
+        # merge variables
+        var_masked = xr.merge([var_ml_miz, var_ml_ice, var_ml_oce])
+
+        # save
+        with ProgressBar():
+           fn = self.path + 'ProcessedVars/' + self.file_id + '_'  \
+              + self.var_str + '_ice_oce_miz.nc'
+           var_masked.to_netcdf(fn)
+
     def domain_mean_ice_oce_zones(self, threshold=0.2):
         '''
         split TKE budget into three variables
@@ -148,15 +201,8 @@ class integrals_and_masks(object):
         threshold: sea ice concentration for partition between ice, oce and miz
         '''
 
-        # get masks
-        miz_msk = ((self.icemsk > threshold) & (self.icemsk < (1 - threshold)))
-        ice_msk = (self.icemsk > (1 - threshold))
-        oce_msk = (self.icemsk < threshold)
-
         # mask by ice concentration
-        var_ml_miz = var.where(miz_msk)
-        var_ml_ice = var.where(ice_msk)
-        var_ml_oce = var.where(oce_msk)
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
 
         # get e3t
         kwargs = {'chunks': -1}
@@ -198,22 +244,8 @@ class integrals_and_masks(object):
         then integrate in the horizontal and weight by area
         '''
 
-        var = self.var
-
-        # ensure time conformance
-        if not self.icemsk.time_counter.identical(var.time_counter):
-            var['time_counter'] = self.icemsk.time_counter
-
-        # get masks
-        miz_msk = ((self.icemsk > threshold) \
-                 & (self.icemsk < (1 - threshold))).load()
-        ice_msk = (self.icemsk > (1 - threshold)).load()
-        oce_msk = (self.icemsk < threshold).load()
-
         # mask by ice concentration
-        var_miz = var.where(miz_msk)
-        var_ice = var.where(ice_msk)
-        var_oce = var.where(oce_msk)
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
 
         # find area of each partition
         area = self.cfg.e2t * self.cfg.e1t
