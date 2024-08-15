@@ -315,7 +315,7 @@ class glider_relevant_vars(object):
         for ax in axs:
             for date in dates:
                 ax.axvline(date, ls=":", lw=0.8, c="grey")
-    
+
         plt.savefig("density_gradient_controls_{0}_{1}{2}.png".format(d0, d1,
                     append), dpi=600)
     

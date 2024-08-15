@@ -112,9 +112,9 @@ class state(model_object.model):
             alpha.to_netcdf(config.data_path() + self.file_id + 'alpha.nc')
             beta.to_netcdf(config.data_path() + self.file_id + 'beta.nc')
 
-    def get_rho(self):
+    def get_rho_theta(self):
         '''
-        calculate buoyancy from conservative temperature and
+        calculate potential density from conservative temperature and
         absolute salinity    
         '''
         
@@ -129,8 +129,28 @@ class state(model_object.model):
                              ) + 1000
 
         # save
-        rho.name = 'rho'
+        rho.name = 'rho_theta'
         rho.to_netcdf(self.data_path + self.file_id + 'rho.nc')
+
+    def get_rho(self):
+        '''
+        calculate in-situ density from conservative temperature and
+        absolute salinity    
+        '''
+        
+        # load temp, sal, alpha, beta
+        gsw_file = xr.open_dataset(self.data_path + self.file_id +  'gsw.nc',
+                              chunks={'time_counter':1})
+        ct = gsw_file.cons_temp
+        a_sal = gsw_file.abs_sal
+
+        rho = xr.apply_ufunc(gsw.density.rho, a_sal, ct,
+                             dask='parallelized', output_dtypes=[a_sal.dtype]
+                             )
+
+        # save
+        rho.name = 'rho_in_situ'
+        rho.to_netcdf(self.data_path + self.file_id + 'rho_in_situ.nc')
 
     def save_all_gsw(self):
         ''' save p, conservative temperature and absolute salinity to netcdf '''
@@ -145,8 +165,6 @@ if __name__ == '__main__':
 
     def get_rho(case):
         m = model(case)
-        m.load_gridT_and_giddy()
-        m.save_all_gsw()
         m.get_rho()
 
     def save_alpha_and_beta(case):
@@ -155,3 +173,5 @@ if __name__ == '__main__':
         m.load_gsw()
         print (m.ds)
         m.get_alpha_and_beta(save=True)
+
+    get_rho('EXP10')

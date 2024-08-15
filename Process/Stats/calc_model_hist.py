@@ -16,6 +16,37 @@ class model_hist(object):
         self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
         self.d0 = '20121209'
         self.d1 = '20130331'
+        self.date_str = '_{0}_{1}_'.format(self.d0,self.d1)
+
+    def quadrant_partition(self, da, quadrant):
+        ''' 
+        partition domain into one of four quadrants:
+        upper_left, upper_right, lower_left, lower_right
+
+        NB: copy from Physics/calc_glider_relevent_diags.py needs unifying
+        '''
+
+        # define mid-latitude and -longitude
+        da_lon_mean = da.nav_lon.mean().values
+        da_lat_mean = da.nav_lat.mean().values
+
+        # get quadrant bounds
+        if quadrant == 'upper_left':
+            bounds = (da.nav_lon < da_lon_mean) & (da.nav_lat > da_lat_mean)
+        elif quadrant == 'upper_right':
+            bounds = (da.nav_lon > da_lon_mean) & (da.nav_lat > da_lat_mean)
+        elif quadrant == 'lower_left':
+            bounds = (da.nav_lon < da_lon_mean) & (da.nav_lat < da_lat_mean)
+        elif quadrant == 'lower_right':
+            bounds = (da.nav_lon > da_lon_mean) & (da.nav_lat < da_lat_mean)
+        else:
+            print ("no quadrent selected: do nothing")
+            return da
+
+        # cut to quadrant
+        da_quad = da.where(bounds.compute(), drop=True)
+
+        return da_quad
 
     def get_Ro_hist(self):
         """
@@ -55,7 +86,7 @@ class model_hist(object):
         # cut to glider time span
         self.Ro = Ro.sel(time_counter=slice(start,end))
 
-    def get_N2(self, partition=None):
+    def get_N2(self, partition=None, quad=None):
         ''' get N2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
@@ -68,8 +99,12 @@ class model_hist(object):
             self.var = xr.open_dataarray(path + 'bn2_ml_mid.nc',
                        chunks={'time_counter':1})
             self.var_name = 'bn2_ml_mid'
+        
+        if quad:
+            self.var = self.quadrant_partition(self.var, quad)
+            self.var_name = self.var_name + '_' + quad
 
-    def get_M2(self, partition=None):
+    def get_M2(self, partition=None, quad=None):
         ''' get M2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
@@ -83,7 +118,11 @@ class model_hist(object):
                        chunks='auto')
             self.var_name = 'bg_mod2_ml_mid'
 
-    def get_M2_over_N2(self, partition=None):
+        if quad:
+            self.var = self.quadrant_partition(self.var, quad)
+            self.var_name = self.var_name + '_' + quad
+
+    def get_M2_over_N2(self, partition=None, quad=None):
         ''' get M2/N2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
@@ -104,7 +143,11 @@ class model_hist(object):
         M2['time_counter'] = N2.time_counter
         self.var = M2/N2
 
-    def get_M2_and_N2(self, partition=None):
+        if quad:
+            self.var = self.quadrant_partition(self.var, quad)
+            self.var_name = self.var_name + '_' + quad
+
+    def get_M2_and_N2(self, partition=None, quad=None):
         ''' get M2 and N2 as separate variable assignments '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
@@ -126,24 +169,43 @@ class model_hist(object):
         self.var0 = M2
         self.var1 = N2
 
-    def cut_time(self, dates):
-        ''' reduce time period to bounds '''
-        self.var = self.var.sel(time_counter=slice(dates[0],dates[1]))
-        self.d0 = dates[0]
-        self.d1 = dates[1]
+        if quad:
+            self.var0 = self.quadrant_partition(self.var0, quad)
+            self.var1 = self.quadrant_partition(self.var1, quad)
+            self.var0.name = self.var0.name + '_' + quad
+            self.var1.name = self.var1.name + '_' + quad
 
-    def cut_time_2var(self, dates):
+    def cut_time_window(self, dates):
         ''' reduce time period to bounds '''
-        self.var0 = self.var0.sel(time_counter=slice(dates[0],dates[1]))
-        self.var1 = self.var1.sel(time_counter=slice(dates[0],dates[1]))
-        self.d0 = dates[0]
-        self.d1 = dates[1]
+
+        if type(dates) is list:
+            self.var = self.var.sel(time_counter=slice(dates[0],dates[1]))
+            self.d0 = dates[0]
+            self.d1 = dates[1]
+            self.date_str = '_{0}_{1}_'.format(self.d0,self.d1)
+        else:
+            self.var = self.var.sel(time_counter=dates, method='nearest')
+            self.date_str = '_{0}_'.format(dates[:8])
+
+    def cut_time_window_2var(self, dates):
+        ''' reduce time period to bounds '''
+
+        if type(dates) is list:
+            self.var0 = self.var0.sel(time_counter=slice(dates[0],dates[1]))
+            self.var1 = self.var1.sel(time_counter=slice(dates[0],dates[1]))
+            self.d0 = dates[0]
+            self.d1 = dates[1]
+            self.date_str = '_{0}_{1}_'.format(self.d0,self.d1)
+        else:
+            self.var0 = self.var0.sel(time_counter=dates, method='nearest')
+            self.var1 = self.var1.sel(time_counter=dates, method='nearest')
+            self.date_str = '_{0}_'.format(dates[:8])
 
     def get_var_z_hist(self, lims, bins=20, save=True, density=True):
         ''' calculate histogram and assign to xarray dataset '''
 
         # stack dimensions
-        stacked = self.var.stack(z=('time_counter','x','y'))
+        stacked = self.var.stack(z=self.var.dims)
 
         # histogram
         hist_var, bins = np.histogram(
@@ -159,7 +221,7 @@ class model_hist(object):
                            'bin_right'  : (['bin_centers'], bins[1:])})
         if save:
             hist_ds.to_netcdf(self.data_path + 
-            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(self.d0, self.d1)
+            '/BGHists/SOCHIC_PATCH_3h' + self.date_str
               + self.var_name + '_model_hist.nc')
         return hist_ds
 
@@ -167,8 +229,8 @@ class model_hist(object):
         ''' calculate 2d histogram and assign to xarray dataset '''
 
         # stack dimensions
-        v0_stacked = self.var0.stack(z=('time_counter','x','y'))
-        v1_stacked = self.var1.stack(z=('time_counter','x','y'))
+        v0_stacked = self.var0.stack(z=self.var0.dims)
+        v1_stacked = self.var1.stack(z=self.var0.dims)
 
         # histogram
         hist_var, x_bins, y_bins = np.histogram2d(
@@ -191,8 +253,8 @@ class model_hist(object):
                            'y_bin_right'  : (['y_bin_centers'], y_bins[1:])})
         if save:
             hist_ds.to_netcdf(self.data_path + 
-            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_{2}_{3}'.format(
-                self.d0, self.d1, self.var0.name, self.var1.name) +
+            '/BGHists/SOCHIC_PATCH_3h{0}{1}_{1}'.format(
+                self.date_str, self.var0.name, self.var1.name) +
                '_model_hist.nc')
         return hist_ds
 
@@ -201,7 +263,7 @@ if __name__ == "__main__":
     def M2_over_N2_hist():
         hist = model_hist('EXP10')
         hist.get_M2_over_N2()
-        hist.cut_time(['20121209','20130111'])
+        hist.cut_time_window(['20121209','20130111'])
         hist.var = hist.var.compute()
         bins = np.logspace(-16,0,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
@@ -209,64 +271,67 @@ if __name__ == "__main__":
     def M2_over_N2_hist_partition():
         hist = model_hist('EXP10')
         hist_list = []
+        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
-            hist.get_M2_over_N2(partition=partition)
-            hist.cut_time(['20121209','20130111'])
+            hist.get_M2_over_N2(partition=partition, quad=quad)
+            hist.cut_time_window('20121223 12:00:00')
             hist.var = hist.var.compute()
             bins = np.logspace(-16,0,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
         hist_partition.to_netcdf(hist.data_path +
-            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str +  quad + '_'
               + 'M2_over_N2_ml_mid_ice_oce_miz_model_hist.nc')
 
     def M2_hist():
         hist = model_hist('EXP10')
         hist.get_M2()
-        hist.cut_time(['20121209','20130111'])
+        hist.cut_time_window(['20121209','20130111'])
         bins = np.logspace(-27,-11,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
     def M2_hist_partition():
         hist = model_hist('EXP10')
         hist_list = []
+        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
-            hist.get_M2(partition=partition)
-            hist.cut_time(['20121209','20130111'])
+            hist.get_M2(partition=partition, quad=quad)
+            hist.cut_time_window('20121223 12:00:00')
             bins = np.logspace(-27,-11,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
         hist_partition.to_netcdf(hist.data_path +
-            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
               + 'bg_mod2_ml_mid_ice_oce_miz_model_hist.nc')
 
     def N2_hist():
         hist = model_hist('EXP10')
         hist.get_N2()
-        hist.cut_time(['20121209','20130111'])
+        hist.cut_time_window(['20121209','20130111'])
         bins = np.logspace(-16,-2,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
     def N2_hist_partition():
         hist = model_hist('EXP10')
         hist_list = []
+        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
-            hist.get_N2(partition=partition)
-            hist.cut_time(['20121209','20130111'])
+            hist.get_N2(partition=partition, quad=quad)
+            hist.cut_time_window('20121223 12:00:00')
             bins = np.logspace(-16,-2,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
         hist_partition.to_netcdf(hist.data_path +
-            '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
               + 'bn2_ml_mid_ice_oce_miz_model_hist.nc')
 
     def M2_N2_2d_hist():
         hist = model_hist('EXP10')
         hist.get_M2_and_N2()
-        hist.cut_time_2var(['20121209','20130111'])
+        hist.cut_time_window_2var(['20121209','20130111'])
         hist.var0 = hist.var0.compute()
         hist.var1 = hist.var1.compute()
         M2_bins = np.logspace(-27,-11,100)
@@ -276,9 +341,10 @@ if __name__ == "__main__":
     def M2_N2_2d_hist_partition():
         hist = model_hist('EXP10')
         hist_list = []
+        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
-            hist.get_M2_and_N2(partition=partition)
-            hist.cut_time_2var(['20121209','20130111'])
+            hist.get_M2_and_N2(partition=partition, quad=quad)
+            hist.cut_time_window_2var('20121223 12:00:00')
             hist.var0 = hist.var0.compute()
             hist.var1 = hist.var1.compute()
             M2_bins = np.logspace(-27,-11,100)
@@ -287,14 +353,19 @@ if __name__ == "__main__":
                              save=False, density=False))
         hist_partition = xr.merge(hist_list)
         hist_partition.to_netcdf(hist.data_path + 
-        '/BGHists/SOCHIC_PATCH_3h_{0}_{1}_'.format(hist.d0, hist.d1)
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
          + 'bg_mod2_bn2_ml_mid_ice_oce_miz_model_hist.nc')
 
     #M2_over_N2_hist()
     #N2_hist()
     #M2_hist()
     #M2_N2_2d_hist()
-    #M2_hist_partition()
-    #N2_hist_partition()
-    #M2_over_N2_hist_partition()
+    print ('start')
+    M2_hist_partition()
+    print ('0')
+    N2_hist_partition()
+    print ('1')
+    M2_over_N2_hist_partition()
+    print ('2')
     M2_N2_2d_hist_partition()
+    print ('end')
