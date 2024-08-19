@@ -7,7 +7,7 @@ import matplotlib
 
 matplotlib.rcParams.update({'font.size': 8})
 
-def plot_N_M_histogram():
+def plot_N_M_histogram(depth_str):
     ''' '''
 
     case = "EXP10"
@@ -20,19 +20,22 @@ def plot_N_M_histogram():
     nc_preamble = model + space_time_str
     # get N and M in mixed layer
     path = config.data_path() + case + "/BGHists/" + nc_preamble 
-    N2 = xr.open_dataset(path + "_bn2_ml_mid_ice_oce_miz_model_hist.nc")
-    M2 = xr.open_dataset(path + "_bg_mod2_ml_mid_ice_oce_miz_model_hist.nc")
+    N2 = xr.open_dataset(path + "_bn2_{}_ice_oce_miz_model_hist.nc".format(
+        depth_str))
+    M2 = xr.open_dataset(path + "_bg_mod2_{}_ice_oce_miz_model_hist.nc".format(
+        depth_str))
     M2N2 = xr.open_dataset(
-                      path + "_M2_over_N2_ml_mid_ice_oce_miz_model_hist.nc")
+                      path + "_M2_over_N2_{}_ice_oce_miz_model_hist.nc".format(
+                          depth_str))
 
     # initailise plot
     fig, axs = plt.subplots(3,figsize=(5.5,6.5))
     plt.subplots_adjust(hspace=0.5)
 
     def render(N2, M2, M2N2, partition, quad, c='r'):
-        N2 = N2['hist_bn2_ml_mid_' + partition + quad]
-        M2 = M2['hist_bg_mod2_ml_mid_' + partition + quad]
-        M2N2 = M2N2['hist_M2_over_N2_ml_mid_' + partition + quad]
+        N2 = N2['hist_bn2_' + depth_str + '_' + partition + quad]
+        M2 = M2['hist_bg_mod2_' + depth_str + '_' + partition + quad]
+        M2N2 = M2N2['hist_M2_over_N2_' + depth_str + '_' + partition + quad]
         #axs[0].bar(N2.bin_left, N2, align="edge",
         #           width=N2.bin_right - N2.bin_left, color=c, alpha=0.2)
         #axs[1].bar(M2.bin_left, M2, align="edge",
@@ -65,9 +68,10 @@ def plot_N_M_histogram():
     plt.suptitle(time_str)
     
     #plt.show()
-    plt.savefig('N_M_slope_{}.png'.format(space_time_str), dpi=600)
+    plt.savefig('N_M_slope_{}_{}.png'.format(space_time_str,
+                                             depth_str), dpi=600)
 
-def plot_N_M_histogram_2d():
+def plot_N_M_histogram_2d(depth_str):
     case = "EXP10"
     #nc_preamble="SOCHIC_PATCH_3h_20121209_20130111_"
     model = "SOCHIC_PATCH_3h_"
@@ -79,7 +83,7 @@ def plot_N_M_histogram_2d():
     # get N and M in mixed layer
     path = config.data_path() + case + "/BGHists/" + nc_preamble 
     M2N2_2d = xr.open_dataset(
-             path + "_bg_mod2_bn2_ml_mid_ice_oce_miz_model_hist.nc")
+           path + "_bg_mod2_bn2_{}_ice_oce_miz_model_hist.nc".format(depth_str))
 
     # initailise plot
     fig, axs = plt.subplots(3 ,figsize=(3.2,5.5))
@@ -87,8 +91,9 @@ def plot_N_M_histogram_2d():
 
     def render(ax, partition, quad):
         p = ax.pcolor(M2N2_2d.x_bin_centers, M2N2_2d.y_bin_centers,
-                       M2N2_2d['hist_bg_mod2_ml_mid_' + partition + quad + 
-                               '_bn2_ml_mid_' + partition + quad].T,
+                       M2N2_2d[
+            'hist_bg_mod2_' + depth_str + '_' + partition + quad + 
+            '_bn2_'  + depth_str + '_' + partition + quad].T,
                        norm=mc.LogNorm(1,2e6))
 
         # add colour bar
@@ -133,7 +138,8 @@ def plot_N_M_histogram_2d():
     plt.suptitle(time_str)
 
     #plt.savefig('M2_N2_2d_histogram.png', dpi=600)
-    plt.savefig('M2_N2_2d_histogram_{}.png'.format(space_time_str), dpi=600)
+    plt.savefig('M2_N2_2d_histogram_{0}_{1}.png'.format(space_time_str,
+                                                        depth_str), dpi=600)
 
 def cut_time(var, dates):
       ''' reduce time period to bounds '''
@@ -184,5 +190,7 @@ def plot_N_M_scatter():
     plt.savefig('M2_N2_scatter.png', dpi=600)
 
 #plot_N_M_scatter()
-plot_N_M_histogram_2d()
-#plot_N_M_histogram()
+#plot_N_M_histogram_2d('10')
+plot_N_M_histogram('10')
+#plot_N_M_histogram_2d('300')
+plot_N_M_histogram('300')

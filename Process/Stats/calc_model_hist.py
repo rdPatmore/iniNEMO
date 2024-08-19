@@ -172,7 +172,7 @@ class model_hist(object):
         M4_str = 'bg_mod2_' + self.depth
 
         if partition:
-            M4 = xr.open_dataset(path + M4_str + '_mid_ice_oce_miz.nc',
+            M4 = xr.open_dataset(path + M4_str + '_ice_oce_miz.nc',
                        chunks='auto')[M4_str + '_' + partition]
             N2 = xr.open_dataset(path + N2_str + '_ice_oce_miz.nc',
                        chunks='auto')[N2_str + '_' + partition]
@@ -291,19 +291,22 @@ if __name__ == "__main__":
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
     def M2_over_N2_hist_partition(dates, depth='ml_mid', quad=None):
-        hist = model_hist('EXP10')
+        hist = model_hist('EXP10', depth)
         hist_list = []
         for partition in ['ice','oce','miz']:
             hist.get_M2_over_N2(partition=partition, quad=quad)
             hist.cut_time_window(dates)
             hist.var = hist.var.compute()
-            bins = np.logspace(-8,0,50)
+            bins = np.logspace(-8,4,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
-        if not quad: quad = ''
+        if quad: 
+            quad_str = quad + '_'
+        else:
+            quad_str = ''
         hist_partition.to_netcdf(hist.data_path +
-        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str +  quad + '_'
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad_str 
               + 'M2_over_N2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def M2_hist():
@@ -314,7 +317,7 @@ if __name__ == "__main__":
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
     def M2_hist_partition(dates, depth='ml_mid', quad=None):
-        hist = model_hist('EXP10')
+        hist = model_hist('EXP10', depth)
         hist_list = []
         for partition in ['ice','oce','miz']:
             hist.get_M2(partition=partition, quad=quad)
@@ -323,9 +326,12 @@ if __name__ == "__main__":
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
-        if not quad: quad = ''
+        if quad: 
+            quad_str = quad + '_'
+        else:
+            quad_str = ''
         hist_partition.to_netcdf(hist.data_path +
-        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad_str 
               + 'bg_mod2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def N2_hist():
@@ -336,7 +342,7 @@ if __name__ == "__main__":
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
     def N2_hist_partition(dates, depth='ml_mid', quad=None):
-        hist = model_hist('EXP10')
+        hist = model_hist('EXP10', depth)
         hist_list = []
         for partition in ['ice','oce','miz']:
             hist.get_N2(partition=partition, quad=quad)
@@ -346,9 +352,12 @@ if __name__ == "__main__":
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
-        if not quad: quad = ''
+        if quad: 
+            quad_str = quad + '_'
+        else:
+            quad_str = ''
         hist_partition.to_netcdf(hist.data_path +
-        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad_str
               + 'bn2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def M2_N2_2d_hist():
@@ -362,7 +371,7 @@ if __name__ == "__main__":
         hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins], save=True, density=False)
 
     def M2_N2_2d_hist_partition(dates, depth='ml_mid',  quad=None):
-        hist = model_hist('EXP10')
+        hist = model_hist('EXP10', depth)
         hist_list = []
         for partition in ['ice','oce','miz']:
             hist.get_M2_and_N2(partition=partition, quad=quad)
@@ -374,9 +383,12 @@ if __name__ == "__main__":
             hist_list.append(hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins],
                              save=False, density=False))
         hist_partition = xr.merge(hist_list)
-        if not quad: quad = ''
+        if quad: 
+            quad_str = quad + '_'
+        else:
+            quad_str = ''
         hist_partition.to_netcdf(hist.data_path + 
-        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
+        '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad_str
          + 'bg_mod2_bn2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     #M2_over_N2_hist()
@@ -386,14 +398,14 @@ if __name__ == "__main__":
     print ('start')
     #dates = '20121223 12:00:00'
     dates = ['20121209','20130111']
-    depth='10'
+    depth='300'
     #quad = 'lower_right'
     quad = None
-    M2_hist_partition(dates, depth)
+    #M2_hist_partition(dates, depth)
     print ('0')
-    N2_hist_partition(dates, depth)
+    #N2_hist_partition(dates, depth)
     print ('1')
     M2_over_N2_hist_partition(dates, depth)
     print ('2')
-    M2_N2_2d_hist_partition(dates, depth)
+    #M2_N2_2d_hist_partition(dates, depth)
     print ('end')
