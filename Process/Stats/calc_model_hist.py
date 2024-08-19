@@ -7,7 +7,7 @@ class model_hist(object):
     Calculate PDF of variable
     """
 
-    def __init__(self, case):
+    def __init__(self, case, depth='10'):
         self.root = config.root()
         self.case = case
         self.data_path = config.data_path() + self.case + '/'
@@ -17,6 +17,8 @@ class model_hist(object):
         self.d0 = '20121209'
         self.d1 = '20130331'
         self.date_str = '_{0}_{1}_'.format(self.d0,self.d1)
+
+        self.depth = depth
 
     def quadrant_partition(self, da, quadrant):
         ''' 
@@ -91,14 +93,16 @@ class model_hist(object):
 
         path = self.data_path + 'ProcessedVars' + self.file_id
 
+        N2_str = 'bn2_' + self.depth
+
         if partition:
-            self.var = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bn2_ml_mid_' + partition]
-            self.var_name = 'bn2_ml_mid_' + partition
+            self.var = xr.open_dataset(path + N2_str + '_ice_oce_miz.nc',
+                       chunks='auto')[N2_str + '_' + partition]
+            self.var_name = N2_str + '_' + partition
         else:
-            self.var = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+            self.var = xr.open_dataarray(path + N2_str + '.nc',
                        chunks={'time_counter':1})
-            self.var_name = 'bn2_ml_mid'
+            self.var_name = 'bn2_' + self.depth
         
         if quad:
             self.var = self.quadrant_partition(self.var, quad)
@@ -109,14 +113,19 @@ class model_hist(object):
 
         path = self.data_path + 'ProcessedVars' + self.file_id
 
+        M4_str = 'bg_mod2_' + self.depth
+
         if partition:
-            self.var = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bg_mod2_ml_mid_' + partition]
-            self.var_name = 'bg_mod2_ml_mid_' + partition
+            M4 = xr.open_dataset(path + M4_str + '_ice_oce_miz.nc',
+                       chunks='auto')[M4_str + '_' + partition]
+            self.var_name = M4_str + '_' + partition
         else:
-            self.var = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+            M4 = xr.open_dataarray(path + M4_str + '.nc',
                        chunks='auto')
-            self.var_name = 'bg_mod2_ml_mid'
+            self.var_name = 'bg_mod2_' + self.depth
+
+        # get M2 from M4
+        self.var = M4 ** 0.5
 
         if quad:
             self.var = self.quadrant_partition(self.var, quad)
@@ -126,19 +135,26 @@ class model_hist(object):
         ''' get M2/N2 '''
 
         path = self.data_path + 'ProcessedVars' + self.file_id
+
+        N2_str = 'bn2_' + self.depth
+        M4_str = 'bg_mod2_' + self.depth
+
         if partition:
-            M2 = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bg_mod2_ml_mid_' + partition]
-            N2 = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bn2_ml_mid_' + partition]
-            self.var_name = 'M2_over_N2_ml_mid_' + partition
+            M4 = xr.open_dataset(path + M4_str + '_ice_oce_miz.nc',
+                       chunks='auto')[M4_str + '_' + partition]
+            N2 = xr.open_dataset(path + N2_str + '_ice_oce_miz.nc',
+                       chunks='auto')[N2_str + '_' + partition]
+            self.var_name = 'M2_over_N2_{}_'.format(self.depth) + partition
         else:
-            M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+            M4 = xr.open_dataarray(path + M4_str + '.nc',
                        chunks='auto')
-            N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+            N2 = xr.open_dataarray(path + N2_str + '.nc',
                        chunks='auto')
             N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
-            self.var_name = 'M2_over_N2_ml_mid'
+            self.var_name = 'M2_over_N2_' + self.depth
+
+        # get M2 from M4
+        M2 = M4 ** 0.5
 
         M2['time_counter'] = N2.time_counter
         self.var = M2/N2
@@ -152,17 +168,23 @@ class model_hist(object):
 
         path = self.data_path + 'ProcessedVars' + self.file_id
 
+        N2_str = 'bn2_' + self.depth
+        M4_str = 'bg_mod2_' + self.depth
+
         if partition:
-            M2 = xr.open_dataset(path + 'bg_mod2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bg_mod2_ml_mid_' + partition]
-            N2 = xr.open_dataset(path + 'bn2_ml_mid_ice_oce_miz.nc',
-                       chunks='auto')['bn2_ml_mid_' + partition]
+            M4 = xr.open_dataset(path + M4_str + '_mid_ice_oce_miz.nc',
+                       chunks='auto')[M4_str + '_' + partition]
+            N2 = xr.open_dataset(path + N2_str + '_ice_oce_miz.nc',
+                       chunks='auto')[N2_str + '_' + partition]
         else:
-            M2 = xr.open_dataarray(path + 'bg_mod2_ml_mid.nc',
+            M4 = xr.open_dataarray(path + M4_str + '.nc',
                        chunks='auto')
-            N2 = xr.open_dataarray(path + 'bn2_ml_mid.nc',
+            N2 = xr.open_dataarray(path + N2_str + '.nc',
                        chunks='auto')
             N2 = N2.isel(x=slice(2,-2),y=slice(2,-2))
+
+        # get M2 from M4
+        M2 = M4 ** 0.5
 
         M2['time_counter'] = N2.time_counter
 
@@ -268,21 +290,21 @@ if __name__ == "__main__":
         bins = np.logspace(-16,0,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
-    def M2_over_N2_hist_partition():
+    def M2_over_N2_hist_partition(dates, depth='ml_mid', quad=None):
         hist = model_hist('EXP10')
         hist_list = []
-        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
             hist.get_M2_over_N2(partition=partition, quad=quad)
-            hist.cut_time_window('20121223 12:00:00')
+            hist.cut_time_window(dates)
             hist.var = hist.var.compute()
-            bins = np.logspace(-16,0,50)
+            bins = np.logspace(-8,0,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
+        if not quad: quad = ''
         hist_partition.to_netcdf(hist.data_path +
         '/BGHists/SOCHIC_PATCH_3h' + hist.date_str +  quad + '_'
-              + 'M2_over_N2_ml_mid_ice_oce_miz_model_hist.nc')
+              + 'M2_over_N2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def M2_hist():
         hist = model_hist('EXP10')
@@ -291,20 +313,20 @@ if __name__ == "__main__":
         bins = np.logspace(-27,-11,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
-    def M2_hist_partition():
+    def M2_hist_partition(dates, depth='ml_mid', quad=None):
         hist = model_hist('EXP10')
         hist_list = []
-        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
             hist.get_M2(partition=partition, quad=quad)
-            hist.cut_time_window('20121223 12:00:00')
-            bins = np.logspace(-27,-11,50)
+            hist.cut_time_window(dates)
+            bins = np.logspace(-16,-2,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
+        if not quad: quad = ''
         hist_partition.to_netcdf(hist.data_path +
         '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
-              + 'bg_mod2_ml_mid_ice_oce_miz_model_hist.nc')
+              + 'bg_mod2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def N2_hist():
         hist = model_hist('EXP10')
@@ -313,20 +335,21 @@ if __name__ == "__main__":
         bins = np.logspace(-16,-2,50)
         hist.get_var_z_hist(lims=[0, 1e0], bins=bins, density=True)
 
-    def N2_hist_partition():
+    def N2_hist_partition(dates, depth='ml_mid', quad=None):
         hist = model_hist('EXP10')
         hist_list = []
-        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
             hist.get_N2(partition=partition, quad=quad)
-            hist.cut_time_window('20121223 12:00:00')
+            #hist.cut_time_window('20121223 12:00:00')
+            hist.cut_time_window(dates)
             bins = np.logspace(-16,-2,50)
             hist_list.append(hist.get_var_z_hist(lims=[0, 1e0], bins=bins,
                              density=False, save=False))
         hist_partition = xr.merge(hist_list)
+        if not quad: quad = ''
         hist_partition.to_netcdf(hist.data_path +
         '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
-              + 'bn2_ml_mid_ice_oce_miz_model_hist.nc')
+              + 'bn2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     def M2_N2_2d_hist():
         hist = model_hist('EXP10')
@@ -334,38 +357,43 @@ if __name__ == "__main__":
         hist.cut_time_window_2var(['20121209','20130111'])
         hist.var0 = hist.var0.compute()
         hist.var1 = hist.var1.compute()
-        M2_bins = np.logspace(-27,-11,100)
+        M2_bins = np.logspace(-16,-2,100)
         N2_bins = np.logspace(-16,-2,100)
         hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins], save=True, density=False)
 
-    def M2_N2_2d_hist_partition():
+    def M2_N2_2d_hist_partition(dates, depth='ml_mid',  quad=None):
         hist = model_hist('EXP10')
         hist_list = []
-        quad = 'lower_right'
         for partition in ['ice','oce','miz']:
             hist.get_M2_and_N2(partition=partition, quad=quad)
-            hist.cut_time_window_2var('20121223 12:00:00')
+            hist.cut_time_window_2var(dates)
             hist.var0 = hist.var0.compute()
             hist.var1 = hist.var1.compute()
-            M2_bins = np.logspace(-27,-11,100)
+            M2_bins = np.logspace(-16,-2,100)
             N2_bins = np.logspace(-16,-2,100)
             hist_list.append(hist.get_2d_var_z_hist(bins=[M2_bins,N2_bins],
                              save=False, density=False))
         hist_partition = xr.merge(hist_list)
+        if not quad: quad = ''
         hist_partition.to_netcdf(hist.data_path + 
         '/BGHists/SOCHIC_PATCH_3h' + hist.date_str + quad + '_'
-         + 'bg_mod2_bn2_ml_mid_ice_oce_miz_model_hist.nc')
+         + 'bg_mod2_bn2_{}_ice_oce_miz_model_hist.nc'.format(depth))
 
     #M2_over_N2_hist()
     #N2_hist()
     #M2_hist()
     #M2_N2_2d_hist()
     print ('start')
-    M2_hist_partition()
+    #dates = '20121223 12:00:00'
+    dates = ['20121209','20130111']
+    depth='10'
+    #quad = 'lower_right'
+    quad = None
+    M2_hist_partition(dates, depth)
     print ('0')
-    N2_hist_partition()
+    N2_hist_partition(dates, depth)
     print ('1')
-    M2_over_N2_hist_partition()
+    M2_over_N2_hist_partition(dates, depth)
     print ('2')
-    M2_N2_2d_hist_partition()
+    M2_N2_2d_hist_partition(dates, depth)
     print ('end')

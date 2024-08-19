@@ -12,8 +12,10 @@ def plot_N_M_histogram():
 
     case = "EXP10"
     model = "SOCHIC_PATCH_3h_"
-    quad = "_lower_right"
-    time_str = "20121223"
+    #quad = "_lower_right"
+    quad = ""
+    time_str = "20121209_20130111"
+    #time_str = "20121223"
     space_time_str = time_str + quad
     nc_preamble = model + space_time_str
     # get N and M in mixed layer
@@ -55,7 +57,7 @@ def plot_N_M_histogram():
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_ylabel('Count')
-        ax.set_ylim(0.5,5e4)
+        ax.set_ylim(0.5,5e7)
     axs[0].set_xlabel(r'$N^2$')
     axs[1].set_xlabel(r'$M^2$')
     axs[2].set_xlabel(r'$M^2N^{-2}$')
@@ -69,8 +71,9 @@ def plot_N_M_histogram_2d():
     case = "EXP10"
     #nc_preamble="SOCHIC_PATCH_3h_20121209_20130111_"
     model = "SOCHIC_PATCH_3h_"
-    quad = "_lower_right"
-    time_str = "20121225"
+    quad = ""
+    #quad = "_lower_right"
+    time_str = "20121209_20130111"
     space_time_str = time_str + quad
     nc_preamble = model + space_time_str
     # get N and M in mixed layer
@@ -86,7 +89,7 @@ def plot_N_M_histogram_2d():
         p = ax.pcolor(M2N2_2d.x_bin_centers, M2N2_2d.y_bin_centers,
                        M2N2_2d['hist_bg_mod2_ml_mid_' + partition + quad + 
                                '_bn2_ml_mid_' + partition + quad].T,
-                       norm=mc.LogNorm(1,1e4))
+                       norm=mc.LogNorm(1,2e6))
 
         # add colour bar
         pos = ax.get_position()

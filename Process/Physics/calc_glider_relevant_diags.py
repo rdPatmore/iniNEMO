@@ -305,21 +305,9 @@ class glider_relevant_metrics(object):
             fn = self.data_path + 'TimeSeries/area_ice_oce_miz.nc'
         area_integ.to_netcdf(fn)
 
-    def var_ice_partition(self, var_str, ml_mid=True):
+    def var_ice_partition(self, da, var_str):
         ''' partition variable by ice concentration '''
 
-        # set integral parameters
-        # TODO: these names do not propogate to the save name, which is expected
-        #       by the plotting routines
-        if ml_mid:
-            var_str = var_str + '_ml_mid'
-            depth_integral = False
-        else:
-            var_str = '_ml'
-
-        # get data
-        fn = self.proc_preamble + var_str + '.nc'
-        da = xr.open_dataarray(fn, chunks={'time_counter':100})
 
         # initialise partitioning object
         im = sim.integrals_and_masks(self.case, self.file_id, da, var_str)
@@ -329,7 +317,42 @@ class glider_relevant_metrics(object):
 
         # save partitioned variable
         im.get_ice_oce_masked_var()
+
+    def ice_parition_N_M_ml_mid(self):
+        ''' partition N2 and M4 by ice concentration '''
+        
+        # get N2
+        fn = self.proc_preamble +  + 'bn2_ml_mid.nc'
+        N2 = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # get M4
+        fn = self.proc_preamble +  + 'bg_mod2_ml_mid.nc'
+        M4 = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # save partitions
+        self.var_ice_partition(N2, 'bn2_ml_mid')
+        self.var_ice_partition(M4, 'bg_mod2_ml_mid')
+
+    def ice_parition_N_M_at_depth(self, depth=0):
+        ''' partition N2 and M4 by ice concentration '''
  
+        # get N2
+        fn = self.raw_preamble + 'grid_W.nc'
+        N2 = xr.open_dataset(fn, chunks={'time_counter':100}).bn2
+
+        # get M2
+        fn = self.proc_preamble + 'bg_mod2.nc'
+        M4 = xr.open_dataarray(fn, chunks={'time_counter':100})
+
+        # cut depth
+        N2 = N2.sel(depthw=depth, method='nearest')
+        M4 = M4.sel(deptht=depth, method='nearest')
+
+        # save partitions
+        self.var_ice_partition(N2, 'bn2_' + str(depth))
+        self.var_ice_partition(M4, 'bg_mod2_' + str(depth))
+
+
 if __name__ == '__main__':
     import time
     import dask
@@ -339,8 +362,8 @@ if __name__ == '__main__':
         case = 'EXP10'
         file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
         grm = glider_relevant_metrics(case, file_id)
-        grm.var_ice_partition('bn2', ml_mid=True)
-        grm.var_ice_partition('bg_mod2', ml_mid=True)
+        grm.ice_parition_N_M_at_depth(depth=10)
+        grm.ice_parition_N_M_at_depth(depth=300)
 
     def get_mld_quadrant_time_series():
         case = 'EXP10'
