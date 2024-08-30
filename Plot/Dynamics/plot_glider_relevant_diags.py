@@ -28,7 +28,8 @@ class glider_relevant_vars(object):
         self.case = case
         self.quad = quad
 
-    def render_1d_time_series(self, ax, var, integ_type, title, vlims=None):
+    def render_1d_time_series(self, ax, var, integ_type, title, vlims=None,
+                              factor=False):
         """ render line plot on axis for given variable """
     
         if self.quad:
@@ -36,6 +37,8 @@ class glider_relevant_vars(object):
 
         fn_path = self.timeseries_path + var + "_" + integ_type + ".nc"
         ds = xr.open_dataset(fn_path)
+        if factor:
+            ds = ds ** 0.5
         ds[var + "_miz_weighted_mean"] = ds[var + "_miz_weighted_mean"].where(
                                           self.ice_area.area_miz > 1)
         ds[var + "_ice_weighted_mean"] = ds[var + "_ice_weighted_mean"].where(
@@ -144,7 +147,7 @@ class glider_relevant_vars(object):
         ax.plot(ice_area.time_counter, ice_area["area_oce"], label="Oce")
         ax.plot(ice_area.time_counter, ice_area["area_miz"], label="MIZ")
         ax.plot(ice_area.time_counter, ice_area["area_ice"], label="ICE")
-        ax.set_ylabel("area (%)")
+        ax.set_ylabel("Ice Partition Area (%)")
     
         # axes formatting
         date_lims = (ice_area.time_counter.min().values, 
@@ -183,41 +186,42 @@ class glider_relevant_vars(object):
         """
     
         # initialise figure
-        fig, axs = plt.subplots(8, figsize=(5.5,7))
-        plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
+        fig, axs = plt.subplots(7, figsize=(5.5,7))
+        plt.subplots_adjust(left=0.2, hspace=0.33, top=0.96, bottom=0.08)
     
+        self.get_ice_cover_stats()
     
         if ml_mid:
             integ_str = "horizontal_integ"
             self.render_1d_time_series(axs[0], "votemper_ml_mid", integ_str,
-                                       "Temperature")
+                                 r"Temperature ($^{\circ}$C)")
             self.render_1d_time_series(axs[1], "vosaline_ml_mid", integ_str,
-                                       "Salinity")
+                                 r"Salinity (10$^{-3}$)")
             self.render_1d_time_series(axs[3], "bn2_ml_mid", integ_str,
-                                       r"N$^2$")
+                                 r"N$^2$ (s$^{-2}$)")
             self.render_1d_time_series(axs[4], "bg_mod2_ml_mid", integ_str,
-                                 r"$|\mathbf{\nabla}b|$")
+                                 r"M$^2$ (s$^{-2}$)", factor=True)
         else:
             self.render_1d_time_series(axs[0], "votemper", "domain_integ",
-                                 "Temperature")
+                                 r"Temperature ($^{\circ}$C)")
             self.render_1d_time_series(axs[1], "vosaline", "domain_integ",
-                                 "Salinity")
+                                 r"Salinity (10$^{-3}$)")
             self.render_1d_time_series(axs[3], "N2_mld", "horizontal_integ",
-                                 r"N$^2$")
+                                 r"N$^2$ (s$^{-2}$)")
             self.render_1d_time_series(axs[4], "bg_mod2", "domain_integ",
-                                 r"$|\mathbf{\nabla}b|$")
+                                 r"M$^2$ (s$^{-2}$)", factor=True)
     
         self.render_1d_time_series(axs[2], "mldr10_3", "horizontal_integ",
-                                   "MLD")
+                                   "MLD (m)")
 
         # positive down mld
         axs[2].invert_yaxis()
 
-        self.render_1d_time_series(axs[5], "wfo", "horizontal_integ",
-                                    r"$Q_{fw}$")
-        dates = self.render_1d_time_series(axs[6], "taum", "horizontal_integ",
+        #self.render_1d_time_series(axs[5], "wfo", "horizontal_integ",
+        #                            r"$Q_{fw}$")
+        dates = self.render_1d_time_series(axs[5], "taum", "horizontal_integ",
                                      r"$|\mathbf{\tau}_s|$")
-        self.render_sea_ice_area(axs[7])
+        self.render_sea_ice_area(axs[6])
     
         # date labels
         for ax in axs:
@@ -225,7 +229,7 @@ class glider_relevant_vars(object):
         axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
         axs[-1].set_xlabel('Date')
     
-        for ax in axs[:7]:
+        for ax in axs[:6]:
             ax.set_xticklabels([])
     
         # align labels
@@ -249,6 +253,69 @@ class glider_relevant_vars(object):
     
         plt.savefig("glider_relevant_diags_{0}_{1}{2}.pdf".format(d0, d1,
                                                                    append))
+
+    def plot_time_series_M_N(self, ml_mid=False):
+        """ 
+        Plot model time series of:
+            - N2
+            - Temperature
+            - Salinity
+            - Mixed Layer Depth
+            - Bouyancy Gradients
+    
+        Each time series has a Sea Ice, Open Ocean and Marginal Ice Zone
+        component
+        """
+    
+        # initialise figure
+        fig, axs = plt.subplots(2, figsize=(5.5,2.5))
+        plt.subplots_adjust(left=0.2, hspace=0.33, top=0.96, bottom=0.15)
+    
+        self.get_ice_cover_stats()
+    
+        if ml_mid:
+            integ_str = "horizontal_integ"
+            self.render_1d_time_series(axs[0], "bn2_ml_mid", integ_str,
+                                 r"N$^2$ (s$^{-2}$)")
+            dates = self.render_1d_time_series(axs[1], "bg_mod2_ml_mid",
+                                 integ_str,
+                                 r"M$^2$ (s$^{-2}$)", factor=True)
+        else:
+            self.render_1d_time_series(axs[0], "N2_mld", "horizontal_integ",
+                                 r"N$^2$ (s$^{-2}$)")
+            dates = self.render_1d_time_series(axs[1], "bg_mod2",
+                                "domain_integ",
+                                 r"M$^2$ (s$^{-2}$)", factor=True)
+    
+        # date labels
+        for ax in axs:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs[-1].set_xlabel('Date')
+    
+        axs[0].set_xticklabels([])
+    
+        # align labels
+        xpos = -0.18  # axes coords
+        for ax in axs:
+            ax.yaxis.set_label_coords(xpos, 0.5)
+    
+        axs[0].legend()
+    
+        if ml_mid:
+            append = "_ml_mid"
+        else:
+            append = ""
+    
+        ## get date limits
+        d0 = dates.min().dt.strftime("%Y%m%d").values
+        d1 = dates.max().dt.strftime("%Y%m%d").values
+
+        if self.quad:
+            append = append + "_" + quad
+    
+        plt.savefig("M_N_time_series_{0}_{1}{2}.pdf".format(d0, d1,
+                                                            append))
     
     def plot_t_s_M_and_N(self):
         """
@@ -360,7 +427,8 @@ if __name__ == "__main__":
     for quad in ["upper_right","upper_left","lower_left","lower_right"]:
         grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
                                   quad=quad)
-        grv.get_ice_cover_stats()
+        #grv.get_ice_cover_stats()
         #grv.plot_time_series_core_vars(ml_mid=True)
-        grv.plot_t_s_M_and_N()
+        grv.plot_time_series_M_N(ml_mid=True)
+        #grv.plot_t_s_M_and_N()
         #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])

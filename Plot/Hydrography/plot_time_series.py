@@ -4,6 +4,10 @@ import config
 import matplotlib.dates as mdates
 import numpy as np
 import calendar as cal
+import datetime
+import matplotlib
+
+matplotlib.rcParams.update({'font.size': 8})
 
 class time_series(object):
 
@@ -101,6 +105,39 @@ class time_series(object):
 
         plt.savefig('heat_fluxes_EXP04.png', dpi=600)
 
+    def plot_sic_time_series(self):
+
+        fig, ax = plt.subplots(1, figsize=(8.5,2)) 
+        plt.subplots_adjust(top=0.88, bottom=0.23, right=0.98,left=0.08)
+
+        fn = 'SOCHIC_PATCH_24h_20120101_20121231_icemod.nc'
+        path = '/storage/silver/tallahassee/Ryan/NemoOut/EXP10/'
+        kwargs = {'chunks':'auto' ,'decode_cf':True} 
+        ice = xr.open_dataset(path + fn, **kwargs).siconc
+        ice = ice.isel(x=slice(10,-10), y=slice(10,-10))
+        
+        ice_mean = ice.mean(['x','y'])
+
+        ax.plot(ice_mean.time_counter, ice_mean)
+
+        #fig.autofmt_xdate()
+        ax.set_xlim(datetime.date(2012,1,1),
+                    datetime.date(2012,12,31))
+
+        ax.set_xlabel('Month')
+
+        ax.set_ylabel('Sea Ice Concentration (-)')
+        ax.set_ylim(0,1)
+
+        ax.axvline(np.datetime64('2012-12-24 12:00:00'),
+                   color='grey', lw=0.8, ls='--')
+
+
+        major_format = mdates.DateFormatter('%b')
+        ax.xaxis.set_major_formatter(major_format)
+
+        plt.savefig('sic_2012_time_series.png', dpi=600)
+        
     def plot_mld_sip(self, years, giddy=False, orca=False, satellite=False,
                                   argo=False):
 
@@ -364,6 +401,5 @@ class time_series(object):
         temp = xr.open_dataset(path + 'salinity_domain_integ.nc')
         render(axs[1], temp)
 
-ds = time_series(['EXP04'],[''])
-ds.plot_mld_sip(['2012', '2013', '2014'], giddy=True, orca=True, satellite=True,
-                                          argo=True)
+ds = time_series(['EXP10'],[''])
+ds.plot_sic_time_series()
