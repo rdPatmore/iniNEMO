@@ -1,8 +1,8 @@
 from iniNEMO.Plot.Budgets.plot_momentum import plot_momentum
 
 def check_chamfer():
-    file_id = 'CHAMFER_1d_19930101_19930101_flux_form_dynspg_fix_'
-    case = 'CHAMFER_flux_form_no_vec_cpp_mask_dynspg_fix'
+    file_id = 'CHAMFER_1d_19930101_19930101_flux_form_best_'
+    case = 'CHAMFER_flux_form_best'
     date = '19930101'
     mom = plot_momentum(case, file_id, date, mean=False)
 
@@ -10,7 +10,7 @@ def check_chamfer():
     mom.preamble = '/gws/nopw/j04/chamfer/AMM15_C09p2_CHAMFER/MomTrd/' + file_id
 
     # plot budgets
-    mom.plot_mom_budget_slices(vec='u')
+    #mom.plot_mom_budget_slices(vec='u')
     #mom.plot_mom_budget_slices(vec='v')
 
     # plot residuals 
