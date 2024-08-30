@@ -225,8 +225,69 @@ def plot_2d_map_N_M_ml_mid(case, date="2012-12-23 12:00:00", quadrant=None):
     plt.savefig("2d_N_M_mld_maps_{}{}.png".format(date[:10], append),
              dpi=1200)
 
+def plot_2d_map_N_M_slope(case, date, quadrant):
+    """
+    plot snapshot of N2, M2 and M2/N2
+    """
+
+    # initialise figure
+    fig, axs = plt.subplots(1, 3, figsize=(4.5,3.0))
+    plt.subplots_adjust(left=0.1, hspace=0.2, wspace=0.7,
+                        top=0.9, bottom=0.15, right=0.85)
+    
+    # data source
+    path = config.data_path() + case \
+         + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
+
+    # get class for quadrant partitioning
+    case = 'EXP10'
+    file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+    grm = grd.glider_relevant_metrics(case, file_id)
+                               
+    # create cmap with highlighted lower range
+    cust_cmap = make_highlghted_cmap('binary')
+
+    # render N2
+    N2 = xr.open_dataarray(path + "bn2_ml_mid.nc", chunks=-1)
+    N2 = N2.sel(time_counter=date, method="nearest")
+    N2 = grm.quadrant_partition(N2, quadrant)
+    N2 = cut_rim(N2, 10)
+    render_2d_map(fig, axs[0], N2, plt.cm.binary, r"$N^2$",
+                  vmin=0, vmax=0.0002)
+
+    # render bg
+    M4 = xr.open_dataarray(path + "bg_mod2_ml_mid.nc", chunks=-1)
+    M4 = M4.sel(time_counter=date, method="nearest")
+    M4 = grm.quadrant_partition(M4, quadrant)
+    M4 = cut_rim(M4, 10)
+    M2 = M4 ** 0.5
+    render_2d_map(fig, axs[1], M2, plt.cm.binary, r"$M^2$",
+                  vmin=0, vmax=1e-7)
+
+    # render M2/N2
+    N2 = cut_rim(N2, 2)
+    slope = np.arctan(M2/N2)
+    render_2d_map(fig, axs[2], slope, plt.cm.RdBu_r, r"$M^2 N^{-2}$",
+                  vmin=0, vmax=np.pi/2)
+
+    for ax in axs.flatten():
+        ax.set_aspect('equal')
+
+    plt.suptitle(date)
+        
+    if quadrant:
+        append = "_" + quadrant
+    else:
+        append =""
+
+    # save
+    #plt.savefig("2d_N_M_slope_maps_{}{}.png".format(date[:10], append),
+    #         dpi=1200)
+    plt.show()
+
+
 if __name__ == "__main__":
-    plot_2d_map_N_M_ml_mid("EXP10", date="2012-12-22 12:00:00", quadrant=None)
+    plot_2d_map_N_M_slope("EXP10", date="2012-12-24 12:00:00", quadrant=None)
 
 #def render_1d_time_series(path, ax, var, integ_type, title, area, date_range,
 #                          vlims=None):
