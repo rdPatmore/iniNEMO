@@ -265,6 +265,7 @@ class plot_KE(object):
                       cmap=self.cmap)
             return p
 
+        # where is ldf ???
         render(axs[0,0], ds, 'trd_hpg')
         render(axs[0,1], ds, 'trd_adv')
         render(axs[0,2], ds, 'trd_zad')

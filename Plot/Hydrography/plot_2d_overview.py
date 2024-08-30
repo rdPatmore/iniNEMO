@@ -8,7 +8,7 @@ matplotlib.rcParams.update({'font.size': 8})
 
 # load data 
 file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
-preamble = config.data_path() + 'EXP10' +  file_id
+preamble = config.data_path() + 'EXP10/RawData/' +  file_id
 kwargs = {'chunks':{'time_counter':100} ,'decode_cf':True} 
 mld = xr.open_dataset(preamble + 'grid_T.nc', **kwargs).mldr10_3
 bg_mod2 = xr.open_dataset(preamble + 'bg_mod2.nc', **kwargs).bg_mod2**0.5
@@ -34,13 +34,13 @@ fig, axs = plt.subplots(1,3, figsize=(6.5,3.0))
 plt.subplots_adjust(bottom=0.3, top=0.99, right=0.98, left=0.1, hspace=0.05)
 p0 = axs[0].pcolor(mld.nav_lon, mld.nav_lat, mld, vmin=0, vmax=120,
                    shading='nearest')
-p1 = axs[1].pcolor(bg_mod2.nav_lon, bg_mod2.nav_lat, bg_mod2, vmin=0, vmax=2e-7,
-                   shading='nearest')
+p1 = axs[1].pcolor(bg_mod2.nav_lon, bg_mod2.nav_lat, bg_mod2, vmin=0, vmax=4e-7,
+                   shading='nearest', cmap=plt.cm.binary)
 p2 = axs[2].pcolor(ice.nav_lon, ice.nav_lat, ice, cmap=cmocean.cm.ice,
                    vmin=0, vmax=1, shading='nearest')
 p = [p0,p1,p2]
 txt = ['Mixed Layer Depth (m)',
-        r'$|\nabla b|$ (s$^{-2}$)',
+        r'M$^2$ (s$^{-2}$)',
         'Sea Ice Concentration (-)']
 
 for i, ax in enumerate(axs):
@@ -61,6 +61,10 @@ for ax in axs:
     ax.set_xlabel(r'Longitude ($^{\circ}$E)')
 for ax in axs[1:]:
     ax.set_yticklabels([])
+
+# set axes aspect
+for ax in axs:
+    ax.set_aspect('equal')
 
 # save
 plt.savefig('mld_and_bg_' + tslice.split(' ')[0] +  '.png', dpi=300)
