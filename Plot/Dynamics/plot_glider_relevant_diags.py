@@ -311,6 +311,17 @@ class glider_relevant_vars(object):
         d0 = dates.min().dt.strftime("%Y%m%d").values
         d1 = dates.max().dt.strftime("%Y%m%d").values
 
+        # add date lines
+        dates = [
+                np.datetime64("2012-12-23 12:00:00"),
+                np.datetime64("2012-12-24 12:00:00"),
+                np.datetime64("2012-12-25 12:00:00")
+                ]
+
+        for ax in axs:
+            for date in dates:
+                ax.axvline(date, ls=":", lw=0.8, c="grey")
+
         if self.quad:
             append = append + "_" + quad
     

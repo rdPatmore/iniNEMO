@@ -10,7 +10,8 @@ import iniNEMO.Process.Physics.calc_glider_relevant_diags as grd
 
 matplotlib.rcParams.update({"font.size": 6})
 
-def render_2d_map(fig, ax, da, cmap, title, vmin=None, vmax=None, log=False):
+def render_2d_map(fig, ax, da, cmap, title, vmin=None, vmax=None, log=False,
+                  cbar=True):
     
     if log:
         kwargs = {'norm':mc.LogNorm(vmin,vmax)}
@@ -18,12 +19,15 @@ def render_2d_map(fig, ax, da, cmap, title, vmin=None, vmax=None, log=False):
         kwargs = {'vmin':vmin, 'vmax':vmax}
     p = ax.pcolor(da.nav_lon, da.nav_lat, da, cmap=cmap, **kwargs)
 
-    pos = ax.get_position()
-    cbar_ax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.01, pos.y1 - pos.y0])
-    cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
-    #cbar.ax.text(8.5, 0.5, title, fontsize=8, rotation=90,
-    #             transform=cbar.ax.transAxes, va='center', ha='left')
-    cbar.ax.set_ylabel(title)
+    if cbar:
+        pos = ax.get_position()
+        cbar_ax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.01, pos.y1 - pos.y0])
+        cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+        #cbar.ax.text(8.5, 0.5, title, fontsize=8, rotation=90,
+        #             transform=cbar.ax.transAxes, va='center', ha='left')
+        cbar.ax.set_ylabel(title)
+
+    return p
 
 def make_highlghted_cmap(cmap_str):
     ''' add green highlight to lower end of given cmap '''
@@ -214,12 +218,11 @@ def plot_2d_map_N_M_ml_mid(case, date="2012-12-23 12:00:00", quadrant=None):
     for ax in axs.flatten():
         ax.set_aspect('equal')
 
-    plt.suptitle(date)
-        
     if quadrant:
         append = "_" + quadrant
     else:
         append =""
+
 
     # save
     plt.savefig("2d_N_M_mld_maps_{}{}.png".format(date[:10], append),
@@ -233,8 +236,8 @@ def plot_2d_map_N_M_ml_mid_three_time(case, dates=["2012-12-23 12:00:00"],
     """
 
     # initialise figure
-    fig, axs = plt.subplots(2, 3, figsize=(4.5,3.0))
-    plt.subplots_adjust(left=0.1, hspace=0.2, wspace=0.7,
+    fig, axs = plt.subplots(2, 3, figsize=(6.5,4.0))
+    plt.subplots_adjust(left=0.1, hspace=0.2, wspace=0.3,
                         top=0.9, bottom=0.15, right=0.85)
     
     # data source
@@ -255,8 +258,17 @@ def plot_2d_map_N_M_ml_mid_three_time(case, dates=["2012-12-23 12:00:00"],
         da = da.sel(time_counter=date, method="nearest")
         da = grm.quadrant_partition(da, quadrant)
         da = cut_rim(da, 10)
-        render_2d_map(fig, axs[0,i], da, plt.cm.binary, r"$N^2$ (s$^{-2}$)",
-                      vmin=0, vmax=0.0002)
+        p = render_2d_map(fig, axs[0,i], da, plt.cm.binary, r"$N^2$ (s$^{-2}$)",
+                      vmin=0, vmax=0.0002, cbar=False)
+        axs[0,i].set_title(date)
+
+    # add colour bar to last column
+    ax = axs[0,-1]
+    title = r"N$^2$ (s$^{-2}$)"
+    pos = ax.get_position()
+    cbar_ax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.01, pos.y1 - pos.y0])
+    cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+    cbar.ax.set_ylabel(title)
 
     # render bg
     for i, date in enumerate(dates):
@@ -264,18 +276,32 @@ def plot_2d_map_N_M_ml_mid_three_time(case, dates=["2012-12-23 12:00:00"],
         da = da.sel(time_counter=date, method="nearest")
         da = grm.quadrant_partition(da, quadrant)
         da = cut_rim(da, 10)
-        render_2d_map(fig, axs[1,i], da, plt.cm.binary, r"M$^2$ (s$^{-2}$)",
-                      vmin=0, vmax=4e-7)
+        da = da ** 0.5
+        p = render_2d_map(fig, axs[1,i], da, plt.cm.binary, r"M$^2$ (s$^{-2}$)",
+                      vmin=0, vmax=4e-7, cbar=False)
+
+    # add colour bar to last column
+    ax = axs[1,-1]
+    title = r"M$^2$ (s$^{-2}$)"
+    pos = ax.get_position()
+    cbar_ax = fig.add_axes([pos.x1 + 0.01, pos.y0, 0.01, pos.y1 - pos.y0])
+    cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+    cbar.ax.set_ylabel(title)
 
     for ax in axs.flatten():
         ax.set_aspect('equal')
 
-    plt.suptitle(date)
-        
     if quadrant:
         append = "_" + quadrant
     else:
         append =""
+
+    # set labels
+    for ax in axs[-1]:
+        ax.set_xlabel("Longitude")
+    for ax in axs[:,0]:
+        ax.set_ylabel("Latitude")
+
 
     # save
     plt.savefig("2d_N_M_mld_maps_three_time_{}{}.png".format(date[:10], append),
