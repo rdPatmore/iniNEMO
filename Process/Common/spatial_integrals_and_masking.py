@@ -15,22 +15,32 @@ class integrals_and_masks(object):
         self.path = config.data_path() + case + '/'
         self.raw_preamble = self.path + 'RawOutput/' + self.file_id
 
-    def mask_by_ml(self, save=False, cut=None):
+    def mask_by_ml(self, save=False, cut=None, grid='grid_T'):
+
         ''' mask variable by mixed layer depth '''
 
-        # get grid_T
-        kwargs = {'chunks': dict(time_counter=1)} 
-        ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc', **kwargs)
+        # get grid_X
+        kwargs = {'chunks': dict(time_counter=100)} 
+        ds = xr.open_dataset(self.raw_preamble + grid + '.nc', **kwargs)
+
+        # get mld
+        mld = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                             **kwargs).mldr10_3
 
         # cut edges of grid_T
         if cut:
             ds = ds.isel(x=cut[0], y=cut[1]) 
+            mld = mld.isel(x=cut[0], y=cut[1]) 
 
         # convert cell thickness to depths
-        deps = ds.e3t.cumsum('deptht').load()
+        if grid == 'grid_T':
+            deps = ds.e3t.cumsum('deptht').load()
+        elif grid == 'grid_W':
+            deps = ds.e3w.cumsum('depthw').load()
+            mld['time_counter'] = self.var.time_counter
 
-        var_ml =  self.var.where(deps <= ds.mldr10_3, drop=False)
-
+        var_ml =  self.var.where(deps <= mld, drop=False)
+        
         if save:
             with ProgressBar():
                 fn = self.path + 'ProcessedVars/' + self.file_id + '{}_ml.nc'
@@ -92,6 +102,8 @@ class integrals_and_masks(object):
 
         x_diff = int((ds_a.x.size - ds_b.x.size) / 2)
         y_diff = int((ds_a.y.size - ds_b.y.size) / 2)
+
+        # check rim differences in x and y match
         if x_diff == y_diff:
             size_diff = x_diff
         else:
@@ -99,18 +111,9 @@ class integrals_and_masks(object):
 
         return size_diff
 
-    def domain_mean_ice_oce_zones(self, threshold=0.2):
+    def get_domain_vars_and_cut_rims(self):
         '''
-        split TKE budget into three variables
-            - ice area
-            - ocean area
-            - MIZ area
-        then integrate over domain and weight by volume
-
-        Parameters
-        ----------
-
-        threshold: sea ice concentration for partition between ice, oce and miz
+        get cfg and icemsk and cut rims along with with var
         '''
 
         # get domain_cfg and ice concentration
@@ -127,19 +130,79 @@ class integrals_and_masks(object):
         var_rim = 10 - size_diff
 
         # cut edges
-        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
-        cfg = self.cut_edges(cfg)
-        icemsk = self.cut_edges(icemsk)
+        self.var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
+        self.cfg = self.cut_edges(cfg)
+        self.icemsk = self.cut_edges(icemsk)
+
+    def mask_by_ice_oce_zones(self, threshold=0.2):
+        '''
+        split TKE budget into three variables
+            - ice area
+            - ocean area
+            - MIZ area
+
+        Parameters
+        ----------
+
+        threshold: sea ice concentration for partition between ice, oce and miz
+        '''
+
+        var = self.var
+
+        # ensure time conformance
+        if not self.icemsk.time_counter.identical(var.time_counter):
+            var['time_counter'] = self.icemsk.time_counter
 
         # get masks
-        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold)))
-        ice_msk = (icemsk > (1 - threshold))
-        oce_msk = (icemsk < threshold)
+        miz_msk = ((self.icemsk > threshold) & (self.icemsk < (1 - threshold)))
+        ice_msk = (self.icemsk > (1 - threshold))
+        oce_msk = (self.icemsk < threshold)
 
         # mask by ice concentration
         var_ml_miz = var.where(miz_msk)
         var_ml_ice = var.where(ice_msk)
         var_ml_oce = var.where(oce_msk)
+
+        return var_ml_miz, var_ml_ice, var_ml_oce
+
+    def get_ice_oce_masked_var(self):
+        '''
+        mask by ice region and save
+        '''
+
+        # mask
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
+
+        # set variable names
+        var_ml_miz.name = self.var_str + '_miz'
+        var_ml_ice.name = self.var_str + '_ice'
+        var_ml_oce.name = self.var_str + '_oce'
+
+        # merge variables
+        var_masked = xr.merge([var_ml_miz, var_ml_ice, var_ml_oce])
+
+        # save
+        with ProgressBar():
+           fn = self.path + 'ProcessedVars/' + self.file_id + '_'  \
+              + self.var_str + '_ice_oce_miz.nc'
+           var_masked.to_netcdf(fn)
+
+    def domain_mean_ice_oce_zones(self, threshold=0.2):
+        '''
+        split TKE budget into three variables
+            - ice area
+            - ocean area
+            - MIZ area
+        then integrate over domain and weight by volume
+
+        Parameters
+        ----------
+
+        threshold: sea ice concentration for partition between ice, oce and miz
+        '''
+
+        # mask by ice concentration
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
 
         # get e3t
         kwargs = {'chunks': -1}
@@ -150,7 +213,7 @@ class integrals_and_masks(object):
         dims = ['x','y','deptht']
 
         # find volume of each partition
-        t_vol = e3t * cfg.e2t * cfg.e1t
+        t_vol = e3t * self.cfg.e2t * self.cfg.e1t
 
         # calculate volume weighted mean
         var_integ_miz = var_ml_miz.weighted(t_vol).mean(dim=dims)
@@ -172,7 +235,7 @@ class integrals_and_masks(object):
            fn = self.path + 'TimeSeries/' + self.var_str + '_domain_integ.nc'
            var_integ.to_netcdf(fn)
 
-    def horizontal_mean_ice_oce_zones(self, threshold=0.2):
+    def horizontal_mean_ice_oce_zones(self, threshold=0.2, save=False):
         '''
         split TKE budget into three variables
             - ice area
@@ -181,48 +244,11 @@ class integrals_and_masks(object):
         then integrate in the horizontal and weight by area
         '''
 
-        # get data and domain_cfg
-        if 'deptht' in self.var.dims:
-            var = self.mask_by_ml().mean('deptht')
-        else:
-            var = self.var
-
-        cfg = xr.open_dataset(self.path + 'Grid/domain_cfg.nc',
-                              chunks=-1).squeeze()
-
-        # load ice concentration
-        icemsk = xr.open_dataset(
-                         self.path + 'RawOutput/' + self.file_id + 'icemod.nc',
-                            chunks={'time_counter':1}).siconc
-
-        # check index sizes
-        size_diff = self.check_index_size_diff(cfg, var)
-
-        # trim edges accounting to size mismatch
-        var_rim = 10 - size_diff
-
-        # cut edges
-        var = self.cut_edges(self.var, rim=slice(var_rim, -var_rim))
-        cfg = self.cut_edges(cfg)
-        icemsk = self.cut_edges(icemsk)
-
-        # ensure time conformance
-        if not icemsk.time_counter.identical(var.time_counter):
-            var['time_counter'] = icemsk.time_counter
-
-        # get masks
-        miz_msk = ((icemsk > threshold) & (icemsk < (1 - threshold))).load()
-        ice_msk = (icemsk > (1 - threshold)).load()
-        oce_msk = (icemsk < threshold).load()
-
         # mask by ice concentration
-        var_miz = var.where(miz_msk)
-        var_ice = var.where(ice_msk)
-        var_oce = var.where(oce_msk)
-
+        var_ml_miz, var_ml_ice, var_ml_oce = self.mask_by_ice_oce_zones()
 
         # find area of each partition
-        area = cfg.e2t * cfg.e1t
+        area = self.cfg.e2t * self.cfg.e1t
 
         # calculate lateral weighted mean
         var_integ_miz = var_miz.weighted(area).mean(dim=['x','y'])
@@ -235,12 +261,13 @@ class integrals_and_masks(object):
         var_integ_oce.name = self.var_str + '_oce_weighted_mean'
 
         # merge variables
-        var_integ = xr.merge([var_integ_miz.load(),
-                              var_integ_ice.load(),
-                              var_integ_oce.load()])
+        self.var_integ = xr.merge([var_integ_miz.load(),
+                                   var_integ_ice.load(),
+                                   var_integ_oce.load()])
  
         # save
-        fn = self.path + 'TimeSeries/' +\
-             self.var_str + '_horizontal_integ.nc'
-        var_integ.to_netcdf(fn)
+        if save:
+            fn = self.path + 'TimeSeries/' +\
+                 self.var_str + '_horizontal_integ.nc'
+            self.var_integ.to_netcdf(fn)
  

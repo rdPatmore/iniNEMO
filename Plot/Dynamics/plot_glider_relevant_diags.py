@@ -2,91 +2,365 @@ import matplotlib.pyplot as plt
 import xarray as xr
 import config
 import matplotlib
+import matplotlib.dates as mdates
+import cmocean
+import numpy as np
 
 matplotlib.rcParams.update({"font.size": 8})
 
-def plot_time_series(case):
-    """ 
-    Plot model time series of:
-        - N2
-        - Temperature
-        - Salinity
-        - Mixed Layer Depth
-        - Bouyancy Gradients
+class glider_relevant_vars(object):
+    """
+    a collection of plotting routiens that are relevant for comparison with
+    glider data.
 
-    Each time series has a Sea Ice, Open Ocean and Marginal Ice Zone component
+    parameters
+    ----------
+    date_range: set date bounds of time series
+    quad: use lat-lon quadrant partitioning 
+          args = {"upper_left","upper_right","lower_left","lower_right"} 
     """
 
-    # initialise figure
-    fig, axs = plt.subplots(8, figsize=(5.5,7))
-    plt.subplots_adjust()
+    def __init__(self, case, date_range=[None,None], quad=None):
+        self.proc_path = config.data_path() + case\
+         + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
+        self.timeseries_path = config.data_path() + case + "/TimeSeries/"
+        self.date_range = date_range
+        self.case = case
+        self.quad = quad
 
-    # data source
-    path = config.data_path() + case + "/TimeSeries/"
-
-    # render Temperature
-    T = xr.open_dataset(path + "votemper_domain_integ.nc")
-    axs[0].plot(T.time_counter, T.votemper_oce_weighted_mean, label="Oce")
-    axs[0].plot(T.time_counter, T.votemper_miz_weighted_mean, label="MIZ")
-    axs[0].plot(T.time_counter, T.votemper_ice_weighted_mean, label="ICE")
-    axs[0].set_ylabel("Temperature")
-
-    # render Salinity
-    S = xr.open_dataset(path + "vosaline_domain_integ.nc")
-    axs[1].plot(S.time_counter, S.vosaline_oce_weighted_mean)
-    axs[1].plot(S.time_counter, S.vosaline_miz_weighted_mean)
-    axs[1].plot(S.time_counter, S.vosaline_ice_weighted_mean)
-    axs[1].set_ylabel("Salinity")
+    def render_1d_time_series(self, ax, var, integ_type, title, vlims=None):
+        """ render line plot on axis for given variable """
     
-    # render MLD
-    mld = xr.open_dataset(path + "mld_horizontal_integ.nc")
-    axs[2].plot(mld.time_counter, mld.mld_oce_weighted_mean)
-    axs[2].plot(mld.time_counter, mld.mld_miz_weighted_mean)
-    axs[2].plot(mld.time_counter, mld.mld_ice_weighted_mean)
-    axs[2].set_ylabel("MLD")
+        if self.quad:
+            var = var + "_" + self.quad
+
+        fn_path = self.timeseries_path + var + "_" + integ_type + ".nc"
+        ds = xr.open_dataset(fn_path)
+        ds[var + "_miz_weighted_mean"] = ds[var + "_miz_weighted_mean"].where(
+                                          self.ice_area.area_miz > 1)
+        ds[var + "_ice_weighted_mean"] = ds[var + "_ice_weighted_mean"].where(
+                                          self.ice_area.area_ice > 1)
+        time_slice = slice(self.date_range[0], self.date_range[1])
+        ds = ds.sel(time_counter=time_slice)
+        ax.plot(ds.time_counter, ds[var + "_oce_weighted_mean"], label="Oce")
+        ax.plot(ds.time_counter, ds[var + "_miz_weighted_mean"], label="MIZ")
+        ax.plot(ds.time_counter, ds[var + "_ice_weighted_mean"], label="ICE")
+        ax.set_ylabel(title)
     
-    # render N2
-    N2 = xr.open_dataset(path + "N2_mld_horizontal_integ.nc")
-    axs[3].plot(N2.time_counter, N2.N2_mld_oce_weighted_mean)
-    axs[3].plot(N2.time_counter, N2.N2_mld_miz_weighted_mean)
-    axs[3].plot(N2.time_counter, N2.N2_mld_ice_weighted_mean)
-    axs[3].set_ylabel("N$^2$")
+        # axes formatting
+        date_lims = (ds.time_counter.min().values, 
+                     ds.time_counter.max().values)
+        ax.set_xlim(date_lims)
+        if vlims:
+            ax.set_ylim(vlims)
+    
+        return ds.time_counter
 
-    # render buoyancy gradinets
-    bg = xr.open_dataset(path + "bg_mod2_domain_integ.nc")
-    axs[4].plot(bg.time_counter, bg.bg_mod2_oce_weighted_mean)
-    axs[4].plot(bg.time_counter, bg.bg_mod2_miz_weighted_mean)
-    axs[4].plot(bg.time_counter, bg.bg_mod2_ice_weighted_mean)
-    axs[4].set_ylabel(r"$|\mathbf{\nabla}b|$")
+    def render_2d_time_series(self, fig, axs, var, integ_type, title,
+                              cmap=cmocean.cm.thermal,
+                              var_append="_weighted_mean", vlims=None):
+        """ render 2d colour map on axis for given variable """
+    
+        if self.quad:
+            var = var + "_" + self.quad
 
-    # render wind speed gradinets
-    wind = xr.open_dataset(path + "windsp_horizontal_integ.nc")
-    axs[5].plot(wind.time_counter, wind.windsp_oce_weighted_mean)
-    axs[5].plot(wind.time_counter, wind.windsp_miz_weighted_mean)
-    axs[5].plot(wind.time_counter, wind.windsp_ice_weighted_mean)
-    axs[5].set_ylabel(r"$U_{10}$")
+        # get data
+        fn_path = self.timeseries_path + var + "_" + integ_type + ".nc"
+        ds = xr.open_dataset(fn_path)
+    
+        # check time - hack via overwrite
+        if (ds.time_counter != self.ice_area.time_counter).all():
+            ds["time_counter"] = self.ice_area.time_counter
+    
+        # check depth coord
+        if "z" in ds.coords:
+            ds = ds.rename({"z":"deptht"})
+    
+        ds[var + "_miz" + var_append] = ds[var + "_miz" + var_append].where(
+                                          self.ice_area.area_miz > 1)
+        ds[var + "_ice" + var_append] = ds[var + "_ice" + var_append].where(
+                                          self.ice_area.area_ice > 1)
+        ds = ds.sel(time_counter=slice(self.date_range[0], self.date_range[1]))
+    
+        # set value limits
+        if vlims:
+            vmin, vmax = vlims[0], vlims[1]
+        else:
+            # hack for finding min across oce, ice and miz variables
+            # it would be better if ice, oce and miz were under a coordinate
+            ds_min = ds.min()
+            vmin = min(ds_min[var + "_ice" + var_append],
+                       ds_min[var + "_oce" + var_append],
+                       ds_min[var + "_miz" + var_append]
+                       ).values
+            ds_max = ds.max()
+            vmax = max(ds_max[var + "_ice" + var_append],
+                       ds_max[var + "_oce" + var_append],
+                       ds_max[var + "_miz" + var_append]
+                       ).values
+    
+        axs[0].pcolor(ds.time_counter, ds.deptht,
+                      ds[var + "_oce" + var_append].T,
+                      cmap=cmap, vmin=vmin, vmax=vmax)
+        axs[1].pcolor(ds.time_counter, ds.deptht,
+                      ds[var + "_miz" + var_append].T,
+                      cmap=cmap, vmin=vmin, vmax=vmax)
+        p = axs[2].pcolor(ds.time_counter, ds.deptht,
+                          ds[var + "_ice" + var_append].T,
+                          cmap=cmap, vmin=vmin, vmax=vmax)
+    
+        # axes formatting
+        date_lims = (ds.time_counter.min().values, 
+                     ds.time_counter.max().values)
+    
+        for ax in axs:
+            ax.set_xlim(date_lims)
+            ax.set_ylim(0,120)
+            ax.invert_yaxis()
+            ax.set_ylabel("Depth (m)")
+    
+        pos0 = axs[0].get_position()
+        pos1 = axs[2].get_position()
+        cbar_ax = fig.add_axes([0.85, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(4.5, 0.5, title, fontsize=8, rotation=90,
+                     transform=cbar.ax.transAxes, va='center', ha='left')
+    
+        axs[0].text(0.98, 0.1, "Oce", va="bottom", ha="right", rotation=0,
+                    transform=axs[0].transAxes)
+        axs[1].text( 0.98, 0.1, "MIZ", va="bottom", ha="right", rotation=0,
+                    transform=axs[1].transAxes)
+        axs[2].text( 0.98, 0.1, "Ice", va="bottom", ha="right", rotation=0,
+                    transform=axs[2].transAxes)
+    
+        return ds.time_counter
+    
+    def render_sea_ice_area(self, ax):
+        """ render ice, ocean, miz partition on given axis """
+    
+        # get sea ice area partitions
+        date_range_slice = slice(self.date_range[0], self.date_range[1])
+        ice_area = self.ice_area.sel(time_counter=date_range_slice)
+        ax.plot(ice_area.time_counter, ice_area["area_oce"], label="Oce")
+        ax.plot(ice_area.time_counter, ice_area["area_miz"], label="MIZ")
+        ax.plot(ice_area.time_counter, ice_area["area_ice"], label="ICE")
+        ax.set_ylabel("area (%)")
+    
+        # axes formatting
+        date_lims = (ice_area.time_counter.min().values, 
+                     ice_area.time_counter.max().values)
+        ax.set_xlim(date_lims)
+    
+    def get_ice_cover_stats(self):
+        """ get percentage of area covered by ice, oce and miz """
+    
+        # check subseting
+        if self.quad:
+            fn = "area_{}_ice_oce_miz.nc".format(self.quad)
+        else:
+            fn = "area_ice_oce_miz.nc"
 
-    # render buoyancy gradinets
-    wfo = xr.open_dataset(path + "wfo_horizontal_integ.nc")
-    axs[6].plot(wfo.time_counter, wfo.wfo_oce_weighted_mean)
-    axs[6].plot(wfo.time_counter, wfo.wfo_miz_weighted_mean)
-    axs[6].plot(wfo.time_counter, wfo.wfo_ice_weighted_mean)
-    axs[6].set_ylabel(r"$Q_{fw}$")
+        # get partition data
+        area_partition = xr.open_dataset(self.timeseries_path + fn)
 
-    # render wind stress 
-    taum = xr.open_dataset(path + "taum_horizontal_integ.nc")
-    axs[7].plot(taum.time_counter, taum.taum_oce_weighted_mean)
-    axs[7].plot(taum.time_counter, taum.taum_miz_weighted_mean)
-    axs[7].plot(taum.time_counter, taum.taum_ice_weighted_mean)
-    axs[7].set_ylabel(r"$|\mathbf{\tau}_s|$")
+        # get percentage ice cover for full domain weighted by area
+        total_area = area_partition["area_oce"] \
+                   + area_partition["area_ice"] \
+                   + area_partition["area_miz"]
+        self.ice_area = area_partition * 100 / total_area
+    
+    def plot_time_series_core_vars(self, ml_mid=False):
+        """ 
+        Plot model time series of:
+            - N2
+            - Temperature
+            - Salinity
+            - Mixed Layer Depth
+            - Bouyancy Gradients
+    
+        Each time series has a Sea Ice, Open Ocean and Marginal Ice Zone
+        component
+        """
+    
+        # initialise figure
+        fig, axs = plt.subplots(8, figsize=(5.5,7))
+        plt.subplots_adjust(left=0.2, hspace=0.25, top=0.95, bottom=0.1)
+    
+    
+        if ml_mid:
+            integ_str = "horizontal_integ"
+            self.render_1d_time_series(axs[0], "votemper_ml_mid", integ_str,
+                                       "Temperature")
+            self.render_1d_time_series(axs[1], "vosaline_ml_mid", integ_str,
+                                       "Salinity")
+            self.render_1d_time_series(axs[3], "bn2_ml_mid", integ_str,
+                                       r"N$^2$")
+            self.render_1d_time_series(axs[4], "bg_mod2_ml_mid", integ_str,
+                                 r"$|\mathbf{\nabla}b|$")
+        else:
+            self.render_1d_time_series(axs[0], "votemper", "domain_integ",
+                                 "Temperature")
+            self.render_1d_time_series(axs[1], "vosaline", "domain_integ",
+                                 "Salinity")
+            self.render_1d_time_series(axs[3], "N2_mld", "horizontal_integ",
+                                 r"N$^2$")
+            self.render_1d_time_series(axs[4], "bg_mod2", "domain_integ",
+                                 r"$|\mathbf{\nabla}b|$")
+    
+        self.render_1d_time_series(axs[2], "mldr10_3", "horizontal_integ",
+                                   "MLD")
 
-    for ax in axs[:7]:
-        ax.set_xticks([])
+        # positive down mld
+        axs[2].invert_yaxis()
 
-    axs[0].legend()
+        self.render_1d_time_series(axs[5], "wfo", "horizontal_integ",
+                                    r"$Q_{fw}$")
+        dates = self.render_1d_time_series(axs[6], "taum", "horizontal_integ",
+                                     r"$|\mathbf{\tau}_s|$")
+        self.render_sea_ice_area(axs[7])
+    
+        # date labels
+        for ax in axs:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs[-1].set_xlabel('Date')
+    
+        for ax in axs[:7]:
+            ax.set_xticklabels([])
+    
+        # align labels
+        xpos = -0.18  # axes coords
+        for ax in axs:
+            ax.yaxis.set_label_coords(xpos, 0.5)
+    
+        axs[0].legend()
+    
+        if ml_mid:
+            append = "_ml_mid"
+        else:
+            append = ""
+    
+        ## get date limits
+        d0 = dates.min().dt.strftime("%Y%m%d").values
+        d1 = dates.max().dt.strftime("%Y%m%d").values
 
-    plt.savefig("glider_relevant_diags.pdf")
+        if self.quad:
+            append = append + "_" + quad
+    
+        plt.savefig("glider_relevant_diags_{0}_{1}{2}.pdf".format(d0, d1,
+                                                                   append))
+    
+    def plot_t_s_M_and_N(self):
+        """
+        plot time series of:
+            - depth profiles of temperature and salinity
+            - ml mid vertical stratification (N^2)
+            - ml mid horizontal buoynacy gradients
+        """
+    
+        # initialise figure
+        fig, axs = plt.subplots(8, figsize=(5.5,7))
+        plt.subplots_adjust(left=0.15, right=0.83, 
+                            hspace=0.25, top=0.98, bottom=0.07)
+    
+        # plot "M" and "N"
+        integ_str = "ml_mid_horizontal_integ"
+        self.render_1d_time_series(axs[0], "bn2", integ_str,
+                                  r"N$^2$ (s$^{-2}$)",
+                                  vlims=[0,0.0004])
+        dates = self.render_1d_time_series(axs[1], "bg_mod2", integ_str,
+                                  r"$|\mathbf{\nabla}b|$ (s$^{-2}$)",
+                                  vlims=[0,5.2e-14])
+    
+        self.render_2d_time_series(fig, axs[2:5], "votemper",
+                              "ml_horizontal_integ",
+                              r"Temperature ($^{\circ}$C)", cmocean.cm.thermal,
+                              vlims=[-1.9,-0.1])
+        self.render_2d_time_series(fig, axs[5:8], "vosaline", 
+                              "ml_horizontal_integ",
+                              r"Salinity ($10^{-3}$)", cmocean.cm.haline,
+                              vlims=[33.3,34.4])
+        # date labels
+        for ax in axs:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs[-1].set_xlabel('Date')
+    
+        for ax in axs[:7]:
+            ax.set_xticklabels([])
+    
+        # align labels
+        xpos = -0.18  # axes coords
+        for ax in axs:
+            ax.yaxis.set_label_coords(xpos, 0.5)
+    
+        axs[0].legend()
+    
+        ## get date limits
+        d0 = dates.min().dt.strftime("%Y%m%d").values
+        d1 = dates.max().dt.strftime("%Y%m%d").values
+
+        if self.quad:
+            append = "_" + self.quad
+        else:
+            append =""
+
+        # add date lines
+        dates = [
+                np.datetime64("2012-12-23 12:00:00"),
+                np.datetime64("2012-12-24 12:00:00"),
+                np.datetime64("2012-12-25 12:00:00")
+                ]
+
+        for ax in axs:
+            for date in dates:
+                ax.axvline(date, ls=":", lw=0.8, c="grey")
+
+        plt.savefig("density_gradient_controls_{0}_{1}{2}.png".format(d0, d1,
+                    append), dpi=600)
+    
+    def plot_eke_time_series(self, date_range=[None,None]):
+        """
+        Plot time series of EKE partitioned by Oce, MIZ and Ice zones.
+        """
+    
+        # initialise figure
+        fig, axs = plt.subplots(3, figsize=(5.5,7))
+        plt.subplots_adjust(left=0.15, right=0.83, 
+                            hspace=0.25, top=0.98, bottom=0.07)
+    
+        # plot EKE
+        dates = self.render_2d_time_series(fig, axs, "TKE", "oce_miz_ice",
+                              "EKE", plt.cm.Oranges, var_append="")
+    
+        # date labels
+        for ax in axs:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+        axs[-1].xaxis.set_major_formatter(mdates.DateFormatter('%d-%b'))
+        axs[-1].set_xlabel('Date')
+    
+        for ax in axs[:2]:
+            ax.set_xticklabels([])
+    
+        ## get date limits
+        d0 = dates.min().dt.strftime("%Y%m%d").values
+        d1 = dates.max().dt.strftime("%Y%m%d").values
+
+        if self.quad:
+            append = "_" + quad
+        else:
+            append =""
+    
+        # save figure
+        plt.savefig("EKE_{0}_{1}{2}.png".format(d0, d1, append), dpi=600)
+    
 
 if __name__ == "__main__":
 
-    plot_time_series("EXP10")
+    for quad in ["upper_right","upper_left","lower_left","lower_right"]:
+        grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
+                                  quad=quad)
+        grv.get_ice_cover_stats()
+        #grv.plot_time_series_core_vars(ml_mid=True)
+        grv.plot_t_s_M_and_N()
+        #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
