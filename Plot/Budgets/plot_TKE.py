@@ -238,16 +238,36 @@ class plot_KE(object):
     def plot_ml_integrated_TKE_budget(self):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
+        
+        self.vmin, self.vmax = -1e-5, 1e-5
+        self.render_horizontal_slice(ds)
+
+        plt.savefig(self.case + '_tke_budget_depth_integrated.png', dpi=600)
+
+    def plot_z_slice_TKE_budget(self, depth=10):
+        ''' plot budget of TKE depth-integrated over the mixed layer '''
+        
+        # load and slice
+        ds = xr.open_dataset(self.preamble + 'TKE_budget_full.nc')
+        ds = ds.sel(deptht=depth, method='nearest')
+        
+        self.vmin, self.vmax = -2e-7, 2e-7
+        self.render_horizontal_slice(ds)
+
+        plt.savefig(self.case + '_tke_budget_depth_{}.png'.format(str(depth)),
+                                                                  dpi=600)
+
+    def render_horizontal_slice(self, ds):
+
         # ini figure
         fig, axs = plt.subplots(2, 4, figsize=(5.5,3.5))
         plt.subplots_adjust(left=0.1, right=0.85, top=0.90, bottom=0.12,
                             wspace=0.05, hspace=0.30)
-        #axs[-1,-1].axis('off')
-
-        # load and slice
-        ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
+        # trim edges
         cut=slice(10,-10)
         ds     = ds.isel(x=cut,y=cut)
         cfg    = cfg.isel(x=cut,y=cut)
@@ -257,7 +277,6 @@ class plot_KE(object):
         ds['trd_tot'] = ds.trd_tot
 
         # plot
-        self.vmin, self.vmax = -1e-5, 1e-5
         self.cmap=cmocean.cm.balance
         def render(ax, ds, var):
             p = ax.pcolor(cfg.nav_lon, cfg.nav_lat, ds[var],
@@ -301,13 +320,12 @@ class plot_KE(object):
 
         pos0 = axs[0,-1].get_position()
         pos1 = axs[-1,-1].get_position()
-        cbar_ax = fig.add_axes([0.86, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar_ax = fig.add_axes([0.88, pos1.y0, 0.02, pos0.y1 - pos1.y0])
         cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(6.0, 0.5, 'TKE Tendency', fontsize=8,
+        cbar.ax.text(6.0, 0.5, 'EKE Tendency', fontsize=8,
                      rotation=90, transform=cbar.ax.transAxes,
                      va='center', ha='right')
 
-        plt.savefig(self.case + '_tke_budget_depth_integrated.png', dpi=600)
 
     def plot_domain_integrated_TKE_budget(self):
         ''' plot domain integrated TKE budget '''
@@ -517,7 +535,10 @@ class plot_KE(object):
 file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 ke = plot_KE('TRD00', file_id)
 #ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
-ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
+#ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
-#ke.plot_ml_integrated_TKE_budget()
+ke.plot_ml_integrated_TKE_budget()
+#print ('depth integrated - done')
+#ke.plot_z_slice_TKE_budget(depth=10)
+print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()

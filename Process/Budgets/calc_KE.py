@@ -447,7 +447,9 @@ class KE(object):
         # calc buoyancy flux on w-pts
         rho0 = 1026
         g = 9.81
+        # RDP not sure this should have been the density anomaly
         z_conv = g * (1 - (rhoW / rho0)) * wvel * e3w 
+        #z_conv = g * rhoW * wvel * e3w 
      
         # shift to t-pts
         z_convT = 0.5 * ( z_conv + self.km1(z_conv, dvar='depthw') )
@@ -537,7 +539,7 @@ if __name__ == '__main__':
      #m.calc_KE_budget(depth_str='30')
 
      #m.calc_TKE_budget()
-     #m.merge_vertical_buoyancy_flux()
+     m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)
@@ -547,7 +549,6 @@ if __name__ == '__main__':
      #m.calc_TKE(save=True)
 
      #m.calc_MKE_budget(depth_str='30')
-     m.calc_z_TKE_budget()
+     #m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()
      #m.calc_TKE_steadiness()
-     #m.calc_z_TKE_budget()
