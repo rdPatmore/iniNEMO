@@ -1,0 +1,9 @@
+name: iniNEMO
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - xarray
+  - cmocean
+  - netcdf4
+  - dask
