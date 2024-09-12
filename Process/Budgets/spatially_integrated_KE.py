@@ -14,7 +14,10 @@ class KE_integrals(object):
 
     def __init__(self, case):
         self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
-        self.preamble = config.data_path() + case +  self.file_id
+        self.proc_preamble = config.data_path() + case + '/ProcessedVars' \
+                           +  self.file_id
+        self.raw_preamble = config.data_path() + case + '/RawOutput' \
+                           +  self.file_id
         self.path = config.data_path() + case + '/'
 
     def mask_by_ml_mean(self, var):
@@ -36,8 +39,10 @@ class KE_integrals(object):
 
         # get time-mean grid_T
         kwargs = {'chunks':-1, 'decode_cf':False} 
-        ds_mean = xr.open_dataset(self.preamble + 'grid_T.nc',
-                        **kwargs).mean('time_counter')
+        ds = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                        **kwargs)
+        #ds = ds.isel(time_counter=slice(None,None,2))
+        ds_mean = ds.mean('time_counter')
 
         # alias mld and e3t
         mld_mean = ds_mean.mldr10_3
@@ -45,7 +50,8 @@ class KE_integrals(object):
 
         # get tke
         kwargs = {'chunks':{'time_counter':100}} 
-        tke = xr.open_dataset(self.preamble + 'TKE_budget_full.nc', **kwargs)
+        tke = xr.open_dataset(self.proc_preamble + 'TKE_budget_full.nc',
+                              **kwargs)
 
         # convert cell thickness to depths
         deps = ds_mean.e3t.cumsum('deptht')
@@ -65,17 +71,12 @@ class KE_integrals(object):
         # get data
         self.get_ml_masked_tke()
 
-        #tke = self.tke_mld.trd_tau.isel(x=20)
-        ##tke_e3t = (tke * self.e3t_mean)
-        #p = plt.pcolor(self.e3t_mean)
-        #plt.colorbar(p)
-        #plt.savefig('test.png')
-        #print (sdkf)
         # calculate vertical integral
         tke_integ = (self.tke_mld * self.e3t_mean).sum('deptht')
 
         with ProgressBar():
-            tke_integ.to_netcdf(self.preamble + 'TKE_budget_z_integ.nc')
+            tke_integ.to_netcdf(self.proc_preamble +
+                               'TKE_budget_z_integ.nc')
 
     def domain_integrated_ml_KE(self, KE_type='TKE'):
         ''' domain integrated KE budget '''
@@ -88,7 +89,7 @@ class KE_integrals(object):
         tke_integ = (self.tke_mld * self.e3t_mean * cfg.e2t * cfg.e1t).sum()
 
         with ProgressBar():
-            tke_integ.to_netcdf(self.preamble + 'TKE_budget_domain_integ.nc')
+            tke_integ.to_netcdf(self.proc_preamble + 'TKE_budget_domain_integ.nc')
 
     def domain_mean_ml_KE_ice_oce_zones(self, threshold=0.2):
         '''
@@ -104,7 +105,7 @@ class KE_integrals(object):
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
         # load ice concentration
-        icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
+        icemsk = xr.open_dataset(self.raw_preamble + 'icemod.nc',
                             chunks={'time_counter':10}, decode_cf=True).siconc
 
         # mask e3t by mean mixed layer depth
@@ -149,7 +150,7 @@ class KE_integrals(object):
 
         # save
         with ProgressBar():
-            fn = self.preamble + 'TKE_budget_domain_integ_{}.nc'
+            fn = self.proc_preamble + 'TKE_budget_domain_integ_{}.nc'
             tke_integ_miz.to_netcdf(fn.format('miz'))
             tke_integ_ice.to_netcdf(fn.format('ice'))
             tke_integ_oce.to_netcdf(fn.format('oce'))
@@ -168,7 +169,7 @@ class KE_integrals(object):
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
 
         # load ice concentration
-        icemsk = xr.open_dataset(self.preamble + 'icemod.nc',
+        icemsk = xr.open_dataset(self.raw_preamble + 'icemod.nc',
                             chunks={'time_counter':10}, decode_cf=True).siconc
 
         # cut edges
@@ -206,7 +207,7 @@ class KE_integrals(object):
 
         # save
         with ProgressBar():
-            fn = self.preamble + 'TKE_budget_horizontal_integ_{}.nc'
+            fn = self.proc_preamble + 'TKE_budget_horizontal_integ_{}.nc'
             tke_integ_miz.to_netcdf(fn.format('miz'))
             tke_integ_ice.to_netcdf(fn.format('ice'))
             tke_integ_oce.to_netcdf(fn.format('oce'))

@@ -6,8 +6,8 @@ from dask.diagnostics import ProgressBar
 
 class reynolds(object):
 
-    def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
+    def __init__(self, case, file_id):
+        self.file_id = file_id
         self.nc_preamble = config.data_path() + case +  self.file_id
 
     def get_time_mean_lat_vels(self):
@@ -138,7 +138,8 @@ class reynolds(object):
         ''' general routine for finding means '''
 
         kwargs = {'decode_cf':False, 'chunks':{'time_counter':1}} 
-        with xr.open_dataset(self.nc_preamble + fname + '.nc', **kwargs) as f:
+        fn = self.nc_preamble + fname + '.nc', **kwargs
+        with xr.open_dataset(fn, **kwargs) as f:
             if var:
                f = f[var]
             if fname in ['grid_T_dep_30','grid_T']:
@@ -208,15 +209,18 @@ class reynolds(object):
 if __name__ == '__main__':
     import time
     start = time.time()
-    m = reynolds('TRD00')
+    file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
+    m = reynolds('TRD00', file_id)
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
     #m.add_depth_integrated_wind_stress()
+
     #m.get_time_mean('momu', 'momu')
     #m.get_time_mean('momv', 'momv')
-    #m.get_primes('momu', 'momu')
-    #m.get_primes('momv', 'momv')
+
+    m.get_primes('momu', 'momu')
+    m.get_primes('momv', 'momv')
 
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')
@@ -224,10 +228,10 @@ if __name__ == '__main__':
     #m.get_primes('uvel', 'uvel')
     #m.get_primes('vvel', 'vvel')
 
-    m.get_time_mean('rhoW', 'rhoW')
+    #m.get_time_mean('rhoW', 'rhoW')
     #m.get_time_mean('wvel', 'wvel')
 
-    m.get_primes('rhoW', 'rhoW')
+    #m.get_primes('rhoW', 'rhoW')
     #m.get_primes('wvel', 'wvel')
 
     #m.get_primes_all()
