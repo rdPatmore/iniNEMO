@@ -7,9 +7,8 @@ from dask.diagnostics import ProgressBar
 
 class KE(object):
 
-    def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_3h_20121209_20130331_'
-        self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
+    def __init__(self, case, file_id):
+        self.file_id = file_id
         self.proc_preamble = config.data_path() + case + '/ProcessedVars' \
                            +  self.file_id
         self.raw_preamble = config.data_path() + case + '/RawOutput' \
@@ -179,7 +178,7 @@ class KE(object):
             with ProgressBar():
                 TKE.to_netcdf(self.proc_preamble + 'TKE_oce_miz_ice.nc')
 
-    def calc_TKE_budget(self, depth_str='mld', rey_str='15mi', cut=None):
+    def calc_TKE_budget(self, depth_str='mld'):
         ''' 
         Caclulate turbulent kinetic energy tendency excluding
         the vertical buoyancy flux term.
@@ -190,7 +189,7 @@ class KE(object):
         chunkst = {'time_counter':10}
 
         # get momentum budgets
-        append = '_' + rey_str + '_rey.nc'
+        append = '_rey.nc'
         umom = xr.open_dataset(self.proc_preamble + 'momu' + append,
                                chunks=chunksu)
         vmom = xr.open_dataset(self.proc_preamble + 'momv' + append,
@@ -209,17 +208,12 @@ class KE(object):
                                chunks=chunksv).vo
 
         # get scale factors
-        e3u = xr.open_dataset(self.proc_preamble + 'uvel.nc',
+        e3u = xr.open_dataset(self.raw_preamble + 'uvel.nc',
                               chunks=chunksu).e3u
-        e3v = xr.open_dataset(self.proc_preamble + 'vvel.nc',
+        e3v = xr.open_dataset(self.raw_preamble + 'vvel.nc',
                               chunks=chunksv).e3v
         e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
                               chunks=chunkst)
-
-        # drop frequency in line with other inputs
-        e3u = e3u.isel(time_counter=slice(None,None,cut))
-        e3v = e3v.isel(time_counter=slice(None,None,cut))
-        e3t = e3t.isel(time_counter=slice(None,None,cut))
 
         # use time that is consistent with grid_W
         e3t['time_counter'] = e3t.time_instant
@@ -231,15 +225,13 @@ class KE(object):
 
         # save
         with ProgressBar():
-            TKE.to_netcdf(self.proc_preamble + 'TKE_budget_{}.nc'.format(
-                          rey_str))
+            TKE.to_netcdf(self.proc_preamble + 'TKE_budget.nc')
 
     def merge_vertical_buoyancy_flux(self):
         ''' add vertical buoyancy flux to TKE dataset '''
 
         kwargs = {'chunks': {'time_counter': 100}}
-        file_id_tke = self.path + 'ProcessedVars/SOCHIC_PATCH_30mi_20121209_20121211_'
-        TKE = xr.open_dataset(file_id_tke + 'TKE_budget.nc', **kwargs)
+        TKE = xr.open_dataset(self.proc_preamble + 'TKE_budget.nc', **kwargs)
         b_flux = xr.open_dataarray(self.proc_preamble + 'b_flux_rey.nc',
                                     **kwargs)
 
@@ -247,7 +239,7 @@ class KE(object):
         TKE['trd_bfx'] = b_flux
 
         with ProgressBar():
-            TKE.to_netcdf(self.proc_preamble + 'TKE_budget_full_30mi.nc')
+            TKE.to_netcdf(self.proc_preamble + 'TKE_budget_full.nc')
 
 
     def calc_MKE_budget(self, depth_str='mld'):
@@ -577,13 +569,14 @@ class KE(object):
        
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
-     m = KE('TRD00')
+     file_id = '/SOCHIC_PATCH_30mi_20121209_20121211_'
+     m = KE('TRD00', file_id)
      #m.calc_rhoW()
      #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
 
-     #m.calc_TKE_budget(rey_str='30mi', cut=2)
-     m.merge_vertical_buoyancy_flux()
+     m.calc_TKE_budget()
+     #m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)

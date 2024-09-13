@@ -17,8 +17,17 @@ class downsample(object):
         fn = self.raw_preamble + self.file_id + grid_str + '.nc'
         ds = xr.open_dataset(fn, **kwargs)
 
+        # choose offset - TODO: it should be possible to use a functional form
+        if slice_dist == 2:
+            offset = 1
+        elif slice_dist == 4:
+            offset = 3
+        else:
+            offset = None
+            print ('WARNING: no offset defined')
+
         # slice
-        ds = ds.isel(time_counter=slice(None,None,slice_dist))
+        ds = ds.isel(time_counter=slice(offset,None,slice_dist))
 
         # save
         with ProgressBar():
@@ -30,8 +39,9 @@ file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 file_id_slice = 'SOCHIC_PATCH_30mi_20121209_20121211_'
 
 dws = downsample('TRD00', file_id)
-dws.downsample_time('grid_U', file_id_slice, slice_dist=2) 
-dws.downsample_time('grid_T', file_id_slice, slice_dist=2) 
-dws.downsample_time('grid_V', file_id_slice, slice_dist=2) 
-dws.downsample_time('grid_W', file_id_slice, slice_dist=2) 
-dws.downsample_time('icemod', file_id_slice, slice_dist=2) 
+#dws.downsample_time('grid_U', file_id_slice, slice_dist=4) 
+#dws.downsample_time('grid_T', file_id_slice, slice_dist=4) 
+#dws.downsample_time('grid_V', file_id_slice, slice_dist=4) 
+#dws.downsample_time('grid_W', file_id_slice, slice_dist=4) 
+#dws.downsample_time('icemod', file_id_slice, slice_dist=4) 
+dws.downsample_time('rhoW', file_id_slice, slice_dist=2) 
