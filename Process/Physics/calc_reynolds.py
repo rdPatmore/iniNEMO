@@ -136,11 +136,18 @@ class reynolds(object):
         # save
         rho_prime.to_netcdf(self.nc_preamble + 'rho_mld_rey.nc')
 
-    def get_time_mean(self, fname, fname_out, var=None):
+    def get_time_mean(self, fname, fname_out, var=None, src=None):
         ''' general routine for finding means '''
 
         kwargs = {'decode_cf':False, 'chunks':{'time_counter':1}} 
-        fn = self.raw_preamble + fname + '.nc'
+
+        # set path
+        if src:
+            preamble = src
+        else:
+            preamble = self.raw_preamble
+
+        fn = preamble + fname + '.nc'
         with xr.open_dataset(fn, **kwargs) as f:
             if var:
                f = f[var]
@@ -152,17 +159,25 @@ class reynolds(object):
             
             # save
             with ProgressBar():
-                f_mean.to_netcdf(self.nc_preamble + fname_out + '_mean.nc')
+                f_mean.to_netcdf(self.proc_preamble + fname_out + '_mean.nc')
 
-    def get_primes(self, fname, fname_out, var=None):
+    def get_primes(self, fname, fname_out, var=None, src=None):
         ''' general routine for finding primes '''
+
+        # set path
+        if src:
+            preamble = src
+        else:
+            preamble = self.raw_preamble
 
         # load
         kwargs = {'decode_cf':True, 'chunks':{'time_counter':1}}
-        f = xr.open_dataset(self.raw_preamble + fname + '.nc', **kwargs)
+        f = xr.open_dataset(preamble + fname + '.nc', **kwargs)
         #f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
+
         f_mean = xr.open_dataset(self.proc_preamble + fname + '_mean.nc', 
                                  decode_cf=False, chunks=-1)
+
         if fname in ['grid_T_30','grid_T']:
            f = f.set_coords('time_instant')
 
@@ -179,7 +194,7 @@ class reynolds(object):
 
         # save
         with ProgressBar():
-            f_prime.to_netcdf(self.nc_preamble + fname_out + '_rey.nc')
+            f_prime.to_netcdf(self.proc_preamble + fname_out + '_rey.nc')
 
     def get_means_all(self):
 
@@ -221,20 +236,23 @@ if __name__ == '__main__':
     #m.get_time_mean('momu', 'momu')
     #m.get_time_mean('momv', 'momv')
 
-    m.get_primes('momu', 'momu')
-    m.get_primes('momv', 'momv')
+    #m.get_primes('momu', 'momu')
+    #m.get_primes('momv', 'momv')
 
     #m.get_time_mean('uvel', 'uvel')
     #m.get_time_mean('vvel', 'vvel')
 
-    m.get_primes('uvel', 'uvel')
-    m.get_primes('vvel', 'vvel')
+    #m.get_primes('uvel', 'uvel')
+    #m.get_primes('vvel', 'vvel')
 
     #m.get_time_mean('rhoW', 'rhoW')
     #m.get_time_mean('wvel', 'wvel')
 
-    m.get_primes('rhoW', 'rhoW')
-    m.get_primes('wvel', 'wvel')
+    #m.get_primes('rhoW', 'rhoW')
+    #m.get_primes('wvel', 'wvel')
+
+    m.get_time_mean('b_flux', 'b_flux', src=m.proc_preamble)
+    m.get_primes('b_flux', 'b_flux', src=m.proc_preamble)
 
     #m.get_primes_all()
 

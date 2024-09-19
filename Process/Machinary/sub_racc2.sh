@@ -16,4 +16,4 @@
 #again, these are the defaults anyway
 #export OMP_NUM_THREADS=1
  
-python -u ../Physics/calc_glider_relevant_diags.py
+python -u ../Budgets/calc_KE.py

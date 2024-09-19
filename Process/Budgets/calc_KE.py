@@ -184,9 +184,12 @@ class KE(object):
         the vertical buoyancy flux term.
         '''
         # set chunking
-        chunksu = {'time_counter':10}
-        chunksv = {'time_counter':10}
-        chunkst = {'time_counter':10}
+        #chunksu = {'time_counter':10}
+        #chunksv = {'time_counter':10}
+        #chunkst = {'time_counter':10}
+        chunksu = 'auto'
+        chunksv = 'auto'
+        chunkst = 'auto'
 
         # get momentum budgets
         append = '_rey.nc'
@@ -439,8 +442,8 @@ class KE(object):
         chunk = {'time_counter':1}
         rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW.nc', chunks=chunk).rhop
         e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).e3w
+        wvel = xr.open_dataset(self.raw_preamble + 'wvel.nc', chunks=chunk).wo
+        e3w = xr.open_dataset(self.raw_preamble + 'wvel.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -575,8 +578,8 @@ if __name__ == '__main__':
      #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
 
-     m.calc_TKE_budget()
-     #m.merge_vertical_buoyancy_flux()
+     #m.calc_TKE_budget()
+     m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)
