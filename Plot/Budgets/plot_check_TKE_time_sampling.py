@@ -28,14 +28,20 @@ class plot_KE(object):
                                 'TKE_budget_z_integ.nc', chunks='auto')
         ds_30 = xr.open_dataset(self.preamble.format('30mi') + 
                                 'TKE_budget_z_integ.nc', chunks='auto')
-        #ds_60 = xr.open_dataset(self.preamble.format('60mi') + 
-        #                        'TKE_budget_z_integ.nc', chunks='auto')
+        ds_60 = xr.open_dataset(self.preamble.format('1h') + 
+                                'TKE_budget_z_integ.nc', chunks='auto')
+
+        ds_30 = 100 * abs( ds_15 - ds_30 ) / ds_15.max()
+        ds_60 = 100 * abs( ds_15 - ds_60 ) / ds_15.max()
 
         # set cbar range and render
         self.vmin, self.vmax = -1e-5, 1e-5
+        self.cmap=cmocean.cm.balance
         self.render_horizontal_slice(ds_15, axs[0])
+        self.cmap=plt.cm.plasma
+        self.vmin, self.vmax = 0, 10
         p = self.render_horizontal_slice(ds_30, axs[1])
-        #self.render_horizontal_slice(ds_60, axs[:,2])
+        self.render_horizontal_slice(ds_60, axs[2])
 
         # titles
         titles = ['Horiz. Pressure\nGradient',
@@ -77,6 +83,98 @@ class plot_KE(object):
 #    def plot_compare_time_sampling_anomalies(self):
 #        ''' plot the TKE budget anomalies for three time sampling rates '''
 
+    def plot_PDF_percentage_error(self):
+        ''' Probability density function of sampling error '''
+
+        # ini figure
+        fig, axs = plt.subplots(2, 4, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.1, right=0.85, top=0.90, bottom=0.12,
+                            wspace=0.05, hspace=0.30)
+
+        # get data
+        ds_15 = xr.open_dataset(self.preamble.format('15mi') + 
+                                'TKE_budget_z_integ.nc', chunks='auto')
+        ds_30 = xr.open_dataset(self.preamble.format('30mi') + 
+                                'TKE_budget_z_integ.nc', chunks='auto')
+        ds_60 = xr.open_dataset(self.preamble.format('1h') + 
+                                'TKE_budget_z_integ.nc', chunks='auto')
+
+        ds_30 = 100 * abs( ds_15 - ds_30 ) / ds_15.max()
+        ds_60 = 100 * abs( ds_15 - ds_60 ) / ds_15.max()
+
+        def process_ds(ds):
+
+            cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
+
+            # trim edges
+            cut=slice(10,-10)
+            ds     = ds.isel(x=cut,y=cut)
+            cfg    = cfg.isel(x=cut,y=cut)
+
+            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_hpg'] = ds.trd_hpg
+            ds['trd_tot'] = ds.trd_tot
+
+            return ds
+
+        ds_30 = process_ds(ds_30)
+        ds_60 = process_ds(ds_60)
+
+        def make_hist(ds, density=True, bins=20, lims=[0,5]):
+
+            # stack
+            ds_stacked = ds.stack(z=ds.dims)
+
+            da_hist = []
+            for var in list(ds.keys()):  
+
+                da_stacked= ds_stacked[var]
+
+                # histogram
+                hist_var, bins = np.histogram(da_stacked.dropna('z', how='all'),
+                                        range=lims, density=density, bins=bins)
+                bin_centers = (bins[:-1] + bins[1:]) / 2
+                # assign to dataset
+
+                da_hist.append(xr.Dataset(
+                       {'hist_' + var:(['bin_centers'], hist_var)},
+                       coords={'bin_centers': (['bin_centers'], bin_centers),
+                               'bin_left'   : (['bin_centers'], bins[:-1]),
+                               'bin_right'  : (['bin_centers'], bins[1:])}))
+
+            ds_hist = xr.merge(da_hist)
+
+            return ds_hist
+
+        hist_30 = make_hist(ds_30)
+        hist_60 = make_hist(ds_60)
+
+        self.render_hist(axs, hist_30, c='r', label='30s')
+        self.render_hist(axs, hist_60, c='g', label='30s')
+        
+        # save
+        fn = '_tke_budget_depth_integrated_sampling_rate_compare_hist.png'
+        plt.savefig(self.case + fn, dpi=600)
+        
+
+    def render_hist(self, axs, ds, c='k', label=''):
+
+        # plot
+        def render(ax, ds, var, c, label):
+            ax.step(ds.bin_centers, ds[var], where="mid", color=c, label=label)
+
+        # plot
+        render(axs[0,0], ds, 'hist_trd_hpg', c, label)
+        render(axs[0,1], ds, 'hist_trd_adv', c, label)
+        render(axs[0,2], ds, 'hist_trd_zad', c, label)
+        render(axs[0,3], ds, 'hist_trd_zdf', c, label)
+        render(axs[1,0], ds, 'hist_trd_tfr2d', c, label)
+        render(axs[1,1], ds, 'hist_trd_tau2d', c, label)
+        render(axs[1,2], ds, 'hist_trd_bfx', c, label)
+        p = render(axs[1,3], ds, 'hist_trd_tot', c, label)
+
+        return p
+
     def plot_ml_integrated_TKE_budget(self):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
@@ -102,11 +200,11 @@ class plot_KE(object):
         ds['trd_tot'] = ds.trd_tot
 
         # plot
-        self.cmap=cmocean.cm.balance
         def render(ax, ds, var):
-            p = ax.pcolor(cfg.nav_lon, cfg.nav_lat, ds[var],
-                      vmin=self.vmin, vmax=self.vmax,
+            p = ax.contourf(cfg.nav_lon, cfg.nav_lat, ds[var],
+                      levels=np.linspace(self.vmin, self.vmax,11),
                       cmap=self.cmap)
+                      #vmin=self.vmin, vmax=self.vmax,
             return p
 
         # where is ldf ???
@@ -332,7 +430,8 @@ ke = plot_KE('TRD00')
 #ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
 #ke.plot_ml_integrated_TKE_budget()
-ke.plot_compare_time_sampling()
+#ke.plot_compare_time_sampling()
+ke.plot_PDF_percentage_error()
 #print ('depth integrated - done')
 #ke.plot_z_slice_TKE_budget(depth=10)
 print ('depth slice - done')

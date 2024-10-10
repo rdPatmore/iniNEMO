@@ -12,8 +12,8 @@ class KE_integrals(object):
     This is designed for TKE to start with
     '''
 
-    def __init__(self, case):
-        self.file_id = '/SOCHIC_PATCH_15mi_20121209_20121211_'
+    def __init__(self, case, file_id):
+        self.file_id = file_id
         self.proc_preamble = config.data_path() + case + '/ProcessedVars' \
                            +  self.file_id
         self.raw_preamble = config.data_path() + case + '/RawOutput' \
@@ -212,7 +212,8 @@ class KE_integrals(object):
             tke_integ_ice.to_netcdf(fn.format('ice'))
             tke_integ_oce.to_netcdf(fn.format('oce'))
 
-ke = KE_integrals('TRD00')
+file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
+ke = KE_integrals('TRD00', file_id)
 #ke.domain_mean_ml_KE_ice_oce_zones()
 #ke.horizontal_mean_ml_KE_ice_oce_zones()
 ke.vertically_integrated_ml_KE()

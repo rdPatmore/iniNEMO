@@ -251,9 +251,6 @@ if __name__ == '__main__':
     #m.get_primes('rhoW', 'rhoW')
     #m.get_primes('wvel', 'wvel')
 
-    m.get_time_mean('b_flux', 'b_flux', src=m.proc_preamble)
-    m.get_primes('b_flux', 'b_flux', src=m.proc_preamble)
-
     #m.get_primes_all()
 
     #m.get_lateral_vel_primes()

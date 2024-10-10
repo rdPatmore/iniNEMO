@@ -235,7 +235,7 @@ class KE(object):
 
         kwargs = {'chunks': {'time_counter': 100}}
         TKE = xr.open_dataset(self.proc_preamble + 'TKE_budget.nc', **kwargs)
-        b_flux = xr.open_dataarray(self.proc_preamble + 'b_flux_rey.nc',
+        b_flux = xr.open_dataarray(self.proc_preamble + 'b_flux_rey_mean.nc',
                                     **kwargs)
 
         # merge in buoyancy flux
@@ -479,7 +479,7 @@ class KE(object):
         rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW_rey.nc', chunks=chunk).rhop
         e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunk).e3t
         wvel = xr.open_dataset(self.proc_preamble + 'wvel_rey.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.proc_preamble + 'wvel.nc', chunks=chunk).e3w
+        e3w = xr.open_dataset(self.raw_preamble + 'grid_W.nc', chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -509,9 +509,9 @@ class KE(object):
         b_flux = b_flux.mean('time_counter') 
 
         # save
-        b_flux.name = 'b_flux_rey'
+        b_flux.name = 'b_flux_rey_mean'
         with ProgressBar():
-            b_flux.to_netcdf(self.proc_preamble + 'b_flux_rey.nc')
+            b_flux.to_netcdf(self.proc_preamble + 'b_flux_rey_mean.nc')
 
     def calc_z_MKE_budget(self):
         ''' calculate the vertical buoyancy flux '''
@@ -579,6 +579,7 @@ if __name__ == '__main__':
      #m.calc_KE_budget(depth_str='30')
 
      #m.calc_TKE_budget()
+     #m.calc_z_TKE_budget()
      m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
