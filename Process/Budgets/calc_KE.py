@@ -211,9 +211,9 @@ class KE(object):
                                chunks=chunksv).vo
 
         # get scale factors
-        e3u = xr.open_dataset(self.raw_preamble + 'uvel.nc',
+        e3u = xr.open_dataset(self.raw_preamble + 'grid_U.nc',
                               chunks=chunksu).e3u
-        e3v = xr.open_dataset(self.raw_preamble + 'vvel.nc',
+        e3v = xr.open_dataset(self.raw_preamble + 'grid_V.nc',
                               chunks=chunksv).e3v
         e3t = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
                               chunks=chunkst)
@@ -476,10 +476,14 @@ class KE(object):
         
         # get variables
         chunk = {'time_counter':1}
-        rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW_rey.nc', chunks=chunk).rhop
-        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc', chunks=chunk).e3t
-        wvel = xr.open_dataset(self.proc_preamble + 'wvel_rey.nc', chunks=chunk).wo
-        e3w = xr.open_dataset(self.raw_preamble + 'grid_W.nc', chunks=chunk).e3w
+        rhoW  = xr.open_dataset(self.proc_preamble + 'rhoW_rey.nc',
+                                chunks=chunk).rhop
+        e3t  = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                               chunks=chunk).e3t
+        wvel = xr.open_dataset(self.proc_preamble + 'wvel_rey.nc',
+                               chunks=chunk).wo
+        e3w = xr.open_dataset(self.raw_preamble + 'grid_W.nc',
+                              chunks=chunk).e3w
 
         # calc buoyancy flux on w-pts
         rho0 = 1026
@@ -572,15 +576,17 @@ class KE(object):
        
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
-     file_id = '/SOCHIC_PATCH_30mi_20121209_20121211_'
-     m = KE('TRD00', file_id)
-     #m.calc_rhoW()
+     file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+     m = KE('TRD02', file_id)
+
      #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
 
-     #m.calc_TKE_budget()
+     ### calc TKE Budget ###
+     m.calc_TKE_budget()
+     #m.calc_rhoW()
      #m.calc_z_TKE_budget()
-     m.merge_vertical_buoyancy_flux()
+     #m.merge_vertical_buoyancy_flux()
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)
@@ -590,6 +596,5 @@ if __name__ == '__main__':
      #m.calc_TKE(save=True)
 
      #m.calc_MKE_budget(depth_str='30')
-     #m.calc_z_TKE_budget()
      #m.calc_z_MKE_budget()
      #m.calc_TKE_steadiness()

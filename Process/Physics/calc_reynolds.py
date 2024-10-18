@@ -8,6 +8,7 @@ class reynolds(object):
 
     def __init__(self, case, file_id):
         self.file_id = file_id
+        self.case = case
         self.nc_preamble = config.data_path() + case +  self.file_id
         self.proc_preamble = config.data_path() + case + '/ProcessedVars/' + file_id
         self.raw_preamble = config.data_path() + case + '/RawOutput/' + file_id
@@ -166,24 +167,34 @@ class reynolds(object):
 
         # set path
         if src:
-            preamble = src
+            raw_preamble = src + self.case + '/RawOutput/' + self.file_id
+            proc_preamble = src + self.case + '/ProcessedVars/' + self.file_id
         else:
-            preamble = self.raw_preamble
+            raw_preamble = self.raw_preamble
+            proc_preamble = self.proc_preamble
 
         # load
         kwargs = {'decode_cf':True, 'chunks':{'time_counter':1}}
-        f = xr.open_dataset(preamble + fname + '.nc', **kwargs)
-        #f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
+        f = xr.open_dataset(raw_preamble + fname + '.nc', **kwargs)
 
-        f_mean = xr.open_dataset(self.proc_preamble + fname + '_mean.nc', 
+        if var:
+           f = f[var]
+
+        f_mean = xr.open_dataset(proc_preamble + fname_out + '_mean.nc', 
                                  decode_cf=False, chunks=-1)
 
         if fname in ['grid_T_30','grid_T']:
            f = f.set_coords('time_instant')
 
+        drop_vars = ['bounds_nav_lon', 'bounds_nav_lat',
+                     'depthu_bounds', 'depthv_bounds',
+                     'time_counter_bounds', 'time_instant_bounds']
         if fname in ['momu','momv']:
-            f = f.drop(['time_counter_bounds'])
-            f_mean = f_mean.drop(['time_counter_bounds'])
+            for var in drop_vars:
+                if var in list(f.keys()):
+                    f = f.drop([var])
+                if var in list(f.keys()):
+                    f_mean = f_mean.drop([var])
 
         # reynolds
         f_prime = f - f_mean
@@ -194,7 +205,30 @@ class reynolds(object):
 
         # save
         with ProgressBar():
-            f_prime.to_netcdf(self.proc_preamble + fname_out + '_rey.nc')
+            f_prime.to_netcdf(proc_preamble + fname_out + '_rey.nc')
+
+    def get_files(self, fname, src=None):
+        ''' get mean and non-mean of fname for bug testing '''
+
+        # set path
+        if src:
+            raw_preamble = src + self.case + '/RawOutput/' + self.file_id
+            proc_preamble = src + self.case + '/ProcessedVars/' + self.file_id
+        else:
+            raw_preamble = self.raw_preamble
+            proc_preamble = self.proc_preamble
+
+        # load
+        kwargs = {'decode_cf':True, 'chunks':{'time_counter':1}}
+        f = xr.open_dataset(raw_preamble + fname + '.nc', **kwargs)
+        #f_mean = xr.load_dataset(self.nc_preamble + fname + '_mean.nc')
+
+        f_mean = xr.open_dataset(proc_preamble + fname + '_mean.nc', 
+                                 decode_cf=False, chunks=-1)
+
+        #print (f_mean)
+        print ('')
+        print (list(f.keys()))
 
     def get_means_all(self):
 
@@ -226,8 +260,14 @@ class reynolds(object):
 if __name__ == '__main__':
     import time
     start = time.time()
-    file_id = '/SOCHIC_PATCH_30mi_20121209_20121211_'
-    m = reynolds('TRD00', file_id)
+    #file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+    #file_id = '/SOCHIC_PATCH_30mi_20121209_20121211_'
+    #m = reynolds('TRD00', file_id)
+    #m.get_files('momu')
+
+    file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+    m = reynolds('TRD02', file_id)
+    #m.get_files('momu', src='/gws/nopw/j04/nemo_vol1/ryapat30/SOCHIC/')
     #m.get_time_mean('uvel_30', 'uvel_30')
     #m.get_primes('uvel_30', 'uvel_30')
     #m.get_time_mean('grid_T_30', 'grid_T_30')
@@ -239,17 +279,17 @@ if __name__ == '__main__':
     #m.get_primes('momu', 'momu')
     #m.get_primes('momv', 'momv')
 
-    #m.get_time_mean('uvel', 'uvel')
-    #m.get_time_mean('vvel', 'vvel')
+    #m.get_time_mean('grid_U', 'uvel', var='uo')
+    #m.get_time_mean('grid_V', 'vvel', var='vo')
 
-    #m.get_primes('uvel', 'uvel')
-    #m.get_primes('vvel', 'vvel')
+    #m.get_primes('grid_U', 'uvel', var='uo')
+    #m.get_primes('grid_V', 'vvel', var='vo')
 
-    #m.get_time_mean('rhoW', 'rhoW')
-    #m.get_time_mean('wvel', 'wvel')
+    m.get_time_mean('rhoW', 'rhoW')
+    m.get_time_mean('wvel', 'wvel', var='wo')
 
     #m.get_primes('rhoW', 'rhoW')
-    #m.get_primes('wvel', 'wvel')
+    #m.get_primes('grid_W', 'wvel', var='wo')
 
     #m.get_primes_all()
 
