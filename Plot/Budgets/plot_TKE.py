@@ -13,6 +13,8 @@ class plot_KE(object):
     def __init__(self, case, file_id):
         self.case = case
         self.preamble = config.data_path() + case + '/' + file_id
+        self.proc_preamble = config.data_path() + case + '/ProcessedVars/'\
+                             + file_id
         self.path = config.data_path() + case + '/'
 
     def plot_ke_time_series(self):
@@ -239,9 +241,9 @@ class plot_KE(object):
         ''' plot budget of TKE depth-integrated over the mixed layer '''
         
         # load and slice
-        ds = xr.open_dataset(self.preamble + 'TKE_budget_z_integ.nc')
+        ds = xr.open_dataset(self.proc_preamble + 'TKE_budget_z_integ.nc')
         
-        self.vmin, self.vmax = -1e-5, 1e-5
+        self.vmin, self.vmax = -5e-6, 5e-6
         self.render_horizontal_slice(ds)
 
         plt.savefig(self.case + '_tke_budget_depth_integrated.png', dpi=600)
@@ -532,8 +534,9 @@ class plot_KE(object):
 
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
-ke = plot_KE('TRD00', file_id)
+#file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
+file_id = 'SOCHIC_PATCH_30mi_20121223_20121226_'
+ke = plot_KE('TRD02', file_id)
 #ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()

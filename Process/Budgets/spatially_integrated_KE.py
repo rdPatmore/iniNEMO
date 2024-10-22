@@ -212,8 +212,8 @@ class KE_integrals(object):
             tke_integ_ice.to_netcdf(fn.format('ice'))
             tke_integ_oce.to_netcdf(fn.format('oce'))
 
-file_id = '/SOCHIC_PATCH_1h_20121209_20121211_'
-ke = KE_integrals('TRD00', file_id)
+file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+ke = KE_integrals('TRD02', file_id)
 #ke.domain_mean_ml_KE_ice_oce_zones()
 #ke.horizontal_mean_ml_KE_ice_oce_zones()
 ke.vertically_integrated_ml_KE()

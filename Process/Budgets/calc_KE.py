@@ -184,9 +184,9 @@ class KE(object):
         the vertical buoyancy flux term.
         '''
         # set chunking
-        #chunksu = {'time_counter':10}
-        #chunksv = {'time_counter':10}
-        #chunkst = {'time_counter':10}
+        #chunksu = {'time_counter':1,'depthu':1}
+        #chunksv = {'time_counter':1,'depthv':5}
+        ##chunkst = {'time_counter':1,'deptht':5}
         chunksu = 'auto'
         chunksv = 'auto'
         chunkst = 'auto'
@@ -194,9 +194,9 @@ class KE(object):
         # get momentum budgets
         append = '_rey.nc'
         umom = xr.open_dataset(self.proc_preamble + 'momu' + append,
-                               chunks=chunksu)
+                              chunks=chunksu)
         vmom = xr.open_dataset(self.proc_preamble + 'momv' + append,
-                               chunks=chunksv)
+                              chunks=chunksv)
 
         # remove u and v from variable names for combining
         for var in umom.data_vars:
@@ -206,9 +206,9 @@ class KE(object):
 
         # get velocities
         uvel = xr.open_dataset(self.proc_preamble + 'uvel' + append,
-                               chunks=chunksu).uo
+                              chunks=chunksu).uo
         vvel = xr.open_dataset(self.proc_preamble + 'vvel' + append,
-                               chunks=chunksv).vo
+                              chunks=chunksv).vo
 
         # get scale factors
         e3u = xr.open_dataset(self.raw_preamble + 'grid_U.nc',
@@ -223,18 +223,26 @@ class KE(object):
         e3t = e3t.e3t # get var
 
         # get TKE
-        TKE = self.KE(umom, vmom, uvel, vvel, e3u, e3v, e3t)
-        TKE = TKE.mean('time_counter')
+        TKE_list = []
+        for var in list(umom.keys()):
+            TKE = self.KE(umom[var], vmom[var], uvel, vvel, e3u, e3v, e3t)
+            TKE.name = var
+            TKE = TKE.mean('time_counter')
 
-        # save
-        with ProgressBar():
-            TKE.to_netcdf(self.proc_preamble + 'TKE_budget.nc')
+            # save
+            with ProgressBar():
+                TKE.to_netcdf(self.proc_preamble + 'TKE_budget_' + var + '.nc')
 
-    def merge_vertical_buoyancy_flux(self):
+    def merge_TKE_and_vertical_buoyancy_flux(self, split_TKE=False):
         ''' add vertical buoyancy flux to TKE dataset '''
 
         kwargs = {'chunks': {'time_counter': 100}}
-        TKE = xr.open_dataset(self.proc_preamble + 'TKE_budget.nc', **kwargs)
+        if split_TKE:
+            TKE = xr.open_mfdataset(self.proc_preamble + 'TKE_budget_trd*.nc',
+                                    **kwargs)
+        else:
+            TKE = xr.open_dataset(self.proc_preamble + 'TKE_budget.nc',
+                                  **kwargs)
         b_flux = xr.open_dataarray(self.proc_preamble + 'b_flux_rey_mean.nc',
                                     **kwargs)
 
@@ -415,8 +423,10 @@ class KE(object):
         # get variables
         T_path = self.raw_preamble + 'grid_T.nc'
         W_path = self.raw_preamble + 'grid_W.nc'
-        rho    = xr.open_dataset(T_path, decode_times=False).rhop
-        depthw = xr.open_dataset(W_path, decode_times=False).depthw
+        rho    = xr.open_dataset(T_path, decode_times=False,
+                                 chunks='auto').rhop
+        depthw = xr.open_dataset(W_path, decode_times=False,
+                                 chunks='auto').depthw
 
         # shift to w-pts
         rhoW = 0.5 * (rho + self.kp1(rho)) 
@@ -433,7 +443,8 @@ class KE(object):
         rhoW['time_counter'] = rhoW.time_instant
 
         # save
-        rhoW.to_netcdf(self.proc_preamble + 'rhoW.nc')
+        with ProgressBar():
+            rhoW.to_netcdf(self.proc_preamble + 'rhoW.nc')
 
     def calc_z_KE_budget(self):
         ''' calculate the vertical buoyancy flux '''
@@ -469,7 +480,8 @@ class KE(object):
 
         # save
         b_flux.name = 'b_flux'
-        b_flux.to_netcdf(self.proc_preamble + 'b_flux.nc')
+        with ProgressBar():
+            b_flux.to_netcdf(self.proc_preamble + 'b_flux.nc')
 
     def calc_z_TKE_budget(self):
         ''' calculate the vertical buoyancy flux '''
@@ -583,10 +595,11 @@ if __name__ == '__main__':
      #m.calc_KE_budget(depth_str='30')
 
      ### calc TKE Budget ###
-     m.calc_TKE_budget()
+     #m.calc_TKE_budget()
      #m.calc_rhoW()
+     # rhoW rey needed here
      #m.calc_z_TKE_budget()
-     #m.merge_vertical_buoyancy_flux()
+     m.merge_TKE_and_vertical_buoyancy_flux(split_TKE=True)
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)

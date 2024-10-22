@@ -162,7 +162,8 @@ class reynolds(object):
             with ProgressBar():
                 f_mean.to_netcdf(self.proc_preamble + fname_out + '_mean.nc')
 
-    def get_primes(self, fname, fname_out, var=None, src=None):
+    def get_primes(self, fname, fname_out, var=None, src=None,
+                   fname_in_proc=False):
         ''' general routine for finding primes '''
 
         # set path
@@ -172,6 +173,9 @@ class reynolds(object):
         else:
             raw_preamble = self.raw_preamble
             proc_preamble = self.proc_preamble
+
+        if fname_in_proc:
+            raw_preamble = proc_preamble
 
         # load
         kwargs = {'decode_cf':True, 'chunks':{'time_counter':1}}
@@ -188,7 +192,8 @@ class reynolds(object):
 
         drop_vars = ['bounds_nav_lon', 'bounds_nav_lat',
                      'depthu_bounds', 'depthv_bounds',
-                     'time_counter_bounds', 'time_instant_bounds']
+                     'time_counter_bounds', 'time_instant_bounds',
+                     'area','hu','hv']
         if fname in ['momu','momv']:
             for var in drop_vars:
                 if var in list(f.keys()):
@@ -285,11 +290,13 @@ if __name__ == '__main__':
     #m.get_primes('grid_U', 'uvel', var='uo')
     #m.get_primes('grid_V', 'vvel', var='vo')
 
-    m.get_time_mean('rhoW', 'rhoW')
-    m.get_time_mean('wvel', 'wvel', var='wo')
+    src = '/gws/nopw/j04/nemo_vol1/ryapat30/SOCHIC/TRD02/ProcessedVars' \
+        + file_id
+    #m.get_time_mean('rhoW', 'rhoW', src=src)
+    #m.get_time_mean('grid_W', 'wvel', var='wo')
 
-    #m.get_primes('rhoW', 'rhoW')
-    #m.get_primes('grid_W', 'wvel', var='wo')
+    m.get_primes('rhoW', 'rhoW', fname_in_proc=True)
+    m.get_primes('grid_W', 'wvel', var='wo')
 
     #m.get_primes_all()
 
