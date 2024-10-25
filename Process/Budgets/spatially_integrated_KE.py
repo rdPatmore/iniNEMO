@@ -25,7 +25,7 @@ class KE_integrals(object):
 
         # get time-mean grid_T
         kwargs = {'chunks':-1, 'decode_cf':False} 
-        ds_mean = xr.open_dataset(self.preamble + 'grid_T.nc',
+        ds_mean = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
                         **kwargs).mean('time_counter')
 
         # convert cell thickness to depths
@@ -214,6 +214,6 @@ class KE_integrals(object):
 
 file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
 ke = KE_integrals('TRD02', file_id)
-#ke.domain_mean_ml_KE_ice_oce_zones()
-#ke.horizontal_mean_ml_KE_ice_oce_zones()
-ke.vertically_integrated_ml_KE()
+ke.domain_mean_ml_KE_ice_oce_zones()
+ke.horizontal_mean_ml_KE_ice_oce_zones()
+#ke.vertically_integrated_ml_KE()

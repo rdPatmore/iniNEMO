@@ -243,7 +243,7 @@ class plot_KE(object):
         # load and slice
         ds = xr.open_dataset(self.proc_preamble + 'TKE_budget_z_integ.nc')
         
-        self.vmin, self.vmax = -5e-6, 5e-6
+        self.vmin, self.vmax = -2e-6, 2e-6
         self.render_horizontal_slice(ds)
 
         plt.savefig(self.case + '_tke_budget_depth_integrated.png', dpi=600)
@@ -264,7 +264,7 @@ class plot_KE(object):
     def render_horizontal_slice(self, ds):
 
         # ini figure
-        fig, axs = plt.subplots(2, 4, figsize=(5.5,3.5))
+        fig, axs = plt.subplots(2, 4, figsize=(6.5,3.5))
         plt.subplots_adjust(left=0.1, right=0.85, top=0.90, bottom=0.12,
                             wspace=0.05, hspace=0.30)
         cfg = xr.open_dataset(self.path + 'domain_cfg.nc', chunks=-1)
@@ -274,7 +274,8 @@ class plot_KE(object):
         ds     = ds.isel(x=cut,y=cut)
         cfg    = cfg.isel(x=cut,y=cut)
 
-        ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+        #ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+        ds['trd_adv'] = ds.trd_keg + ds.trd_zad
         ds['trd_hpg'] = ds.trd_hpg
         ds['trd_tot'] = ds.trd_tot
 
@@ -289,7 +290,7 @@ class plot_KE(object):
         # where is ldf ???
         render(axs[0,0], ds, 'trd_hpg')
         render(axs[0,1], ds, 'trd_adv')
-        render(axs[0,2], ds, 'trd_zad')
+        render(axs[0,2], ds, 'trd_rvo')
         render(axs[0,3], ds, 'trd_zdf')
         render(axs[1,0], ds, 'trd_tfr2d')
         render(axs[1,1], ds, 'trd_tau2d')
@@ -298,8 +299,8 @@ class plot_KE(object):
 
         # titles
         titles = ['Horiz. Pressure\nGradient',
-                  'Lateral\nAdvection ',
-                  'Vertical\nAdvection',
+                  'Advection',
+                  'Barotropic\nInstability',
                   'Vertical Diffusion',
                   'Ice-Ocean Drag',
                   'Wind Stress',
@@ -383,13 +384,13 @@ class plot_KE(object):
      
         # ini figure
         fig, axs = plt.subplots(1, figsize=(6.5,3.5))
-        plt.subplots_adjust(left=0.13, right=0.95, top=0.95, bottom=0.19)
+        plt.subplots_adjust(left=0.13, right=0.85, top=0.95, bottom=0.19)
 
         def get_ds_and_combinde_vars(zone):
             ds = xr.open_dataset(
-                     self.preamble + 'TKE_budget_domain_integ_' + zone + '.nc')
+                     self.proc_preamble + 'TKE_budget_domain_integ_' + zone + '.nc')
 
-            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_adv'] = ds.trd_keg + ds.trd_zad
             ds['trd_hpg'] = ds.trd_hpg
 
             return ds
@@ -404,8 +405,8 @@ class plot_KE(object):
 
         # titles
         titles = ['Horiz.\nPressure\nGradient',
-                  'Lateral\nAdvection ',
-                  'Vertical\nAdvection',
+                  'Advection ',
+                  'Barotropic\nInstability',
                   'Vertical\nDiffusion',
                   'Ice-Ocean\n Drag',
                   'Wind\nStress',
@@ -416,7 +417,7 @@ class plot_KE(object):
         var_list = [
         'trd_hpg',
         'trd_adv',
-        'trd_zad',
+        'trd_rvo',
         'trd_zdf',
         'trd_tfr2d',
         'trd_tau2d',
@@ -439,6 +440,9 @@ class plot_KE(object):
         data_oce = [ds_oce[var].values for var in var_list]
         axs.bar(x + width * 2, data_oce, width, label='Oce')
 
+        # legend
+        axs.legend(bbox_to_anchor=[1.01,1])
+
         # set tickes
         axs.set_xticks(x + width, titles)
 
@@ -458,9 +462,9 @@ class plot_KE(object):
 
         def get_ds_and_combine_vars(zone):
             ds = xr.open_dataset(
-                 self.preamble + 'TKE_budget_horizontal_integ_' + zone + '.nc')
+                 self.proc_preamble + 'TKE_budget_horizontal_integ_' + zone + '.nc')
 
-            ds['trd_adv'] = ds.trd_keg + ds.trd_rvo
+            ds['trd_adv'] = ds.trd_keg + ds.trd_zad
             ds['trd_hpg'] = ds.trd_hpg
 
             return ds
@@ -471,8 +475,8 @@ class plot_KE(object):
 
         # titles
         titles = ['Horiz.\nPressure\nGradient',
-                  'Lateral\nAdvection ',
-                  'Vertical\nAdvection',
+                  'Advection ',
+                  'Barotropic\nInstability',
                   'Vertical\nDiffusion',
                   'Ice-Ocean\n Drag',
                   'Wind\nStress',
@@ -483,7 +487,7 @@ class plot_KE(object):
         var_list = [
         'trd_hpg',
         'trd_adv',
-        'trd_zad',
+        'trd_rvo',
         'trd_zdf',
         'trd_tfr2d',
         'trd_tau2d',
@@ -494,7 +498,7 @@ class plot_KE(object):
             for i, var in enumerate(var_list):
                 da = ds[var]
                 ax.plot(da, da.deptht, label=titles[i], lw=1.0)
-            var_sum = ds.trd_hpg + ds.trd_adv + ds.trd_zad \
+            var_sum = ds.trd_hpg + ds.trd_adv + ds.trd_rvo \
                     + ds.trd_zdf + ds.trd_tfr2d + ds.trd_tau2d \
                     + ds.trd_bfx
             print (var_sum)
