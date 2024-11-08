@@ -278,6 +278,7 @@ class plot_KE(object):
         ds['trd_adv'] = ds.trd_keg + ds.trd_zad
         ds['trd_hpg'] = ds.trd_hpg
         ds['trd_tot'] = ds.trd_tot
+        ds['trd_tau2d'] = ds.trd_tau2d - ds.trd_tfr2d
 
         # plot
         self.cmap=cmocean.cm.balance

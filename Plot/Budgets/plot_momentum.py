@@ -85,8 +85,9 @@ class plot_momentum(object):
         plt.subplots_adjust(right=0.78, hspace=0.25, wspace=0.1, top=0.9)
 
         # load and slice
+        print(self.preamble + vec + self.fn_mom + '.nc')
         ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc',
-                             chunks='auto')
+                             chunks='auto', decode_times=False)
         ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
         ds = ds.sel(time_counter=self.date, method='nearest').compute() # time
 
@@ -156,7 +157,7 @@ class plot_momentum(object):
 
         # load and slice
         ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc',
-                             chunks='auto')
+                             chunks='auto', decode_times=False)
         ds = ds.sel({'depth' + vec: 5}, method='nearest') # depth
         ds = ds.sel(time_counter=self.date, method='nearest').compute() # time
 
