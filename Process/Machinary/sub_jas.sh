@@ -17,4 +17,4 @@ conda activate coast
 path='/home/users/ryapat30/iniNEMO/'
 export PYTHONPATH=$path:$PYTHONPATH
 
-python -u ../Budgets/calc_KE.py
+python -u ../Budgets/calc_downsample_time.py
