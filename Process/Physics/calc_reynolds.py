@@ -270,7 +270,7 @@ if __name__ == '__main__':
     #m = reynolds('TRD00', file_id)
     #m.get_files('momu')
 
-    file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+    file_id = '/SOCHIC_PATCH_30mi_20121223_20121224_'
     m = reynolds('TRD02', file_id)
     #m.get_files('momu', src='/gws/nopw/j04/nemo_vol1/ryapat30/SOCHIC/')
     #m.get_time_mean('uvel_30', 'uvel_30')
@@ -281,22 +281,22 @@ if __name__ == '__main__':
     #m.get_time_mean('momu', 'momu')
     #m.get_time_mean('momv', 'momv')
 
-    #m.get_primes('momu', 'momu')
-    #m.get_primes('momv', 'momv')
+    m.get_primes('momu', 'momu')
+    m.get_primes('momv', 'momv')
 
     #m.get_time_mean('grid_U', 'uvel', var='uo')
     #m.get_time_mean('grid_V', 'vvel', var='vo')
 
-    #m.get_primes('grid_U', 'uvel', var='uo')
-    #m.get_primes('grid_V', 'vvel', var='vo')
+    m.get_primes('grid_U', 'uvel', var='uo')
+    m.get_primes('grid_V', 'vvel', var='vo')
 
-    src = '/gws/nopw/j04/nemo_vol1/ryapat30/SOCHIC/TRD02/ProcessedVars' \
-        + file_id
+    #src = '/gws/nopw/j04/nemo_vol1/ryapat30/SOCHIC/TRD02/ProcessedVars' \
+    #    + file_id
     #m.get_time_mean('rhoW', 'rhoW', src=src)
     #m.get_time_mean('grid_W', 'wvel', var='wo')
 
-    m.get_primes('rhoW', 'rhoW', fname_in_proc=True)
-    m.get_primes('grid_W', 'wvel', var='wo')
+    #m.get_primes('rhoW', 'rhoW', fname_in_proc=True)
+    #m.get_primes('grid_W', 'wvel', var='wo')
 
     #m.get_primes_all()
 

@@ -5,6 +5,7 @@ import matplotlib.dates as mdates
 import matplotlib
 import cmocean
 import numpy as np
+from dask.diagnostics import ProgressBar
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -279,6 +280,7 @@ class plot_KE(object):
         ds['trd_hpg'] = ds.trd_hpg
         ds['trd_tot'] = ds.trd_tot
         ds['trd_tau2d'] = ds.trd_tau2d - ds.trd_tfr2d
+        # rdp should this not be trd and tau (3d versions)
 
         # plot
         self.cmap=cmocean.cm.balance
@@ -297,6 +299,7 @@ class plot_KE(object):
         render(axs[1,1], ds, 'trd_tau2d')
         p = render(axs[1,2], ds, 'trd_bfx')
         p = render(axs[1,3], ds, 'trd_tot')
+        # this should be zdf 
 
         # titles
         titles = ['Horiz. Pressure\nGradient',
@@ -537,16 +540,234 @@ class plot_KE(object):
         plt.savefig(self.case + '_tke_budget_horiz_integrated_zoned.png',
                     dpi=600)
 
+class plot_KE_Tedesco(object):
+
+    def __init__(self, case, file_id):
+        self.case = case
+        self.preamble = config.data_path() + case + '/' + file_id
+        self.proc_preamble = config.data_path() + case + '/ProcessedVars/'\
+                             + file_id
+        self.path = config.data_path() + case + '/'
+
+    def calc_KE(self, depth=10):
+
+        # load and slice
+        uvel = xr.open_dataset(self.preamble + 'grid_U.nc').uo
+        vvel = xr.open_dataset(self.preamble + 'grid_V.nc').vo
+        umom = xr.open_dataset(self.preamble + 'momu_wm.nc')
+        vmom = xr.open_dataset(self.preamble + 'momv_wm.nc')
+        u_KE = xr.open_dataset(self.preamble + 'u_KE_mean.nc')
+        v_KE = xr.open_dataset(self.preamble + 'v_KE_mean.nc')
+
+        #uvel = uvel.sel(depthu=depth, method='nearest')
+        #vvel = vvel.sel(depthv=depth, method='nearest')
+        #umom = umom.sel(depthu=depth, method='nearest')
+        #vmom = vmom.sel(depthv=depth, method='nearest')
+        #u_KE = u_KE.sel(depthu=depth, method='nearest')
+        #v_KE = v_KE.sel(depthv=depth, method='nearest')
+
+        uvel = uvel.isel(depthu=depth)
+        vvel = vvel.isel(depthv=depth)
+        umom = umom.isel(depthu=depth)
+        vmom = vmom.isel(depthv=depth)
+        u_KE = u_KE.isel(depthu=depth)
+        v_KE = v_KE.isel(depthv=depth)
+
+        uvar_drop = ["time_counter_bounds", "time_centered_bounds",
+                     "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+        vvar_drop = ["time_counter_bounds", "time_centered_bounds",
+                     "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+        #uvar_drop = ["time_counter_bounds", "time_instant_bounds",
+        #             "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+        #vvar_drop = ["time_counter_bounds", "time_instant_bounds",
+        #             "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+
+        umom = umom.drop(uvar_drop)
+        vmom = vmom.drop(vvar_drop)
+        u_KE = u_KE.drop(uvar_drop)
+        v_KE = v_KE.drop(vvar_drop)
+
+        for var in umom.data_vars:
+            umom = umom.rename({var:var.lstrip('u').rstrip('u')})
+        for var in vmom.data_vars:
+            vmom = vmom.rename({var:var.lstrip('v').rstrip('v')})
+        for var in u_KE.data_vars:
+            print (var)
+            u_KE = u_KE.rename({var:var.lstrip('u').rstrip('u_KE')})
+        for var in v_KE.data_vars:
+            v_KE = v_KE.rename({var:var.lstrip('v').rstrip('v_KE')})
+#
+        # get mean kinetic energy
+        uvel = uvel.transpose("y","x","time_counter")
+        vvel = vvel.transpose("y","x","time_counter")
+        uvel["time_counter"] = umom.time_counter
+        vvel["time_counter"] = vmom.time_counter
+        print (umom)
+        print (uvel)
+        #EKE = 0.5 * ((umom * uvel) + (vmom * vvel))
+
+        cfg  = xr.open_dataset(self.path + 'domain_cfg.nc',
+                               chunks=-1).squeeze()
+
+        bu = cfg.e1u * cfg.e2u
+        bv = cfg.e1v * cfg.e2v
+        bt = cfg.e1t * cfg.e2t
+
+        # Note: 2d variables are broadcast to 3d
+        #EKE = 0.5 * ((u_KE - umom * uvel)**2 + (v_KE - vmom * vvel)**2)
+        uke = (u_KE - uvel * umom) * bu
+        vke = (v_KE - vvel * vmom) * bv
+
+        # coordinate hack
+        uke = uke.rename({'depthu':'deptht'})
+        vke = vke.rename({'depthv':'deptht'})
+
+        # TODO: needs division by e3t
+        EKE = 0.25 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt
+
+        # load for faster plotting
+        with ProgressBar():
+            EKE.load()
+        #EKE = 0.5 * ((u_KE) + (v_KE))
+
+        return EKE
+
+    def im1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(x=-1, roll_coords=False)
+
+    def ip1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(x=1, roll_coords=False)
+
+    def jm1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(y=-1, roll_coords=False)
+
+    def jp1(self, var):
+        ''' rolling opperations: roll west '''
+
+        return var.roll(y=1, roll_coords=False)
+
+    def km1(self, var, dvar='deptht'):
+        ''' rolling opperations: roll down '''
+
+        return var.roll({dvar:-1}, roll_coords=False)
+
+    def kp1(self, var, dvar='deptht'):
+        ''' rolling opperations: roll up '''
+
+        return var.roll({dvar:1}, roll_coords=False)
+
+
+    def plot_KE(self):
+
+        EKE = self.calc_KE().isel(time_counter=0)
+
+        fig, axs = plt.subplots(2,5, figsize=(6.5,4))
+
+        vmin, vmax = -1e-7, 1e-7
+        cmap = plt.cm.RdBu_r
+
+        axs[0,0].pcolor(EKE.trd_hpg_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,1].pcolor(EKE.trd_keg_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,2].pcolor(EKE.trd_pvo_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,3].pcolor(EKE.trd_tfr_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0,4].pcolor(EKE.trd_rvo_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[0,4].pcolor(EKE.trd_tau_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,0].pcolor(EKE.trd_zdf_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,1].pcolor(EKE.trd_zad_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,2].pcolor(EKE.trd_bfr_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,3].pcolor(EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        #axs[0,0].pcolor(EKE.trd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[0,1].pcolor(EKE.trd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[0,2].pcolor(EKE.trd_pvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[0,3].pcolor(EKE.trd_tfr, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[0,4].pcolor(EKE.trd_rvo, vmin=vmin, vmax=vmax, cmap=cmap)
+        ##axs[0,4].pcolor(EKE.trd_tau, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,0].pcolor(EKE.trd_zdf, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,1].pcolor(EKE.trd_zad, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,2].pcolor(EKE.trd_bfr, vmin=vmin, vmax=vmax, cmap=cmap)
+        #axs[1,3].pcolor(EKE.trd_tot, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        # set list of terms
+        var_list = [
+        'trd_hpg',
+        'trd_adv',
+        'trd_rvo',
+        'trd_zdf',
+        'trd_tfr2d',
+        'trd_tau2d',
+        'trd_bfx',
+        ]
+
+        # titles
+        titles = ['Horiz. Pressure\nGradient',
+                  'Advection',
+                  'Coriolis',
+                  'Ice-Ocean Drag',
+                  'Barotropic\nInstability',
+                  'Vertical Diffusion',
+                  'Vertical Adv',
+                  'bottom friction',
+                  'Tendency',
+                  '' ]
+                  #'Wind Stress',
+
+        for i, ax in enumerate(axs.flatten()):
+            ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
+                    transform=ax.transAxes, fontsize=8)
+            ax.set_aspect('equal')
+        plt.show()
+
+    def plot_EKE_residual(self):
+
+        EKE = self.calc_KE().isel(time_counter=0)
+
+        fig, axs = plt.subplots(3, figsize=(6.5,4))
+
+        vmin, vmax = -1e-13, 1e-13
+        cmap = plt.cm.RdBu_r
+
+        # sum
+        trd_RHS = EKE.trd_hpg_e3 + EKE.trd_keg_e3 + \
+                  +EKE.trd_pvo_e3 + EKE.trd_rvo_e3 +  \
+                  EKE.trd_zdf_e3 + EKE.trd_zad_e3 
+                  #EKE.trd_bfr_e3 
+        trd_resid = EKE.trd_tot_e3 - trd_RHS
+
+        # plot
+        axs[0].pcolor(trd_resid, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1].pcolor(trd_RHS, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[2].pcolor(EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+
+        axs[0].text(0.5, 1.01, "residual", va="bottom", ha="center",
+                    transform=axs[0].transAxes, fontsize=8)
+        axs[1].text(0.5, 1.01, "RHS", va="bottom", ha="center",
+                    transform=axs[1].transAxes, fontsize=8)
+        axs[2].text(0.5, 1.01, "total", va="bottom", ha="center",
+                    transform=axs[2].transAxes, fontsize=8)
+
+        plt.show()
+
+
+
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 #file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
-file_id = 'SOCHIC_PATCH_30mi_20121223_20121226_'
-ke = plot_KE('TRD02', file_id)
+file_id = 'SOCHIC_PATCH_1d_20121223_20121224_'
+ke = plot_KE_Tedesco('EXP02', file_id)
 #ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
-ke.plot_ml_integrated_TKE_budget()
+#ke.plot_ml_integrated_TKE_budget()
 #print ('depth integrated - done')
-#ke.plot_z_slice_TKE_budget(depth=10)
+#ke.plot_z_slice_KE(depth=10)
+#ke.plot_EKE_residual()
+ke.plot_KE()
 print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()

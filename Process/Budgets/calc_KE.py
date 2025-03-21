@@ -349,6 +349,7 @@ class KE(object):
         uke = uke.rename({'depthu':'deptht'})
         vke = vke.rename({'depthv':'deptht'})
 
+        # TODO: check 0.25 instead of 0.5
         KE = 0.5 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt
 
         return KE
@@ -588,18 +589,18 @@ class KE(object):
        
 if __name__ == '__main__':
      dask.config.set(scheduler='single-threaded')
-     file_id = '/SOCHIC_PATCH_30mi_20121223_20121226_'
+     file_id = '/SOCHIC_PATCH_30mi_20121223_20121224_'
      m = KE('TRD02', file_id)
 
      #m.calc_z_KE_budget()
      #m.calc_KE_budget(depth_str='30')
 
      ### calc TKE Budget ###
-     #m.calc_TKE_budget()
+     m.calc_TKE_budget()
      #m.calc_rhoW()
      # rhoW rey needed here
      #m.calc_z_TKE_budget()
-     m.merge_TKE_and_vertical_buoyancy_flux(split_TKE=True)
+     #m.merge_TKE_and_vertical_buoyancy_flux(split_TKE=True)
 
      # get TKE step 1
      #m.grid_to_T_pts(save=True)

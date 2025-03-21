@@ -213,10 +213,55 @@ class plot_momentum(object):
         plt.savefig(self.case + '_' + vec + self.fn_mom + '_' + self.date +
                     '_mld_budget_resid.png')
 
+    def plot_mom_residual_budget_at_point(self, vec='u'):
+        """
+        plot residual momentum budget at x-y plot and plot with depth
+        """
+
+        # ini figure
+        fig, axs = plt.subplots(1, 1, figsize=(5.5,3))
+        plt.subplots_adjust(right=0.78)
+
+        # load and slice
+        ds = xr.open_dataset(self.preamble + vec + self.fn_mom + '.nc',
+                             chunks='auto', decode_times=False)
+
+        # get middle
+        x_ind = int(ds.sizes["x"] / 2)
+        y_ind = int(ds.sizes["y"] / 2)
+        ds = ds.isel(x=x_ind, y=y_ind)
+
+        ds = ds.sel(time_counter=self.date, method='nearest').compute() # time
+
+            
+        if vec == 'u':
+            #if thickness_weighted:
+            #    ds.utrd_
+            mom_sum = ds.utrd_hpg + ds.utrd_ldf + ds.utrd_keg + \
+                      ds.utrd_rvo + ds.utrd_pvo + ds.utrd_zad + ds.utrd_zdf 
+
+        if vec == 'v':
+            # dyn_spg is added to trd_hpg for dynspg_ts
+            mom_sum = ds.vtrd_hpg + ds.vtrd_ldf + ds.vtrd_keg + \
+                      ds.vtrd_rvo + ds.vtrd_pvo + ds.vtrd_zad + ds.vtrd_zdf
+
+        # plot
+        vmin, vmax = -1e-6, 1e-6
+        cmap=cmocean.cm.balance
+        axs.plot(ds.depthu, ds[vec + 'trd_tot'])
+        axs.plot(ds.depthu, mom_sum)
+                      
+        axs.plot(ds.depthu, mom_sum-ds[vec+'trd_tot'])
+
+        plt.show()
     
 if __name__ == "__main__":
     #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-    file_id = 'SOCHIC_PATCH_1h_20121209_20121209_'
-    mom = plot_momentum('TRD00', file_id)
-    mom.plot_mom_residual(vec='u')
+    #file_id = 'SOCHIC_PATCH_1h_20121209_20121209_'
+    file_id = 'GYRE_1d_20100101_20101231_'
+    file_id = 'GYRE_1d_20100101_20101226_'
+    case = 'EXP00'
+    date = '20101226'
+    mom = plot_momentum(case, file_id, date=date)
+    mom.plot_mom_residual_budget_at_point(vec='u')
     #mom.plot_mom_residual_budget(vec='v')
