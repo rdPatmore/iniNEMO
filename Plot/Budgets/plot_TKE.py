@@ -552,12 +552,22 @@ class plot_KE_Tedesco(object):
     def calc_KE(self, depth=10):
 
         # load and slice
-        uvel = xr.open_dataset(self.preamble + 'grid_U.nc').uo
-        vvel = xr.open_dataset(self.preamble + 'grid_V.nc').vo
+        uvel = xr.open_dataset(self.preamble + 'grid_U.nc').uo_e3u
+        vvel = xr.open_dataset(self.preamble + 'grid_V.nc').vo_e3v
+        wvel = xr.open_dataset(self.preamble + 'grid_W.nc').wo_e3w
+        e3w = xr.open_dataset(self.preamble + 'grid_W.nc').e3w
+        rho = xr.open_dataset(self.preamble + 'grid_T.nc').rhd
+        e3t = xr.open_dataset(self.preamble + 'grid_T.nc').e3t
+        b_flux = xr.open_dataset(self.preamble + 'grid_T.nc').ketrd_convP2K_e3t
         umom = xr.open_dataset(self.preamble + 'momu_wm.nc')
         vmom = xr.open_dataset(self.preamble + 'momv_wm.nc')
         u_KE = xr.open_dataset(self.preamble + 'u_KE_mean.nc')
         v_KE = xr.open_dataset(self.preamble + 'v_KE_mean.nc')
+
+        # get b_bar * w_bar
+        b_flux_mean = xr.DataArray(self.wke(rho, wvel, e3w, e3t),
+                                   dims=("time_counter", "deptht", "y", "x"),
+                                   coords=rho.coords)
 
         #uvel = uvel.sel(depthu=depth, method='nearest')
         #vvel = vvel.sel(depthv=depth, method='nearest')
@@ -572,6 +582,14 @@ class plot_KE_Tedesco(object):
         vmom = vmom.isel(depthv=depth)
         u_KE = u_KE.isel(depthu=depth)
         v_KE = v_KE.isel(depthv=depth)
+        b_flux_mean = b_flux_mean.isel(deptht=depth)
+        b_flux = b_flux.isel(deptht=depth)
+        #fig, (ax0,ax1,ax2)  =plt.subplots(3)
+        #bound=1e-5
+        #ax0.pcolor(b_flux_mean.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+        #ax1.pcolor(b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+        #ax2.pcolor(b_flux_mean.isel(time_counter=0) - b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+        #plt.show()
 
         uvar_drop = ["time_counter_bounds", "time_centered_bounds",
                      "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
@@ -602,28 +620,33 @@ class plot_KE_Tedesco(object):
         vvel = vvel.transpose("y","x","time_counter")
         uvel["time_counter"] = umom.time_counter
         vvel["time_counter"] = vmom.time_counter
-        print (umom)
-        print (uvel)
         #EKE = 0.5 * ((umom * uvel) + (vmom * vvel))
 
         cfg  = xr.open_dataset(self.path + 'domain_cfg.nc',
                                chunks=-1).squeeze()
 
+        e3t = e3t.isel(deptht=depth)
         bu = cfg.e1u * cfg.e2u
         bv = cfg.e1v * cfg.e2v
-        bt = cfg.e1t * cfg.e2t
+        bt = cfg.e1t * cfg.e2t * e3t
 
         # Note: 2d variables are broadcast to 3d
         #EKE = 0.5 * ((u_KE - umom * uvel)**2 + (v_KE - vmom * vvel)**2)
         uke = (u_KE - uvel * umom) * bu
         vke = (v_KE - vvel * vmom) * bv
+        
 
         # coordinate hack
         uke = uke.rename({'depthu':'deptht'})
         vke = vke.rename({'depthv':'deptht'})
 
         # TODO: needs division by e3t
-        EKE = 0.25 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt
+        EKE = 0.25 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / bt 
+
+        EKE["b_flux_eke"] = ( b_flux - b_flux_mean ) / e3t
+
+        EKE["trd_hpg_e3"] = EKE.trd_hpg_e3 - EKE.b_flux_eke
+
 
         # load for faster plotting
         with ProgressBar():
@@ -631,6 +654,44 @@ class plot_KE_Tedesco(object):
         #EKE = 0.5 * ((u_KE) + (v_KE))
 
         return EKE
+
+    def wke(self, rho, w, e3w, e3t):
+        """ get vertical buoyancy flux """
+
+        g = 9.80665
+        rho_0 = 1026
+        # Local constant initialization
+        zcoef = - rho_0 * g * 0.5
+
+
+        # initialise array
+        zconv = np.zeros_like(rho.data)
+        print (zconv.shape)
+
+        w = w.data
+        e3w = e3w.data
+        e3t = e3t.data
+        rho = rho.data
+
+        # Surface value (also valid in partial step case)
+        zconv[:,0] = zcoef * ( 2 * rho[:,0] ) * w[:,0]# * e3w[:,0]
+
+        print (zconv[:,1:].shape)
+        print (rho[:,1:].shape)
+        print (rho[:,:-1].shape)
+        print (w[:,1:].shape)
+        print (e3w[:,1:].shape)
+        # interior value (2=<jk=<jpkm1)
+        zconv[:,1:] = zcoef * ( rho[:,1:] + rho[:,:-1] ) * w[:,1:]# * e3w[:,1:]
+
+        zconv[:,:-1] = zconv[:,1:] + zconv[:,:-1]
+
+        # conv value on T-point
+        zcoef = 0.5 #/ e3t
+        pconv = zcoef *  zconv
+
+        return pconv
+
 
     def im1(self, var):
         ''' rolling opperations: roll west '''
@@ -669,7 +730,7 @@ class plot_KE_Tedesco(object):
 
         fig, axs = plt.subplots(2,5, figsize=(6.5,4))
 
-        vmin, vmax = -1e-7, 1e-7
+        vmin, vmax = -3e-6, 3e-6
         cmap = plt.cm.RdBu_r
 
         axs[0,0].pcolor(EKE.trd_hpg_e3, vmin=vmin, vmax=vmax, cmap=cmap)
@@ -682,6 +743,7 @@ class plot_KE_Tedesco(object):
         axs[1,1].pcolor(EKE.trd_zad_e3, vmin=vmin, vmax=vmax, cmap=cmap)
         axs[1,2].pcolor(EKE.trd_bfr_e3, vmin=vmin, vmax=vmax, cmap=cmap)
         axs[1,3].pcolor(EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[1,4].pcolor(EKE.b_flux_eke, vmin=vmin, vmax=vmax, cmap=cmap)
 
         #axs[0,0].pcolor(EKE.trd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
         #axs[0,1].pcolor(EKE.trd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
