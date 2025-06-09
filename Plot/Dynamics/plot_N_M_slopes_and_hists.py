@@ -87,7 +87,7 @@ def plot_N_M_histogram_2d(depth_str):
 
     # initailise plot
     fig, axs = plt.subplots(3 ,figsize=(3.2,5.5))
-    plt.subplots_adjust(right=0.80, top=0.93)
+    plt.subplots_adjust(right=0.73, top=0.93)
 
     def render(ax, partition, quad):
         p = ax.pcolor(M2N2_2d.x_bin_centers, M2N2_2d.y_bin_centers,
@@ -98,9 +98,9 @@ def plot_N_M_histogram_2d(depth_str):
 
         # add colour bar
         pos = ax.get_position()
-        cbar_ax = fig.add_axes([0.82, pos.y0, 0.02, pos.y1 - pos.y0])
+        cbar_ax = fig.add_axes([0.75, pos.y0, 0.02, pos.y1 - pos.y0])
         cbar = fig.colorbar(p, cax=cbar_ax, orientation='vertical')
-        cbar.ax.text(7.0, 0.5, 'Count',
+        cbar.ax.text(8.0, 0.5, 'Count',
                      rotation=90, transform=cbar.ax.transAxes,
                      va='center', ha='right')
 
@@ -124,18 +124,18 @@ def plot_N_M_histogram_2d(depth_str):
         ax.set_xscale('log')
         ax.set_yscale('log')
 
-        ax.set_ylabel('N2')
+        ax.set_ylabel(r'N$^2$')
 
         ax.set_aspect('equal')
 
-        ax.text(0.1,0.1, labels[i], ha='left',va='bottom',
+        ax.text(0.9,0.1, labels[i], ha='right',va='bottom',
                 transform=ax.transAxes)
 
     for ax in axs[:-1]:
         ax.set_xticklabels([])
-    axs[-1].set_xlabel('M2')
+    axs[-1].set_xlabel(r'M$^2$')
 
-    plt.suptitle(time_str)
+    #plt.suptitle(time_str)
 
     #plt.savefig('M2_N2_2d_histogram.png', dpi=600)
     plt.savefig('M2_N2_2d_histogram_{0}_{1}.png'.format(space_time_str,
@@ -191,6 +191,7 @@ def plot_N_M_scatter():
 
 #plot_N_M_scatter()
 #plot_N_M_histogram_2d('10')
-plot_N_M_histogram('10')
-#plot_N_M_histogram_2d('300')
-plot_N_M_histogram('300')
+#plot_N_M_histogram('10')
+plot_N_M_histogram_2d('ml_mid')
+plot_N_M_histogram_2d('300')
+#plot_N_M_histogram('300')
