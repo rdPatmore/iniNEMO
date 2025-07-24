@@ -572,11 +572,12 @@ class plot_KE_Tedesco(object):
         # depth integral
         if "deptht" in list(EKE.dims.keys()):
             EKE = self.mask_mld(EKE)
-            e3t = xr.open_dataset(self.preamble + 'grid_T.nc',
-                    chunks="auto").e3t
+            e3t = self.get_and_trim_ds(self.preamble + 'grid_T.nc').e3t
             EKE = (EKE * e3t).sum("deptht")
         else:
             print ("no depth dim")
+
+        return EKE
 
     def get_and_trim_ds(self, path, slice_vals=slice(10,-10)):
 
@@ -587,6 +588,39 @@ class plot_KE_Tedesco(object):
         var_cut = var.isel(x=slice(10,-10),y=slice(10,-10))
 
         return var_cut
+
+    def partition_by_ice_cover(self, eke_mld, threshold=0.2):
+
+        # load ice concentration
+        icemsk = self.get_and_trim_ds(self.preamble + "icemod.nc").siconc
+        icemsk = icemsk.isel(time_counter=0)
+        cfg = self.get_and_trim_ds(self.path + "domain_cfg.nc").squeeze()
+        e3t = self.get_and_trim_ds(self.preamble + 'grid_T.nc').e3t
+
+        # get masks
+        miz_msk = (icemsk > threshold) & (icemsk < (1 - threshold))
+        ice_msk = icemsk > (1 - threshold)
+        oce_msk = icemsk < threshold
+
+        # mask by ice concentration
+        tke_mld_miz = eke_mld.where(miz_msk)
+        tke_mld_ice = eke_mld.where(ice_msk)
+        tke_mld_oce = eke_mld.where(oce_msk)
+
+        # find volume of each partition
+        area = cfg.e2t * cfg.e1t
+        t_vol = area * e3t
+        t_vol_miz = t_vol.where(miz_msk).sum()
+        t_vol_ice = t_vol.where(ice_msk).sum()
+        t_vol_oce = t_vol.where(oce_msk).sum()
+
+        # calculate volume weighted mean
+        t_volume = e3t * area
+        tke_integ_miz = (tke_mld_miz * t_volume).sum() / t_vol_miz
+        tke_integ_ice = (tke_mld_ice * t_volume).sum() / t_vol_ice
+        tke_integ_oce = (tke_mld_oce * t_volume).sum() / t_vol_oce
+
+        return tke_integ_miz, tke_integ_ice, tke_integ_oce
 
     def calc_KE(self, depth=None):
 
@@ -837,6 +871,75 @@ class plot_KE_Tedesco(object):
             ax.set_aspect('equal')
         plt.show()
 
+
+    def plot_EKE_domain_integral_partitioned(self):
+        """
+        plot domain integrated EKE
+        """
+
+        EKE = self.calc_KE(depth=None).isel(time_counter=0)
+        EKE = self.mask_mld(EKE)
+        EKE = self.depth_integral(EKE)
+        EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE)
+
+        # ini figure
+        fig, axs = plt.subplots(1, figsize=(6.5,3.5))
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.98, bottom=0.19)
+
+        # set list of terms
+        var_list = [
+        'trd_hpg_e3',
+        'trd_keg_e3',
+        'trd_pvo_e3',
+        'trd_tfr_e3',
+        'trd_rvo_e3',
+        'trd_zdf_e3',
+        'trd_zad_e3',
+        'trd_bfr_e3',
+        'trd_tot_e3',
+        'b_flux_eke',
+        ]
+
+        # titles
+        titles = ['Horiz. Pressure\nGradient',
+                  'Advection',
+                  'Coriolis',
+                  'Ice-Ocean Drag',
+                  'Barotropic\nInstability',
+                  'Vertical Diffusion',
+                  'Vertical Adv',
+                  'bottom friction',
+                  'Tendency',
+                  'Baroclinic\nInstability' ]
+
+        # render data
+        x = np.arange(len(var_list))
+        width = 0.25
+
+        # render miz
+        data_miz = [EKE_miz[var].values for var in var_list]
+        axs.bar(x, data_miz, width, label='MIZ')
+
+        # render ice
+        data_ice = [EKE_ice[var].values for var in var_list]
+        axs.bar(x + width, data_ice, width, label='Ice')
+
+        # render oce
+        data_oce = [EKE_oce[var].values for var in var_list]
+        axs.bar(x + width * 2, data_oce, width, label='Oce')
+
+        # legend
+        axs.legend(bbox_to_anchor=[1.01,1])
+
+        # set tickes
+        axs.set_xticks(x + width, titles)
+
+        # set axis labels
+        axs.set_xlabel('Component')
+        axs.set_ylabel(r'EKE (m$^2$s$^{-3})$')
+
+        plt.show()
+
     def plot_EKE_domain_integral(self):
         """
         plot domain integrated EKE
@@ -927,6 +1030,7 @@ ke = plot_KE_Tedesco('EXP02', file_id)
 #ke.plot_z_slice_KE(depth=10)
 #ke.plot_EKE_residual()
 #ke.plot_KE()
-ke.plot_EKE_domain_integral()
+#ke.plot_EKE_domain_integral()
+ke.plot_EKE_domain_integral_partitioned()
 print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()
