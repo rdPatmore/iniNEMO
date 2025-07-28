@@ -544,7 +544,7 @@ class plot_KE_Tedesco(object):
 
     def __init__(self, case, file_id):
         self.case = case
-        self.preamble = config.data_path() + case + '/' + file_id
+        self.preamble = config.data_path() + case + '/RawOutput/' + file_id
         self.proc_preamble = config.data_path() + case + '/ProcessedVars/'\
                              + file_id
         self.path = config.data_path() + case + '/'
@@ -579,21 +579,22 @@ class plot_KE_Tedesco(object):
 
         return EKE
 
-    def get_and_trim_ds(self, path, slice_vals=slice(10,-10)):
+    def get_and_trim_ds(self, path, slice_vals=slice(20,-20)):
 
         # get ds
         var = xr.open_dataset(path, chunks="auto")
 
         # cut rim
-        var_cut = var.isel(x=slice(10,-10),y=slice(10,-10))
+        var_cut = var.isel(x=slice_vals,y=slice_vals)
 
         return var_cut
 
     def partition_by_ice_cover(self, eke_mld, threshold=0.2):
+        """ partition by ice cover and integrate over volume """
 
         # load ice concentration
         icemsk = self.get_and_trim_ds(self.preamble + "icemod.nc").siconc
-        icemsk = icemsk.isel(time_counter=0)
+        icemsk = icemsk#.isel(time_counter=0)
         cfg = self.get_and_trim_ds(self.path + "domain_cfg.nc").squeeze()
         e3t = self.get_and_trim_ds(self.preamble + 'grid_T.nc').e3t
 
@@ -608,17 +609,18 @@ class plot_KE_Tedesco(object):
         tke_mld_oce = eke_mld.where(oce_msk)
 
         # find volume of each partition
+
         area = cfg.e2t * cfg.e1t
         t_vol = area * e3t
-        t_vol_miz = t_vol.where(miz_msk).sum()
-        t_vol_ice = t_vol.where(ice_msk).sum()
-        t_vol_oce = t_vol.where(oce_msk).sum()
+        sum_dims = ["x","y","deptht"]
+        t_vol_miz = t_vol.where(miz_msk).sum(sum_dims)
+        t_vol_ice = t_vol.where(ice_msk).sum(sum_dims)
+        t_vol_oce = t_vol.where(oce_msk).sum(sum_dims)
 
         # calculate volume weighted mean
-        t_volume = e3t * area
-        tke_integ_miz = (tke_mld_miz * t_volume).sum() / t_vol_miz
-        tke_integ_ice = (tke_mld_ice * t_volume).sum() / t_vol_ice
-        tke_integ_oce = (tke_mld_oce * t_volume).sum() / t_vol_oce
+        tke_integ_miz = (tke_mld_miz * t_vol).sum(sum_dims) / t_vol_miz
+        tke_integ_ice = (tke_mld_ice * t_vol).sum(sum_dims) / t_vol_ice
+        tke_integ_oce = (tke_mld_oce * t_vol).sum(sum_dims) / t_vol_oce
 
         return tke_integ_miz, tke_integ_ice, tke_integ_oce
 
@@ -739,8 +741,8 @@ class plot_KE_Tedesco(object):
 
 
         # load for faster plotting
-        with ProgressBar():
-            EKE.load()
+        #with ProgressBar():
+        #    EKE.load()
         #EKE = 0.5 * ((u_KE) + (v_KE))
 
         return EKE
@@ -872,15 +874,38 @@ class plot_KE_Tedesco(object):
         plt.show()
 
 
+    def get_EKE_domain_integral_partitioned(self):
+        """
+        calculate domain integrated EKE
+        """
+
+        EKE = self.calc_KE(depth=None)
+        EKE = self.mask_mld(EKE)
+        EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE)
+
+        def label_partition(ds, label):
+            for var in ds.data_vars:
+                ds = ds.rename({var: var + "_" + label})
+            return ds
+
+        EKE_miz = label_partition(EKE_miz, "miz")
+        EKE_ice = label_partition(EKE_ice, "ice")
+        EKE_oce = label_partition(EKE_oce, "oce")
+
+        EKE_partitioned = xr.merge([EKE_miz, EKE_ice, EKE_oce])
+
+        with ProgressBar():
+            EKE_partitioned.to_netcdf(
+                              self.proc_preamble + "EKE_partitioned.nc")
+
     def plot_EKE_domain_integral_partitioned(self):
         """
         plot domain integrated EKE
         """
 
-        EKE = self.calc_KE(depth=None).isel(time_counter=0)
-        EKE = self.mask_mld(EKE)
-        EKE = self.depth_integral(EKE)
-        EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE)
+        # get data
+        EKE = xr.load_dataset(self.proc_preamble + "EKE_partitioned.nc")
+        EKE = EKE.isel(time_counter=0)
 
         # ini figure
         fig, axs = plt.subplots(1, figsize=(6.5,3.5))
@@ -917,15 +942,15 @@ class plot_KE_Tedesco(object):
         width = 0.25
 
         # render miz
-        data_miz = [EKE_miz[var].values for var in var_list]
+        data_miz = [EKE[var + "_miz"].values for var in var_list]
         axs.bar(x, data_miz, width, label='MIZ')
 
         # render ice
-        data_ice = [EKE_ice[var].values for var in var_list]
+        data_ice = [EKE[var + "_ice"].values for var in var_list]
         axs.bar(x + width, data_ice, width, label='Ice')
 
         # render oce
-        data_oce = [EKE_oce[var].values for var in var_list]
+        data_oce = [EKE[var + "_oce"].values for var in var_list]
         axs.bar(x + width * 2, data_oce, width, label='Oce')
 
         # legend
@@ -939,6 +964,76 @@ class plot_KE_Tedesco(object):
         axs.set_ylabel(r'EKE (m$^2$s$^{-3})$')
 
         plt.show()
+
+    def plot_EKE_domain_integral_time_series(self):
+        """
+        time series of domain integrated partitioned EKE
+        """
+
+        # get data
+        EKE = xr.load_dataset(self.proc_preamble + "EKE_partitioned.nc")
+        EKE = EKE
+
+        # ini figure
+        fig, axs = plt.subplots(6, figsize=(5.5,8.5))
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.98, bottom=0.19)
+
+        # set list of terms
+        var_list = [
+        'trd_hpg_e3',
+        'trd_keg_e3',
+        'trd_pvo_e3',
+        'trd_tfr_e3',
+        'trd_rvo_e3',
+        'trd_zdf_e3',
+        'trd_zad_e3',
+        'trd_bfr_e3',
+        'trd_tot_e3',
+        'b_flux_eke',
+        ]
+        
+        var_sum_list = [var_list[i] for i in [1,2,3,4,5,6,7,8,9]]
+
+        sum_m = EKE[var_sum_list[0] + "_miz"]
+        sum_i = EKE[var_sum_list[0] + "_ice"]
+        sum_o = EKE[var_sum_list[0] + "_oce"]
+        for var in var_sum_list:
+            sum_m =+ EKE[var_sum_list[0] + "_miz"]
+            sum_i =+ EKE[var_sum_list[0] + "_ice"]
+            sum_o =+ EKE[var_sum_list[0] + "_oce"]
+
+        # titles
+        titles = ['Horiz. Pressure\nGradient',
+                  'Advection',
+                  'Coriolis',
+                  'Ice-Ocean Drag',
+                  'Barotropic\nInstability',
+                  'Vertical Diffusion',
+                  'Vertical Adv',
+                  'bottom friction',
+                  'Tendency',
+                  'Baroclinic\nInstability' ]
+
+        var_list = [var_list[i] for i in [0,3,5,8,9]]
+        titles = [titles[i] for i in [0,3,5,8,9]]
+
+        # render miz
+        data_miz = [EKE[var + "_miz"].values for var in var_list]
+        for i, var in enumerate(var_list):
+            p0, = axs[i].plot(EKE.time_counter, EKE[var + "_miz"])
+            p1, = axs[i].plot(EKE.time_counter, EKE[var + "_ice"])
+            p2, = axs[i].plot(EKE.time_counter, EKE[var + "_oce"])
+            axs[i].axhline(0, c='k')
+            axs[i].set_ylim(-5e-9, 5e-9)
+            axs[i].set_ylabel(titles[i])
+        axs[-1].plot(sum_m.time_counter, sum_m)
+        axs[-1].plot(sum_i.time_counter, sum_i)
+        axs[-1].plot(sum_o.time_counter, sum_o)
+        axs[-1].axhline(0, c='k')
+        axs[-1].set_ylim(-5e-9, 5e-9)
+        plt.legend([p0,p1,p2],["MIZ", "ICE", "OCE"])
+        plt.show()
+
 
     def plot_EKE_domain_integral(self):
         """
@@ -1020,8 +1115,8 @@ class plot_KE_Tedesco(object):
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 #file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
-file_id = 'SOCHIC_PATCH_1d_20121223_20121224_'
-ke = plot_KE_Tedesco('EXP02', file_id)
+file_id = 'SOCHIC_PATCH_1d_20121209_20130108_'
+ke = plot_KE_Tedesco('TRD02_Tedesco', file_id)
 #ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
@@ -1031,6 +1126,8 @@ ke = plot_KE_Tedesco('EXP02', file_id)
 #ke.plot_EKE_residual()
 #ke.plot_KE()
 #ke.plot_EKE_domain_integral()
-ke.plot_EKE_domain_integral_partitioned()
+#ke.get_EKE_domain_integral_partitioned()
+#ke.plot_EKE_domain_integral_partitioned()
+ke.plot_EKE_domain_integral_time_series()
 print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()
