@@ -6,6 +6,7 @@ import matplotlib
 import cmocean
 import numpy as np
 from dask.diagnostics import ProgressBar
+import matplotlib.gridspec as gridspec
 
 matplotlib.rcParams.update({'font.size': 8})
 
@@ -549,14 +550,16 @@ class plot_KE_Tedesco(object):
                              + file_id
         self.path = config.data_path() + case + '/'
 
-    def mask_mld(self, ds):
+    def mask_mld(self, ds, mask="MLD", date=None):
         ''' mask below mixed layer depth '''
 
-        mld = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto"
-                                   ).mldr10_3
         mld = self.get_and_trim_ds(self.preamble + "grid_T.nc").mldr10_3
-        ds = ds.where(ds.deptht < mld)
-        print (ds)
+        if date:
+            mld = mld.sel(time_counter=date).squeeze()
+        if mask == "MLD":
+            ds = ds.where(ds.deptht < mld)
+        elif mask == "sub_MLD":
+            ds = ds.where((ds.deptht > mld) & (ds.deptht <400))
 
         return ds
 
@@ -567,12 +570,13 @@ class plot_KE_Tedesco(object):
 
         return tke_integ
 
-    def depth_integral(self, EKE):
+    def depth_integral(self, EKE, date):
 
         # depth integral
         if "deptht" in list(EKE.dims.keys()):
-            EKE = self.mask_mld(EKE)
             e3t = self.get_and_trim_ds(self.preamble + 'grid_T.nc').e3t
+            if date:
+                e3t = e3t.sel(time_counter=date).squeeze()
             EKE = (EKE * e3t).sum("deptht")
         else:
             print ("no depth dim")
@@ -816,19 +820,23 @@ class plot_KE_Tedesco(object):
         return var.roll({dvar:1}, roll_coords=False)
 
 
-    def plot_KE(self):
+    def plot_KE(self, date="2012-12-13", mask="sub_MLD"):
 
-        EKE = self.calc_KE(depth=None).isel(time_counter=0)
+        EKE = self.calc_KE(depth=None).sel(time_counter=date).squeeze()
 
-        self.depth_inegral(EKE)
+        EKE = self.mask_mld(EKE, mask=mask, date=date)
+        EKE = self.depth_integral(EKE, date=date)
+        with ProgressBar():
+            EKE = EKE.load()
 
         fig, axs = plt.subplots(2,5, figsize=(6.5,4))
 
         var_bounds = []
         for var in EKE.data_vars:
             if var in ["area"]: continue
-            var_bounds.append(abs(EKE[var]).quantile(0.65))
-        v_bound = max(var_bounds)
+            var_bounds.append(abs(EKE[var]).quantile(0.75))
+        v_bound = max(var_bounds).data
+        v_bound = 5e-4
         vmin, vmax = -v_bound, v_bound
         cmap = plt.cm.RdBu_r
 
@@ -871,16 +879,81 @@ class plot_KE_Tedesco(object):
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
                     transform=ax.transAxes, fontsize=8)
             ax.set_aspect('equal')
+        plt.savefig(f"{date}_depth_integ_KE_{mask}.png", dpi=600)
+
+
+    def plot_EKE_depth_slice(self, lat=-72):
+        """
+        plot longitude-depth slice of EKE for date
+        """
+
+        EKE = self.calc_KE(depth=None)
+        EKE["MLD"] = self.get_and_trim_ds(self.preamble + "grid_T.nc").mldr10_3
+
+        icemsk = self.get_and_trim_ds(self.preamble + "icemod.nc").siconc
+        icemsk  = icemsk.sel(time_counter="2012-12-25").squeeze().load()
+        icemsk = icemsk.where(icemsk!=0)
+        temp = self.get_and_trim_ds(self.preamble + "grid_T.nc").votemper
+        temp = temp.sel(time_counter="2012-12-25")
+        temp = temp.isel(deptht=0).squeeze().load()
+
+        # reduce
+        EKE = EKE.where(EKE.deptht < 400, drop=True)
+        EKE = EKE.sel(time_counter="2012-12-25").squeeze()
+        print (EKE)
+
+        # initialise figure
+        fig = plt.figure(figsize=(6.5,5.5))
+
+        # initialise gridspec
+        gs0 = gridspec.GridSpec(ncols=1, nrows=1)
+        gs1 = gridspec.GridSpec(ncols=1, nrows=3)
+    
+        # set frame bounds
+        gs0.update(top=0.92, bottom=0.20, left=0.08, wspace=0.1, hspace=0.12,
+                   right=0.45)
+        gs1.update(top=0.92, bottom=0.2, left=0.5, wspace=0.1,right=0.95)
+
+        # assign axes to lists
+        axs0, axs1 = [], []
+        axs0 = fig.add_subplot(gs0[0])
+        for i in range(3):
+            axs1.append(fig.add_subplot(gs1[i]))
+
+        
+        def render_depth_slice(EKE, y, ax):
+            vmin, vmax = -1e-5, 1e-5
+            EKE = EKE.isel(y=y).load()
+            p = ax.pcolor(EKE.nav_lon, EKE.deptht, EKE.b_flux_eke, 
+                           vmin=vmin, vmax=vmax, cmap=plt.cm.RdBu_r)
+            ax.plot(EKE.nav_lon, EKE.MLD, c='k')
+            ax.invert_yaxis()
+
+            return p, EKE.nav_lat, EKE.nav_lon
+
+        p, lat0, lon0 = render_depth_slice(EKE, 600, axs1[0])
+        p, lat1, lon1 = render_depth_slice(EKE, 400, axs1[1])
+        p, lat2, lon2 = render_depth_slice(EKE, 150, axs1[2])
+
+        axs0.pcolor(temp.nav_lon, temp.nav_lat, temp, cmap=cmocean.cm.thermal)
+        axs0.pcolor(icemsk.nav_lon, icemsk.nav_lat, icemsk,
+                       cmap=cmocean.cm.ice)
+
+        axs0.plot(lon0, lat0, c='g', lw=1.5)
+        axs0.plot(lon1, lat1, c='g', lw=1.5)
+        axs0.plot(lon2, lat2, c='g', lw=1.5)
+
+        plt.colorbar(p)
         plt.show()
-
-
-    def get_EKE_domain_integral_partitioned(self):
+        
+        
+    def get_EKE_domain_integral_partitioned(self, mask="MLD"):
         """
         calculate domain integrated EKE
         """
 
         EKE = self.calc_KE(depth=None)
-        EKE = self.mask_mld(EKE)
+        EKE = self.mask_mld(EKE, mask=mask)
         EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE)
 
         def label_partition(ds, label):
@@ -896,15 +969,15 @@ class plot_KE_Tedesco(object):
 
         with ProgressBar():
             EKE_partitioned.to_netcdf(
-                              self.proc_preamble + "EKE_partitioned.nc")
+                              self.proc_preamble + f"EKE_partitioned_{mask}.nc")
 
-    def plot_EKE_domain_integral_partitioned(self):
+    def plot_EKE_domain_integral_partitioned(self, mask="MLD"):
         """
         plot domain integrated EKE
         """
 
         # get data
-        EKE = xr.load_dataset(self.proc_preamble + "EKE_partitioned.nc")
+        EKE = xr.load_dataset(self.proc_preamble + f"EKE_partitioned_{mask}.nc")
         EKE = EKE.isel(time_counter=0)
 
         # ini figure
@@ -965,14 +1038,13 @@ class plot_KE_Tedesco(object):
 
         plt.show()
 
-    def plot_EKE_domain_integral_time_series(self):
+    def plot_EKE_domain_integral_time_series(self, mask="MLD"):
         """
         time series of domain integrated partitioned EKE
         """
 
         # get data
-        EKE = xr.load_dataset(self.proc_preamble + "EKE_partitioned.nc")
-        EKE = EKE
+        EKE = xr.load_dataset(self.proc_preamble + f"EKE_partitioned_{mask}.nc")
 
         # ini figure
         fig, axs = plt.subplots(6, figsize=(5.5,8.5))
@@ -1124,10 +1196,15 @@ ke = plot_KE_Tedesco('TRD02_Tedesco', file_id)
 #print ('depth integrated - done')
 #ke.plot_z_slice_KE(depth=10)
 #ke.plot_EKE_residual()
-#ke.plot_KE()
+ke.plot_EKE_depth_slice()
+
+#dates = ["2012-12-" + str(i).zfill(2) for i in range(9,31)]
+#for date in dates:
+#    ke.plot_KE(date=date, mask="MLD")
+
 #ke.plot_EKE_domain_integral()
-#ke.get_EKE_domain_integral_partitioned()
+#ke.get_EKE_domain_integral_partitioned(mask="sub_MLD")
 #ke.plot_EKE_domain_integral_partitioned()
-ke.plot_EKE_domain_integral_time_series()
+#ke.plot_EKE_domain_integral_time_series(mask="sub_MLD")
 print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()
