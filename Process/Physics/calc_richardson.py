@@ -15,7 +15,8 @@ class richardson(object):
         #self.chunks = {'x':100,'y':100}
         self.chunks = {'time_counter':1}
         self.path = config.data_path() + model
-        self.nc_preamble = self.path + '/' + nc_preamble
+        self.nc_raw = self.path + '/RawOutput/' + nc_preamble
+        self.nc_proc = self.path + '/ProcessedVars/' + nc_preamble
         self.model = model
         #self.dsu = xr.open_dataset(self.path + 
         #               '/SOCHIC_PATCH_3h_20121209_20130331_grid_U.nc',
@@ -26,7 +27,7 @@ class richardson(object):
         #self.area = xr.open_dataset(self.path + 
         #                '/SOCHIC_PATCH_3h_20121209_20130331_grid_T.nc',
         #                ).area
-        self.cfg = xr.open_dataset(self.path + '/domain_cfg.nc',
+        self.cfg = xr.open_dataset(self.path + '/Grid/domain_cfg.nc',
                         )
                         #chunks={'x':50,'y':50} )
 
@@ -42,14 +43,20 @@ class richardson(object):
         g = 9.81
         rho_0 = 1026
         if self.model == 'EXP10':
-            rho = xr.open_dataset(self.nc_preamble + '_rho.nc', 
+            rho = xr.open_dataset(self.nc_raw + '_rho.nc', 
                                   chunks=self.chunks).rho
+            # calculate buoyancy gradients
+            b = g*(1-rho/rho_0) 
         elif self.model == 'TRD00':
-            rho = xr.open_dataset(self.nc_preamble + '_grid_T.nc', 
+            rho = xr.open_dataset(self.nc_raw + '_grid_T.nc', 
                                   chunks=self.chunks).rhop
-
-        # calculate buoyancy gradients
-        b = g*(1-rho/rho_0) 
+            # calculate buoyancy gradients
+            b = g*(1-rho/rho_0) 
+        elif self.model == 'TRD02_Tedesco':
+            rho = xr.open_dataset(self.nc_raw + '_grid_T.nc', 
+                                  chunks=self.chunks).rhd
+            # calculate buoyancy gradients
+            b = g*rho 
 
         dx = self.cfg.e1u.isel(x=slice(None,-1), y=slice(None,-1))
         dy = self.cfg.e1v.isel(x=slice(None,-1), y=slice(None,-1))
@@ -63,20 +70,20 @@ class richardson(object):
         by = b.diff('y', label='lower').isel(x=slice(None,-1)) / dy
         bx.name = 'bx'
         by.name = 'by'
-        bg = xr.merge([bx,by])
+        bg = xr.merge([bx,by]).squeeze()
 
         if save:
             with ProgressBar():
-                bg.to_netcdf(self.nc_preamble + '_bg.nc')
+                bg.to_netcdf(self.nc_proc + '_bg.nc')
 
     def buoyancy_gradient_mod_squared(self, load=False, save=False):
         ''' calculate the modulus square buoyancy gradient '''
          
         if load:
-            bg_mod2 = xr.open_dataarray(self.nc_preamble + '_bg_mod2.nc',
+            bg_mod2 = xr.open_dataarray(self.nc_proc + '_bg_mod2.nc',
                                       chunks=self.chunks)
         else:
-            bg = xr.open_dataset(self.nc_preamble + '_bg.nc', 
+            bg = xr.open_dataset(self.nc_proc + '_bg.nc', 
                                  chunks=self.chunks)
 
             # put gradients on matching scalar positons
@@ -90,7 +97,7 @@ class richardson(object):
 
         if save:
             bg_mod2.name = 'bg_mod2'
-            bg_mod2.to_netcdf(self.nc_preamble + '_bg_mod2.nc')
+            bg_mod2.to_netcdf(self.nc_proc + '_bg_mod2.nc')
         return bg_mod2
 
     def format_N2(self, save=False, load=False):
@@ -213,8 +220,9 @@ if __name__ == '__main__':
     # explicitly connect to the cluster we just created
     #client = Client(cluster)
 
-    nc_preamble = 'SOCHIC_PATCH_15mi_20121209_20121211'
-    m = richardson('TRD00', nc_preamble)
+    file_id = 'SOCHIC_PATCH_1d_20121209_20130108'
+    case = 'TRD02_Tedesco'
+    m = richardson(case, file_id)
     start = time.time()
     #m.buoyancy_gradients(save=True)
     m.buoyancy_gradient_mod_squared(save=True)

@@ -39,6 +39,9 @@ class integrals_and_masks(object):
             deps = ds.e3w.cumsum('depthw').load()
             mld['time_counter'] = self.var.time_counter
 
+        print (deps)
+        print (mld)
+        print (self.var)
         var_ml =  self.var.where(deps <= mld, drop=False)
         
         if save:
@@ -79,14 +82,15 @@ class integrals_and_masks(object):
         '''
 
         # get mld
-        
+        kwargs = {'chunks': dict(time_counter=1)} 
         fn = self.path + 'ProcessedVars/' + self.file_id + 'ml_mid.nc'
-        mld_mid = xr.open_dataarray(fn, chunks={'time_counter':100})
+        mld_mid = xr.open_dataset(self.raw_preamble + 'grid_T.nc',
+                              **kwargs).mldr10_3 / 2.0
 
         # check index sizes match
-        size_diff = self.check_index_size_diff(self.var, mld_mid)
+        size_diff = self.check_index_size_diff(mld_mid, self.var)
         if size_diff:
-            self.var = self.cut_edges(self.var, 
+            mld_mid = self.cut_edges(mld_mid, 
                                       rim=slice(size_diff, -size_diff))
 
         var_ml_mid = self.var.sel(deptht=mld_mid, method='nearest')
@@ -251,9 +255,9 @@ class integrals_and_masks(object):
         area = self.cfg.e2t * self.cfg.e1t
 
         # calculate lateral weighted mean
-        var_integ_miz = var_miz.weighted(area).mean(dim=['x','y'])
-        var_integ_ice = var_ice.weighted(area).mean(dim=['x','y'])
-        var_integ_oce = var_oce.weighted(area).mean(dim=['x','y'])
+        var_integ_miz = var_ml_miz.weighted(area).mean(dim=['x','y'])
+        var_integ_ice = var_ml_ice.weighted(area).mean(dim=['x','y'])
+        var_integ_oce = var_ml_oce.weighted(area).mean(dim=['x','y'])
 
         # set variable names
         var_integ_miz.name = self.var_str + '_miz_weighted_mean'

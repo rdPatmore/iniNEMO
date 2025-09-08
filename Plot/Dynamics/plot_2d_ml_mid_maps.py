@@ -84,11 +84,12 @@ def plot_2d_maps(case, date="2012-12-23 12:00:00", quadrant=None):
     
     # data source
     path = config.data_path() + case \
-         + "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
+         + "/ProcessedVars/SOCHIC_PATCH_1d_20121209_20130108_"
+         #+ "/ProcessedVars/SOCHIC_PATCH_3h_20121209_20130331_"
 
     # get class for quadrant partitioning
-    case = 'EXP10'
-    file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
+    case = 'TRD02_Tedesco'
+    file_id = 'SOCHIC_PATCH_1d_20121209_20130108_'
     grm = grd.glider_relevant_metrics(case, file_id)
                                
     # render temperature
@@ -108,32 +109,33 @@ def plot_2d_maps(case, date="2012-12-23 12:00:00", quadrant=None):
     render_2d_map(fig, axs[1,0], da, cmocean.cm.haline, "Salinity", 
                   vmin=33.0, vmax=34.5)
 
-    # render N2
-    da = xr.open_dataarray(path + "bn2_ml_mid.nc", chunks=-1)
-    da = da.sel(time_counter=date, method="nearest")
-    da = grm.quadrant_partition(da, quadrant)
-    da = cut_rim(da, 10)
-    render_2d_map(fig, axs[0,1], da, plt.cm.binary, r"$N^2$",
-                  vmin=0, vmax=0.0002)
+    ## render N2
+    #da = xr.open_dataarray(path + "bn2_ml_mid.nc", chunks=-1)
+    #da = da.sel(time_counter=date, method="nearest")
+    #da = grm.quadrant_partition(da, quadrant)
+    #da = cut_rim(da, 10)
+    #render_2d_map(fig, axs[0,1], da, plt.cm.binary, r"$N^2$",
+    #              vmin=0, vmax=0.0002)
 
     # render bg
     da = xr.open_dataarray(path + "bg_mod2_ml_mid.nc", chunks=-1)
     da = da.sel(time_counter=date, method="nearest")
     da = grm.quadrant_partition(da, quadrant)
-    da = cut_rim(da, 10)
+    da = cut_rim(da, 10).squeeze()
     render_2d_map(fig, axs[1,1], da, plt.cm.binary, r"$|\mathbf{\nabla}b|$",
-                  vmin=0, vmax=1e-13)
+                  vmin=0, vmax=5e-13)
 
     path = config.data_path() + case \
-         + "/RawOutput/SOCHIC_PATCH_3h_20121209_20130331_"
+         + "/RawOutput/" + file_id
 
     # render surface salt flux
-    da = xr.open_dataset(path + "grid_T.nc", chunks=-1).sfx
+    da = xr.open_dataset(path + "grid_T.nc", chunks=-1).wfo
     da = da.sel(time_counter=date, method="nearest")
     da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
     vmin, vmax = get_symetric_limits(da)
-    render_2d_map(fig, axs[0,2], da, plt.cm.RdBu, "Surface Salt Flux",
+    vmin, vmax = -1e-3, 1e-3
+    render_2d_map(fig, axs[0,2], da, plt.cm.RdBu, "Surface Freshwater Flux",
                   vmin=vmin, vmax=vmax)
 
     # render surface heat flux
@@ -142,6 +144,7 @@ def plot_2d_maps(case, date="2012-12-23 12:00:00", quadrant=None):
     da = grm.quadrant_partition(da, quadrant)
     da = cut_rim(da, 10)
     vmin, vmax = get_symetric_limits(da)
+    vmin, vmax = -250, 250 
     render_2d_map(fig, axs[1,2], da, plt.cm.RdBu, "Surface Heat Flux",
                   vmin=vmin, vmax=vmax)
 
@@ -287,7 +290,17 @@ def plot_2d_map_N_M_slope(case, date, quadrant):
 
 
 if __name__ == "__main__":
-    plot_2d_map_N_M_slope("EXP10", date="2012-12-24 12:00:00", quadrant=None)
+    #plot_2d_map_N_M_slope("EXP10", date="2012-12-24 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-17 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-18 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-19 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-20 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-21 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-22 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-23 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-24 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-25 12:00:00", quadrant=None)
+    plot_2d_maps("TRD02_Tedesco", date="2012-12-26 12:00:00", quadrant=None)
 
 #def render_1d_time_series(path, ax, var, integ_type, title, area, date_range,
 #                          vlims=None):

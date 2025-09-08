@@ -593,13 +593,13 @@ class plot_KE_Tedesco(object):
 
         return var_cut
 
-    def partition_by_ice_cover(self, eke_mld, threshold=0.2):
+    def partition_by_ice_cover(self, eke_mld, threshold=0.2, integ=False):
         """ partition by ice cover and integrate over volume """
 
         # load ice concentration
         icemsk = self.get_and_trim_ds(self.preamble + "icemod.nc").siconc
         icemsk = icemsk#.isel(time_counter=0)
-        cfg = self.get_and_trim_ds(self.path + "domain_cfg.nc").squeeze()
+        cfg = self.get_and_trim_ds(self.path + "/Grid/domain_cfg.nc").squeeze()
         e3t = self.get_and_trim_ds(self.preamble + 'grid_T.nc').e3t
 
         # get masks
@@ -612,142 +612,155 @@ class plot_KE_Tedesco(object):
         tke_mld_ice = eke_mld.where(ice_msk)
         tke_mld_oce = eke_mld.where(oce_msk)
 
-        # find volume of each partition
+        if integ:
+            # find volume of each partition
 
-        area = cfg.e2t * cfg.e1t
-        t_vol = area * e3t
-        sum_dims = ["x","y","deptht"]
-        t_vol_miz = t_vol.where(miz_msk).sum(sum_dims)
-        t_vol_ice = t_vol.where(ice_msk).sum(sum_dims)
-        t_vol_oce = t_vol.where(oce_msk).sum(sum_dims)
+            area = cfg.e2t * cfg.e1t
+            t_vol = area * e3t
+            sum_dims = ["x","y","deptht"]
+            t_vol_miz = t_vol.where(miz_msk).sum(sum_dims)
+            t_vol_ice = t_vol.where(ice_msk).sum(sum_dims)
+            t_vol_oce = t_vol.where(oce_msk).sum(sum_dims)
 
-        # calculate volume weighted mean
-        tke_integ_miz = (tke_mld_miz * t_vol).sum(sum_dims) / t_vol_miz
-        tke_integ_ice = (tke_mld_ice * t_vol).sum(sum_dims) / t_vol_ice
-        tke_integ_oce = (tke_mld_oce * t_vol).sum(sum_dims) / t_vol_oce
+            # calculate volume weighted mean
+            tke_integ_miz = (tke_mld_miz * t_vol).sum(sum_dims) / t_vol_miz
+            tke_integ_ice = (tke_mld_ice * t_vol).sum(sum_dims) / t_vol_ice
+            tke_integ_oce = (tke_mld_oce * t_vol).sum(sum_dims) / t_vol_oce
 
-        return tke_integ_miz, tke_integ_ice, tke_integ_oce
+            return tke_integ_miz, tke_integ_ice, tke_integ_oce
+        else:
+            return tke_mld_miz, tke_mld_ice, tke_mld_oce
 
-    def calc_KE(self, depth=None):
+    def calc_KE(self, depth=None, save=False, load=True):
 
-        # load and slice
-        uvel = self.get_and_trim_ds(self.preamble + "grid_U.nc").uo_e3u
-        vvel = self.get_and_trim_ds(self.preamble + "grid_V.nc").vo_e3v
-        wvel = self.get_and_trim_ds(self.preamble + "grid_W.nc").wo_e3w
-        e3w = self.get_and_trim_ds(self.preamble + "grid_W.nc").e3w
-        e3t = self.get_and_trim_ds(self.preamble + "grid_T.nc").e3t
-        rho = self.get_and_trim_ds(self.preamble + "grid_T.nc").rhd
-        b_flux = self.get_and_trim_ds(
-                  self.preamble + "grid_T.nc").ketrd_convP2K_e3t
-        umom = self.get_and_trim_ds(self.preamble + "momu_wm.nc")
-        vmom = self.get_and_trim_ds(self.preamble + "momv_wm.nc")
-        u_KE = self.get_and_trim_ds(self.preamble + "u_KE_mean.nc")
-        v_KE = self.get_and_trim_ds(self.preamble + "v_KE_mean.nc")
+        # need to automate this if statement
+        if load:
+            EKE = xr.open_dataset(self.proc_preamble + "EKE.nc", chunks="auto")
+        else:
 
-        #uvel = xr.open_dataset(self.preamble + 'grid_U.nc', chunks="auto").uo_e3u
-        #vvel = xr.open_dataset(self.preamble + 'grid_V.nc', chunks="auto").vo_e3v
-        #wvel = xr.open_dataset(self.preamble + 'grid_W.nc', chunks="auto").wo_e3w
-        #e3w = xr.open_dataset(self.preamble + 'grid_W.nc', chunks="auto").e3w
-        #rho = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").rhd
-        #e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").e3t
-        #b_flux = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").ketrd_convP2K_e3t
-        #umom = xr.open_dataset(self.preamble + 'momu_wm.nc', chunks="auto")
-        #vmom = xr.open_dataset(self.preamble + 'momv_wm.nc', chunks="auto")
-        #u_KE = xr.open_dataset(self.preamble + 'u_KE_mean.nc', chunks="auto")
-        #v_KE = xr.open_dataset(self.preamble + 'v_KE_mean.nc', chunks="auto")
+            # load and slice
+            uvel = self.get_and_trim_ds(self.preamble + "grid_U.nc").uo_e3u
+            vvel = self.get_and_trim_ds(self.preamble + "grid_V.nc").vo_e3v
+            wvel = self.get_and_trim_ds(self.preamble + "grid_W.nc").wo_e3w
+            e3w = self.get_and_trim_ds(self.preamble + "grid_W.nc").e3w
+            e3t = self.get_and_trim_ds(self.preamble + "grid_T.nc").e3t
+            rho = self.get_and_trim_ds(self.preamble + "grid_T.nc").rhd
+            b_flux = self.get_and_trim_ds(
+                      self.preamble + "grid_T.nc").ketrd_convP2K_e3t
+            umom = self.get_and_trim_ds(self.preamble + "momu_wm.nc")
+            vmom = self.get_and_trim_ds(self.preamble + "momv_wm.nc")
+            u_KE = self.get_and_trim_ds(self.preamble + "u_KE_mean.nc")
+            v_KE = self.get_and_trim_ds(self.preamble + "v_KE_mean.nc")
 
-        # get b_bar * w_bar
-        b_flux_mean = xr.DataArray(self.wke(rho, wvel, e3w, e3t),
-                                   dims=("time_counter", "deptht", "y", "x"),
-                                   coords=rho.coords)
+            #uvel = xr.open_dataset(self.preamble + 'grid_U.nc', chunks="auto").uo_e3u
+            #vvel = xr.open_dataset(self.preamble + 'grid_V.nc', chunks="auto").vo_e3v
+            #wvel = xr.open_dataset(self.preamble + 'grid_W.nc', chunks="auto").wo_e3w
+            #e3w = xr.open_dataset(self.preamble + 'grid_W.nc', chunks="auto").e3w
+            #rho = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").rhd
+            #e3t = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").e3t
+            #b_flux = xr.open_dataset(self.preamble + 'grid_T.nc', chunks="auto").ketrd_convP2K_e3t
+            #umom = xr.open_dataset(self.preamble + 'momu_wm.nc', chunks="auto")
+            #vmom = xr.open_dataset(self.preamble + 'momv_wm.nc', chunks="auto")
+            #u_KE = xr.open_dataset(self.preamble + 'u_KE_mean.nc', chunks="auto")
+            #v_KE = xr.open_dataset(self.preamble + 'v_KE_mean.nc', chunks="auto")
 
-        #uvel = uvel.sel(depthu=depth, method='nearest')
-        #vvel = vvel.sel(depthv=depth, method='nearest')
-        #umom = umom.sel(depthu=depth, method='nearest')
-        #vmom = vmom.sel(depthv=depth, method='nearest')
-        #u_KE = u_KE.sel(depthu=depth, method='nearest')
-        #v_KE = v_KE.sel(depthv=depth, method='nearest')
+            # get b_bar * w_bar
+            b_flux_mean = xr.DataArray(self.wke(rho, wvel, e3w, e3t),
+                                       dims=("time_counter", "deptht", "y", "x"),
+                                       coords=rho.coords)
 
-        if depth: # slice depth
-            uvel = uvel.isel(depthu=depth)
-            vvel = vvel.isel(depthv=depth)
-            umom = umom.isel(depthu=depth)
-            vmom = vmom.isel(depthv=depth)
-            u_KE = u_KE.isel(depthu=depth)
-            v_KE = v_KE.isel(depthv=depth)
-            b_flux_mean = b_flux_mean.isel(deptht=depth)
-            b_flux = b_flux.isel(deptht=depth)
-            e3t = e3t.isel(deptht=depth)
+            #uvel = uvel.sel(depthu=depth, method='nearest')
+            #vvel = vvel.sel(depthv=depth, method='nearest')
+            #umom = umom.sel(depthu=depth, method='nearest')
+            #vmom = vmom.sel(depthv=depth, method='nearest')
+            #u_KE = u_KE.sel(depthu=depth, method='nearest')
+            #v_KE = v_KE.sel(depthv=depth, method='nearest')
 
-        #fig, (ax0,ax1,ax2)  =plt.subplots(3)
-        #bound=1e-5
-        #ax0.pcolor(b_flux_mean.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
-        #ax1.pcolor(b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
-        #ax2.pcolor(b_flux_mean.isel(time_counter=0) - b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
-        #plt.show()
+            if depth: # slice depth
+                uvel = uvel.isel(depthu=depth)
+                vvel = vvel.isel(depthv=depth)
+                umom = umom.isel(depthu=depth)
+                vmom = vmom.isel(depthv=depth)
+                u_KE = u_KE.isel(depthu=depth)
+                v_KE = v_KE.isel(depthv=depth)
+                b_flux_mean = b_flux_mean.isel(deptht=depth)
+                b_flux = b_flux.isel(deptht=depth)
+                e3t = e3t.isel(deptht=depth)
 
-        uvar_drop = ["time_counter_bounds", "time_centered_bounds",
-                     "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
-        vvar_drop = ["time_counter_bounds", "time_centered_bounds",
-                     "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
-        #uvar_drop = ["time_counter_bounds", "time_instant_bounds",
-        #             "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
-        #vvar_drop = ["time_counter_bounds", "time_instant_bounds",
-        #             "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+            #fig, (ax0,ax1,ax2)  =plt.subplots(3)
+            #bound=1e-5
+            #ax0.pcolor(b_flux_mean.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+            #ax1.pcolor(b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+            #ax2.pcolor(b_flux_mean.isel(time_counter=0) - b_flux.isel(time_counter=0), vmin=-bound, vmax=bound, cmap=plt.cm.RdBu)
+            #plt.show()
 
-        umom = umom.drop(uvar_drop)
-        vmom = vmom.drop(vvar_drop)
-        u_KE = u_KE.drop(uvar_drop)
-        v_KE = v_KE.drop(vvar_drop)
+            uvar_drop = ["time_counter_bounds", "time_centered_bounds",
+                         "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+            vvar_drop = ["time_counter_bounds", "time_centered_bounds",
+                         "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+            #uvar_drop = ["time_counter_bounds", "time_instant_bounds",
+            #             "depthu_bounds", "bounds_nav_lon", "bounds_nav_lat"]
+            #vvar_drop = ["time_counter_bounds", "time_instant_bounds",
+            #             "depthv_bounds", "bounds_nav_lon", "bounds_nav_lat"]
 
-        for var in umom.data_vars:
-            umom = umom.rename({var:var.lstrip('u').rstrip('u')})
-        for var in vmom.data_vars:
-            vmom = vmom.rename({var:var.lstrip('v').rstrip('v')})
-        for var in u_KE.data_vars:
-            print (var)
-            u_KE = u_KE.rename({var:var.lstrip('u').rstrip('u_KE')})
-        for var in v_KE.data_vars:
-            v_KE = v_KE.rename({var:var.lstrip('v').rstrip('v_KE')})
+            umom = umom.drop(uvar_drop)
+            vmom = vmom.drop(vvar_drop)
+            u_KE = u_KE.drop(uvar_drop)
+            v_KE = v_KE.drop(vvar_drop)
 
-        # get mean kinetic energy
-        uvel = uvel.transpose(*list(umom.dims.keys()))
-        vvel = vvel.transpose(*list(vmom.dims.keys()))
-        uvel["time_counter"] = umom.time_counter
-        vvel["time_counter"] = vmom.time_counter
-        #EKE = 0.5 * ((umom * uvel) + (vmom * vvel))
+            for var in umom.data_vars:
+                umom = umom.rename({var:var.lstrip('u').rstrip('u')})
+            for var in vmom.data_vars:
+                vmom = vmom.rename({var:var.lstrip('v').rstrip('v')})
+            for var in u_KE.data_vars:
+                print (var)
+                u_KE = u_KE.rename({var:var.lstrip('u').rstrip('u_KE')})
+            for var in v_KE.data_vars:
+                v_KE = v_KE.rename({var:var.lstrip('v').rstrip('v_KE')})
 
-        #cfg  = xr.open_dataset(self.path + 'domain_cfg.nc',
-        #                       chunks=-1).squeeze()
-        cfg = self.get_and_trim_ds(self.path + "domain_cfg.nc").squeeze()
+            # get mean kinetic energy
+            uvel = uvel.transpose(*list(umom.dims.keys()))
+            vvel = vvel.transpose(*list(vmom.dims.keys()))
+            uvel["time_counter"] = umom.time_counter
+            vvel["time_counter"] = vmom.time_counter
+            #EKE = 0.5 * ((umom * uvel) + (vmom * vvel))
 
-        bu = cfg.e1u * cfg.e2u
-        bv = cfg.e1v * cfg.e2v
-        self.bt = cfg.e1t * cfg.e2t * e3t
+            #cfg  = xr.open_dataset(self.path + 'domain_cfg.nc',
+            #                       chunks=-1).squeeze()
+            cfg = self.get_and_trim_ds(self.path + "/Grid/domain_cfg.nc").squeeze()
 
-        # Note: 2d variables are broadcast to 3d
-        #EKE = 0.5 * ((u_KE - umom * uvel)**2 + (v_KE - vmom * vvel)**2)
-        uke = (u_KE - uvel * umom) * bu
-        vke = (v_KE - vvel * vmom) * bv
-        
+            bu = cfg.e1u * cfg.e2u
+            bv = cfg.e1v * cfg.e2v
+            self.bt = cfg.e1t * cfg.e2t * e3t
 
-        # coordinate hack
-        uke = uke.rename({'depthu':'deptht'})
-        vke = vke.rename({'depthv':'deptht'})
+            # Note: 2d variables are broadcast to 3d
+            #EKE = 0.5 * ((u_KE - umom * uvel)**2 + (v_KE - vmom * vvel)**2)
+            uke = (u_KE - uvel * umom) * bu
+            vke = (v_KE - vvel * vmom) * bv
+            
 
-        # TODO: needs division by e3t
-        EKE = 0.25 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / self.bt 
+            # coordinate hack
+            uke = uke.rename({'depthu':'deptht'})
+            vke = vke.rename({'depthv':'deptht'})
 
-        EKE["b_flux_eke"] = ( b_flux - b_flux_mean ) / e3t
+            # TODO: needs division by e3t (also * 0.5 or * 0.25)
+            EKE = 0.5 * ( uke + self.ip1(uke) + vke + self.jp1(vke) ) / self.bt 
 
-        EKE["trd_hpg_e3"] = EKE.trd_hpg_e3 - EKE.b_flux_eke
+            EKE["b_flux_eke"] = ( b_flux - b_flux_mean ) / e3t
+
+            EKE["trd_hpg_e3"] = EKE.trd_hpg_e3 - EKE.b_flux_eke
 
 
 
-        # load for faster plotting
-        #with ProgressBar():
-        #    EKE.load()
-        #EKE = 0.5 * ((u_KE) + (v_KE))
+            # load for faster plotting
+            #with ProgressBar():
+            #    EKE.load()
+            #EKE = 0.5 * ((u_KE) + (v_KE))
+
+            if save:
+                with ProgressBar():
+                    fn = "EKE.nc"
+                    EKE.load().to_netcdf(self.proc_preamble + fn)
 
         return EKE
 
@@ -822,35 +835,38 @@ class plot_KE_Tedesco(object):
 
     def plot_KE(self, date="2012-12-13", mask="sub_MLD"):
 
-        EKE = self.calc_KE(depth=None).sel(time_counter=date).squeeze()
+        EKE = self.calc_KE(depth=None, load=False, save=False).sel(time_counter=date).squeeze()
 
         EKE = self.mask_mld(EKE, mask=mask, date=date)
         EKE = self.depth_integral(EKE, date=date)
         with ProgressBar():
             EKE = EKE.load()
 
-        fig, axs = plt.subplots(2,5, figsize=(6.5,4))
+        fig, axs = plt.subplots(2,4, figsize=(6.5,4))
+        plt.subplots_adjust(right=0.83)
 
         var_bounds = []
         for var in EKE.data_vars:
             if var in ["area"]: continue
             var_bounds.append(abs(EKE[var]).quantile(0.75))
         v_bound = max(var_bounds).data
-        v_bound = 5e-4
+        v_bound = 3e-4
         vmin, vmax = -v_bound, v_bound
         cmap = plt.cm.RdBu_r
 
-        axs[0,0].pcolor(EKE.trd_hpg_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,1].pcolor(EKE.trd_keg_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,2].pcolor(EKE.trd_pvo_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,3].pcolor(EKE.trd_tfr_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[0,4].pcolor(EKE.trd_rvo_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        #axs[0,4].pcolor(EKE.trd_tau_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,0].pcolor(EKE.trd_zdf_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,1].pcolor(EKE.trd_zad_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,2].pcolor(EKE.trd_bfr_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,3].pcolor(EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1,4].pcolor(EKE.b_flux_eke, vmin=vmin, vmax=vmax, cmap=cmap)
+        def render_EKE(ax, EKE, var, vmin, vmax, cmap):
+            p = ax.pcolor(EKE.nav_lon, EKE.nav_lat, EKE[var],
+                      vmin=vmin, vmax=vmax, cmap=cmap)
+            return p
+            
+        render_EKE(axs[0,0], EKE, "trd_hpg_e3", vmin, vmax, cmap)
+        render_EKE(axs[0,1], EKE, "trd_keg_e3", vmin, vmax, cmap)
+        render_EKE(axs[0,2], EKE, "trd_tfr_e3", vmin, vmax, cmap)
+        render_EKE(axs[0,3], EKE, "trd_rvo_e3", vmin, vmax, cmap)
+        render_EKE(axs[1,0], EKE, "trd_zdf_e3", vmin, vmax, cmap)
+        render_EKE(axs[1,1], EKE, "trd_zad_e3", vmin, vmax, cmap)
+        render_EKE(axs[1,2], EKE, "b_flux_eke", vmin, vmax, cmap)
+        p0 = render_EKE(axs[1,3], EKE, "trd_tot_e3", vmin, vmax, cmap)
 
         #axs[0,0].pcolor(EKE.trd_hpg, vmin=vmin, vmax=vmax, cmap=cmap)
         #axs[0,1].pcolor(EKE.trd_keg, vmin=vmin, vmax=vmax, cmap=cmap)
@@ -866,23 +882,39 @@ class plot_KE_Tedesco(object):
         # titles
         titles = ['Horiz. Pressure\nGradient',
                   'Advection',
-                  'Coriolis',
-                  'Ice-Ocean Drag',
+                  'Surface Drag',
                   'Barotropic\nInstability',
                   'Vertical Diffusion',
                   'Vertical Adv',
-                  'bottom friction',
-                  'Tendency',
-                  'Baroclinic\nInstability' ]
+                  'Baroclinic\nInstability',
+                  'Tendency']
+
+        pos0 = axs[0,-1].get_position()
+        pos1 = axs[-1,-1].get_position()
+        cbar_ax = fig.add_axes([0.85, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        cbar.ax.text(7.0, 0.5, 'EKE Tendency (m s$^{-3}$)', fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='right')
 
         for i, ax in enumerate(axs.flatten()):
             ax.text(0.5, 1.01, titles[i], va='bottom', ha='center',
                     transform=ax.transAxes, fontsize=8)
             ax.set_aspect('equal')
+
+        for ax in axs[:,1:].flatten():
+            ax.set_yticklabels([])
+        for ax in axs[0,:]:
+            ax.set_xticklabels([])
+        for ax in axs[1]:
+            ax.set_xlabel(r'Longitude ($^{\circ}$E)')
+        for ax in axs[:,0]:
+            ax.set_ylabel(r'Latitude ($^{\circ}$N)')
+
         plt.savefig(f"{date}_depth_integ_KE_{mask}.png", dpi=600)
 
 
-    def plot_EKE_depth_slice(self, lat=-72):
+    def plot_EKE_depth_slice(self, date="2012-12-25", lat=-72):
         """
         plot longitude-depth slice of EKE for date
         """
@@ -898,8 +930,8 @@ class plot_KE_Tedesco(object):
         temp = temp.isel(deptht=0).squeeze().load()
 
         # reduce
-        EKE = EKE.where(EKE.deptht < 400, drop=True)
-        EKE = EKE.sel(time_counter="2012-12-25").squeeze()
+        EKE = EKE.where(EKE.deptht < 100, drop=True)
+        EKE = EKE.sel(time_counter=date).squeeze()
         print (EKE)
 
         # initialise figure
@@ -944,17 +976,18 @@ class plot_KE_Tedesco(object):
         axs0.plot(lon2, lat2, c='g', lw=1.5)
 
         plt.colorbar(p)
-        plt.show()
+        plt.savefig(f'EKE_depth_slice_{date}.png')
         
         
-    def get_EKE_domain_integral_partitioned(self, mask="MLD"):
+    def get_EKE_domain_integral_partitioned(self, mask="MLD", integ=False):
         """
         calculate domain integrated EKE
         """
 
-        EKE = self.calc_KE(depth=None)
+        EKE = self.calc_KE(depth=None, load=True, save=False)
         EKE = self.mask_mld(EKE, mask=mask)
-        EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE)
+        EKE_miz, EKE_ice, EKE_oce = self.partition_by_ice_cover(EKE, 
+                                          integ=integ)
 
         def label_partition(ds, label):
             for var in ds.data_vars:
@@ -968,8 +1001,11 @@ class plot_KE_Tedesco(object):
         EKE_partitioned = xr.merge([EKE_miz, EKE_ice, EKE_oce])
 
         with ProgressBar():
-            EKE_partitioned.to_netcdf(
-                              self.proc_preamble + f"EKE_partitioned_{mask}.nc")
+            if integ:
+                fn = f"EKE_partitioned_{mask}_integrated.nc"
+            else:
+                fn = f"EKE_partitioned_{mask}.nc"
+            EKE_partitioned.to_netcdf(self.proc_preamble + fn)
 
     def plot_EKE_domain_integral_partitioned(self, mask="MLD"):
         """
@@ -1038,6 +1074,58 @@ class plot_KE_Tedesco(object):
 
         plt.show()
 
+    def plot_EKE_histogram_partitioned(self, date="2012-12-13", mask="MLD"):
+        """
+        plot distribution of EKE via histogram partitioned into ICE,OCE,MIZ
+        """
+
+        # get data
+        EKE = xr.load_dataset(self.proc_preamble + f"EKE_partitioned_{mask}.nc")
+        EKE = EKE.isel(time_counter=0)
+        print (EKE)
+
+        # ini figure
+        fig, axs = plt.subplots(6, figsize=(5.5,8.5))
+        plt.subplots_adjust(left=0.13, right=0.95, top=0.98, bottom=0.19)
+
+        # set list of terms
+        var_list = [
+        'trd_hpg_e3',
+        'trd_keg_e3',
+        'trd_pvo_e3',
+        'trd_tfr_e3',
+        'trd_rvo_e3',
+        'trd_zdf_e3',
+        'trd_zad_e3',
+        'trd_bfr_e3',
+        'trd_tot_e3',
+        'b_flux_eke',
+        ]
+
+        # titles
+        titles = ['Horiz. Pressure\nGradient',
+                  'Advection',
+                  'Coriolis',
+                  'Ice-Ocean Drag',
+                  'Barotropic\nInstability',
+                  'Vertical Diffusion',
+                  'Vertical Adv',
+                  'bottom friction',
+                  'Tendency',
+                  'Baroclinic\nInstability' ]
+
+        var_list = [var_list[i] for i in [0,3,5,8,9]]
+        titles = [titles[i] for i in [0,3,5,8,9]]
+
+        for i, var in enumerate(var_list):
+            print (EKE[var + "_miz"])
+            axs[i].hist(EKE[var+ "_miz"])
+            axs[i].hist(EKE[var+ "_ice"])
+            axs[i].hist(EKE[var+ "_oce"])
+
+        plt.show()
+        
+
     def plot_EKE_domain_integral_time_series(self, mask="MLD"):
         """
         time series of domain integrated partitioned EKE
@@ -1089,8 +1177,6 @@ class plot_KE_Tedesco(object):
         var_list = [var_list[i] for i in [0,3,5,8,9]]
         titles = [titles[i] for i in [0,3,5,8,9]]
 
-        # render miz
-        data_miz = [EKE[var + "_miz"].values for var in var_list]
         for i, var in enumerate(var_list):
             p0, = axs[i].plot(EKE.time_counter, EKE[var + "_miz"])
             p1, = axs[i].plot(EKE.time_counter, EKE[var + "_ice"])
@@ -1155,40 +1241,63 @@ class plot_KE_Tedesco(object):
     def plot_EKE_residual(self):
 
         EKE = self.calc_KE().isel(time_counter=0)
+        EKE = EKE.isel(deptht=10)
 
-        fig, axs = plt.subplots(3, figsize=(6.5,4))
+        fig, axs = plt.subplots(1,3, figsize=(6.5,4))
+        plt.subplots_adjust(right=0.85)
 
-        vmin, vmax = -1e-13, 1e-13
+        vmin, vmax = -1e-6, 1e-6
         cmap = plt.cm.RdBu_r
 
         # sum
         trd_RHS = EKE.trd_hpg_e3 + EKE.trd_keg_e3 + \
                   +EKE.trd_pvo_e3 + EKE.trd_rvo_e3 +  \
-                  EKE.trd_zdf_e3 + EKE.trd_zad_e3 
-                  #EKE.trd_bfr_e3 
+                  EKE.trd_zdf_e3 + EKE.trd_zad_e3 + \
+                  EKE.b_flux_eke + EKE.trd_bfr_e3
+                  #EKE.trd_tfr_e3 + EKE.b_flux_eke + EKE.trd_bfr_e3
         trd_resid = EKE.trd_tot_e3 - trd_RHS
 
         # plot
-        axs[0].pcolor(trd_resid, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[1].pcolor(trd_RHS, vmin=vmin, vmax=vmax, cmap=cmap)
-        axs[2].pcolor(EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
+        axs[0].pcolor(trd_resid.nav_lon, trd_resid.nav_lat,
+                abs(EKE.trd_tot_e3/trd_resid), vmin=-1e4, vmax=1e4, cmap=cmap)
+        axs[1].pcolor(trd_RHS.nav_lon, trd_RHS.nav_lat,
+                trd_RHS, vmin=vmin, vmax=vmax, cmap=cmap)
+        p0 = axs[2].pcolor(EKE.nav_lon, EKE.nav_lat,
+                EKE.trd_tot_e3, vmin=vmin, vmax=vmax, cmap=cmap)
 
-        axs[0].text(0.5, 1.01, "residual", va="bottom", ha="center",
+        axs[0].text(0.5, 1.01, "Residual", va="bottom", ha="center",
                     transform=axs[0].transAxes, fontsize=8)
         axs[1].text(0.5, 1.01, "RHS", va="bottom", ha="center",
                     transform=axs[1].transAxes, fontsize=8)
-        axs[2].text(0.5, 1.01, "total", va="bottom", ha="center",
+        axs[2].text(0.5, 1.01, "Total", va="bottom", ha="center",
                     transform=axs[2].transAxes, fontsize=8)
 
-        plt.show()
+        for ax in axs[1:]:
+            ax.set_yticklabels([])
+        for ax in axs:
+            ax.set_xlabel(r'Longitude ($^{\circ}$E)')
+            ax.set_aspect('equal')
+        axs[0].set_ylabel(r'Latitude ($^{\circ}$N)')
 
+        # add cbar
+        pos0 = axs[-1].get_position()
+        pos1 = axs[-1].get_position()
+        cbar_ax = fig.add_axes([0.89, pos1.y0, 0.02, pos0.y1 - pos1.y0])
+        cbar = fig.colorbar(p0, cax=cbar_ax, orientation='vertical')
+        txt = r'EKE [m$^2$ s$^{-3}]$'
+        cbar.ax.text(4.3, 0.5, txt, fontsize=8,
+                     rotation=90, transform=cbar.ax.transAxes,
+                     va='center', ha='left')
 
-
+        #plt.show()
+        plt.savefig("EKE_residual_at_10th_cell_depth.png")
     
 #file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
 #file_id = 'SOCHIC_PATCH_15mi_20121209_20121211_'
 file_id = 'SOCHIC_PATCH_1d_20121209_20130108_'
 ke = plot_KE_Tedesco('TRD02_Tedesco', file_id)
+#ke.calc_KE(save=True, load=False)
+#ke.plot_EKE_histogram_partitioned(date="2012-12-24", mask="MLD")
 #ke.plot_domain_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_laterally_integrated_TKE_budget_ice_oce_zones()
 #ke.plot_ke_time_series()
@@ -1196,15 +1305,15 @@ ke = plot_KE_Tedesco('TRD02_Tedesco', file_id)
 #print ('depth integrated - done')
 #ke.plot_z_slice_KE(depth=10)
 #ke.plot_EKE_residual()
-ke.plot_EKE_depth_slice()
+#ke.plot_EKE_depth_slice(date="2012-12-23")
 
-#dates = ["2012-12-" + str(i).zfill(2) for i in range(9,31)]
+#dates = ["2012-12-" + str(i).zfill(2) for i in range(23,26)]
 #for date in dates:
 #    ke.plot_KE(date=date, mask="MLD")
 
 #ke.plot_EKE_domain_integral()
-#ke.get_EKE_domain_integral_partitioned(mask="sub_MLD")
+ke.get_EKE_domain_integral_partitioned(mask="MLD")
 #ke.plot_EKE_domain_integral_partitioned()
-#ke.plot_EKE_domain_integral_time_series(mask="sub_MLD")
+#ke.plot_EKE_domain_integral_time_series(mask="MLD")
 print ('depth slice - done')
 #ke.plot_domain_integrated_TKE_budget()

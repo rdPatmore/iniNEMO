@@ -27,6 +27,8 @@ class glider_relevant_metrics(object):
         # get var
         ds = xr.open_dataset(self.raw_preamble + fn + '.nc',
                             chunks={'time_counter':1})[var_str]
+        #ds = xr.open_dataset(self.proc_preamble + fn + '.nc',
+        #                    chunks={'time_counter':1})[var_str]
 
         im = sim.integrals_and_masks(self.case, self.file_id, ds, var_str)
         # get cfg and icemsk and cut rims
@@ -51,7 +53,7 @@ class glider_relevant_metrics(object):
 
         # restrict to mixed layer and save
         im = sim.integrals_and_masks(self.case, self.file_id, bg, 'bg_mod2')
-        im.mask_by_ml(save=True, cut=[slice(2,-2), slice(2,-2)])
+        im.mask_by_ml(save=True, cut=[slice(1,-1), slice(1,-1)])
 
     def quadrant_partition(self, da, quadrant):
         ''' 
@@ -109,6 +111,11 @@ class glider_relevant_metrics(object):
         # get bg norm
         fn = self.proc_preamble + 'bg_mod2.nc'
         bg = xr.open_dataset(fn, chunks={'time_counter':100}).bg_mod2
+
+        # unify time
+        #fn = self.raw_preamble + 'grid_T.nc'
+        #ds_T = xr.open_dataset(fn, chunks={'time_counter':100})
+        #bg['time_counter'] = ds_T.time_counter
 
         # save bg norm at ml mid point
         im = sim.integrals_and_masks(self.case, self.file_id, bg, 'bg_mod2')
@@ -358,29 +365,32 @@ if __name__ == '__main__':
     import dask
     dask.config.set(scheduler='single-threaded')
 
-    def ice_partition_N_M():
-        case = 'EXP10'
-        file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-        grm = glider_relevant_metrics(case, file_id)
+    file_id = 'SOCHIC_PATCH_1d_20121209_20130108_'
+    case = 'TRD02_Tedesco'
+    grm = glider_relevant_metrics(case, file_id)
+
+    def ice_partition_N_M(grm):
         grm.ice_parition_N_M_at_depth(depth=10)
         grm.ice_parition_N_M_at_depth(depth=300)
 
-    def get_mld_quadrant_time_series():
-        case = 'EXP10'
-        file_id = 'SOCHIC_PATCH_3h_20121209_20130331_'
-        var_list = ['mldr10_3']
+    def get_mld_quadrant_time_series(grm):
+        case = 'TRD02_Tedesco'
+        var_list = ['bg_mod2']
         for var in var_list:
             print ('var:', var)
             for quad in ['upper_right','upper_left','lower_right','lower_left']:
                 print ('quad:', quad)
                 grm.raw_var_time_series_ice_partition(var,
-                                                      fn='grid_T',
+                                                      fn='bg_mod2',
                                                       quadrant=quad)
 
     # start timer
     start = time.time()
 
-    ice_partition_N_M()
+    #grm.save_ml_T_and_S()
+    #grm.save_ml_bg()
+    #ice_partition_N_M(grm)
+    #get_mld_quadrant_time_series(grm)
 
     # end timer
     start = time.time()
@@ -389,22 +399,25 @@ if __name__ == '__main__':
 
     #grm.ice_miz_open_partition_area()
 
-    #var_list = ['bn2']
-    #for var in var_list:
-    #    print ('var:', var)
-    #    for quad in ['upper_right','upper_left','lower_right','lower_left']:
-    #        print ('quad:', quad)
-    #        grm.var_time_series_ice_partition(var_str=var, ml_mid=True,
-    #                              quadrant=quad)
-    #        #grm.ice_miz_open_partition_area(quadrant=quad)
+    var_list = ['qt_oce']
+    for var in var_list:
+        print ('var:', var)
+        for quad in ['upper_right','upper_left','lower_right','lower_left']:
+            print ('quad:', quad)
+            #grm.var_time_series_ice_partition(var_str=var, ml_mid=True,
+            #                      quadrant=quad)
+            grm.raw_var_time_series_ice_partition(var,
+                                                  fn='grid_T',
+                                                  quadrant=quad)
+            #grm.ice_miz_open_partition_area(quadrant=quad)
     #grm.var_time_series_ice_partition(var='votemper', ml_mid=False)
     #grm.var_time_series_ice_partition(var='bn2', ml_mid=True)
     #grm.save_ml_mid_raw_var()
     #grm.save_ml_mid_raw_var_wpt()
-    #grm.save_ml_mid_raw_var(var='vosaline')
+    #grm.save_ml_mid_raw_var_tpt(var='qt_oce')
+    #grm.save_ml_mid_bg_mod2()
     #grm.bg_norm_time_series_ice_partition(mld_mid=True)
     #grm.N2_mld_time_series_ice_partition()
     #grm.taum_time_series_ice_partition()
     #grm.fresh_water_flux_time_series_ice_partition()
-    #grm.save_ml_T_and_S()
     #grm.mld_time_series_ice_partition()

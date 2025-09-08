@@ -193,8 +193,9 @@ class glider_relevant_vars(object):
                                        "Temperature")
             self.render_1d_time_series(axs[1], "vosaline_ml_mid", integ_str,
                                        "Salinity")
-            self.render_1d_time_series(axs[3], "bn2_ml_mid", integ_str,
-                                       r"N$^2$")
+            # RDP temp as src data not there
+            #self.render_1d_time_series(axs[3], "bn2_ml_mid", integ_str,
+            #                           r"N$^2$")
             self.render_1d_time_series(axs[4], "bg_mod2_ml_mid", integ_str,
                                  r"$|\mathbf{\nabla}b|$")
         else:
@@ -215,6 +216,8 @@ class glider_relevant_vars(object):
 
         self.render_1d_time_series(axs[5], "wfo", "horizontal_integ",
                                     r"$Q_{fw}$")
+        self.render_1d_time_series(axs[3], "qt_oce", "horizontal_integ",
+                                    r"$Q_{t}$")
         dates = self.render_1d_time_series(axs[6], "taum", "horizontal_integ",
                                      r"$|\mathbf{\tau}_s|$")
         self.render_sea_ice_area(axs[7])
@@ -358,9 +361,10 @@ class glider_relevant_vars(object):
 if __name__ == "__main__":
 
     for quad in ["upper_right","upper_left","lower_left","lower_right"]:
-        grv = glider_relevant_vars("EXP10", date_range=[None,"2013-01-11"],
+        grv = glider_relevant_vars("TRD02_Tedesco",
+                      date_range=[None,"2013-01-11"],
                                   quad=quad)
         grv.get_ice_cover_stats()
-        #grv.plot_time_series_core_vars(ml_mid=True)
-        grv.plot_t_s_M_and_N()
+        grv.plot_time_series_core_vars(ml_mid=True)
+        #grv.plot_t_s_M_and_N()
         #plot_eke_time_series("EXP10", date_range=[None,"2013-01-11"])
