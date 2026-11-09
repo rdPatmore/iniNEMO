@@ -1,58 +1,58 @@
 import xarray as xr
 import numpy  as np
 
-path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_48/'
-coords = xr.open_dataset(path + 'coordinates.nc',
-                         decode_times=False)#.rename({
        # 'x':'X', 'y':'Y'}).squeeze('time_counter').reset_coords('time_counter')
-coords = coords.isel(X=slice(1,-1),Y=slice(1,-1))
-print (coords.sizes)
+#coords = coords.isel(X=slice(1,-1),Y=slice(1,-1))
 
-def get_side(side, pos, offset=0):
+def get_side(side, pos, offset=0, rim_begin=1, coords=None):
     '''
     process a SIREN bdy file
+    
+    offset :: nbr, distance away from boundary
+    rim_begin :: position of boundary 0 for start at ind=1
+                                      1 for start at ind=0
     '''
 
     xlen = coords.sizes['X']
     ylen = coords.sizes['Y'] 
     print (xlen)
     print (ylen)
-
+    br = 1 + offset - rim_begin # cell distance from model boundary
     print ('SIDE: ', side)
     vel_shift=0
     #if pos == 'I':
     #    vel_shift=1
     if side == 'west':
-        print (coords.isel(X=offset).sizes)
-        arrayX = coords.isel(X=offset, Y=slice(0, ylen))
-        #arrayX = coords.isel(X=offset, Y=slice(0+offset, ylen-offset))
+        print (coords.isel(X=br).sizes)
+        #arrayX = coords.isel(X=br, Y=slice(0, ylen))
+        arrayX = coords.isel(X=br, Y=slice(0+br, ylen-br))
         dim='Y'
-        bdy_pos = 2 + offset
+        bdy_pos = 1 + br
         print (arrayX.sizes)
 
     if side == 'east':
         if pos == 'U':
             vel_shift=1
-        arrayX = coords.isel(X=-1-offset-vel_shift, Y=slice(0, ylen))
-        #arrayX = coords.isel(X=-1-offset-vel_shift,
-        #                     Y=slice(0+offset, ylen-offset))
-        bdy_pos = xlen +1- offset - vel_shift
+        #arrayX = coords.isel(X=-1-br-vel_shift, Y=slice(0, ylen))
+        arrayX = coords.isel(X=-1-br-vel_shift,
+                             Y=slice(0+br, ylen-br))
+        bdy_pos = xlen - br - vel_shift
         print (arrayX.sizes)
         dim='Y'
 
     if side == 'south':
-        #arrayX = coords.isel(Y=offset, X=slice(0+offset, xlen-offset))
-        arrayX = coords.isel(Y=offset, X=slice(0, xlen))
+        arrayX = coords.isel(Y=br, X=slice(0+br, xlen-br))
+        #arrayX = coords.isel(Y=br, X=slice(0, xlen))
         dim='X'
-        bdy_pos = 2 + offset
+        bdy_pos = 1 + br
 
     if side == 'north':
         if pos == 'V':
             vel_shift=1
-        arrayX = coords.isel(Y=-1-offset-vel_shift, X=slice(0, xlen))
-        #arrayX = coords.isel(Y=-1-offset-vel_shift, 
-        #                     X=slice(0+offset, xlen-offset))
-        bdy_pos = ylen + 1 - offset - vel_shift
+        #arrayX = coords.isel(Y=-1-br-vel_shift, X=slice(0, xlen))
+        arrayX = coords.isel(Y=-1-br-vel_shift, 
+                             X=slice(0+br, xlen-br))
+        bdy_pos = ylen - br - vel_shift
         dim='X'
         #print (' ')
         #print (' ')
@@ -83,9 +83,12 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         print (arrayX[dim].values)
         print (np.full(arrayX[dim].shape, bdy_pos))
+        #'nbrt': (['xbt'], np.full(arrayX[dim].shape,br+1)),
+        # RDP 15/02/22 this is changing from start=1 to start =0 in order 
+        # to capture 2 rims with orlanski rather than 1
         ds = xr.Dataset({nba: (['xbt'], arrayX[dim].values),
                          nbb: (['xbt'], np.full(arrayX[dim].shape, bdy_pos)),
-                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,offset+1)),
+                       'nbrt': (['xbt'], np.full(arrayX[dim].shape,br)),
                          'glamt':(['xbt'], arrayX.glamt.values),
                          'gphit':(['xbt'], arrayX.gphit.values),
                          'e1t':  (['xbt'], arrayX.e1t.values),
@@ -112,7 +115,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbu'], arrayX[dim].values),
                          nbb: (['xbu'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbru': (['xbu'], np.full(arrayX[dim].shape,offset+1)),
+                         'nbru': (['xbu'], np.full(arrayX[dim].shape,br)),
                          'glamu':(['xbu'], arrayX.glamu.values),
                          'gphiu':(['xbu'], arrayX.gphiu.values),
                          'e1u':  (['xbu'], arrayX.e1u.values),
@@ -140,7 +143,7 @@ def get_side(side, pos, offset=0):
             arrayX = arrayX.sortby('Y', ascending=False)
         ds = xr.Dataset({nba: (['xbv'], arrayX[dim].values),
                          nbb: (['xbv'], np.full(arrayX[dim].shape, bdy_pos)),
-                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,offset+1)),
+                         'nbrv': (['xbv'], np.full(arrayX[dim].shape,br)),
                          'glamv':(['xbv'], arrayX.glamv.values),
                          'gphiv':(['xbv'], arrayX.gphiv.values),
                          'e1v':  (['xbv'], arrayX.e1v.values),
@@ -166,7 +169,7 @@ def single_bound(side, pos, width=1):
         ds = xr.concat(segments, dim=('xb' + pos).lower())
     return ds
 
-def get_ring(pos, width):
+def get_ring(pos, width, coords):
     '''
     two loops:
         1. join sides to create a full boundary={east, north, west, south}
@@ -177,23 +180,28 @@ def get_ring(pos, width):
     for ring in range(0,width):
         print ('RING', ring)
         for side in ['east', 'north', 'west', 'south']:
-            segments.append(get_side(side, pos, offset=ring))
+            segments.append(get_side(side, pos, offset=ring, rim_begin=0,
+                                     coords=coords))
     return xr.concat(segments, dim=('xb' + pos).lower())
 
 
-def full_bounds(width=0):
+def full_bounds(coords, model, res, width=0):
     '''
     write coordinates.bdy.nc
     full boundary condition coordinates of width=width for {T,U,V}
     '''
 
-    dsT = get_ring('T', width=width)
-    dsU = get_ring('U', width=width)
-    dsV = get_ring('V', width=width)
+    dsT = get_ring('T', width=width, coords=coords)
+    dsU = get_ring('U', width=width, coords=coords)
+    dsV = get_ring('V', width=width, coords=coords)
     ds = xr.merge([dsT, dsU, dsV])
-    ds.to_netcdf('../DataOut/ORCA48/coordinates.bdy.nc')
+    ds.to_netcdf('../DataOut/' + model + '/ORCA' + res + '/ModelReady/coordinates.bdy.nc')
 
-full_bounds(width=20)
+model='SATLAN'
+res = '96'
+path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SATLAN_' + res + '/'
+coords = xr.open_dataset(path + 'coordinates.nc', decode_times=False)
+full_bounds(coords, model=model, res=res, width=32)
 
 def merge_pos(side, width=1):
     dsT = single_bound(side, 'T', width=width)

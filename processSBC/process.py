@@ -5,13 +5,18 @@ import numpy as np
 import datetime
 import pandas as pd
 
-
 #path = '../SourceData/coordinates.nc'
-path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_48/coordinates.nc'
-coord = xr.open_dataset(path, decode_times=False)
 #ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')#.isel(time=slice(None,3))
 
 class process(object):
+    def __init__(self, cfg=''):
+        if cfg == '':
+            raise Exception('cfg not defined')
+        else:
+            self.cfg = cfg
+        path = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/' + self.cfg + \
+               '/coordinates.nc'
+        self.coord = xr.open_dataset(path, decode_times=False)
 
     def regrid(self, iteration, data, coord, var, nav=False):
         '''
@@ -21,7 +26,7 @@ class process(object):
             True  - nav_lon and nav_lat are supplied for original data
             False - 1d lon and lat fields are supplied for original data
         '''
-    
+        
         print ('variable: ', var)
         #try:
         #    print ('time length', rg_ds[var].time_counter.values.shape)
@@ -34,7 +39,7 @@ class process(object):
     
         ds_new_grid = []
         for i, ds_iter in enumerate(data[var]):
-            print ('time', i)
+            #print ('time', i)
             if nav:
                 xi = data.nav_lon.values
                 xj = data.nav_lat.values
@@ -95,7 +100,8 @@ class process(object):
     
     def clean_coords(self):
         #self.ds = self.ds.drop_dims(['latitude','longitude'])
-        self.ds = self.ds.assign({'nav_lon': coord.nav_lon, 'nav_lat': coord.nav_lat})
+        self.ds = self.ds.assign({'nav_lon': self.coord.nav_lon,
+                                  'nav_lat': self.coord.nav_lat})
     
     #def calc_specific_humidity(ds):
     #    T0 = 273.18 # Kelvin freezing point
@@ -247,7 +253,7 @@ class process(object):
     def calc_ecmwf_bulk():
         ECMWF = xr.open_dataset('../SourceData/ECMWF.nc')
         for var in ECMWF.keys():
-            ECMWF = regrid(ECMWF, coord, var)
+            ECMWF = regrid(ECMWF, var)
         ECMWF = clean_coords(ECMWF)
         ECMWF = correct_units(ECMWF)
         ECMWF = calc_specific_humidity(ECMWF)
@@ -307,7 +313,9 @@ class process(object):
             data = data.sortby('lon0', ascending=True)
             data = data.sortby('lat0', ascending=True)
             data['lat0'] = data.lat0.astype('float64')
-            data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
+            #data = data.sel(lon0=slice(-5,5), lat0=slice(-66,-54))
+            #data = data.sel(lon0=slice(-1.5,1.5), lat0=slice(-56.5,-54.5))
+            data = data.sel(lon0=slice(-2.5,2.5), lat0=slice(-56,-52.0))
             try:
                 time = pd.date_range(year + '-01-01 ' + time_origin, freq=freq,
                                      periods=365 * 24 / period)
@@ -333,9 +341,9 @@ class process(object):
             data = data.rename({'lon0': 'longitude', 'lat0': 'latitude'})
             
             if i == 0:
-                self.regrid('ini', data, coord, var)
+                self.regrid('ini', data, self.coord, var)
             else:
-                self.regrid('notini', data, coord, var)
+                self.regrid('notini', data, self.coord, var)
             print (self.ds)
             #ds.append(data)
     
@@ -349,7 +357,7 @@ class process(object):
         else:
             chunk_str = ''
     
-        self.ds.to_netcdf('ORCA48/DFS5.2_' + str(period).zfill(2) 
+        self.ds.to_netcdf(self.cfg + '/DFS5.2_' + str(period).zfill(2) 
                      + '_y' + year + chunk_str + '.nc',
                      unlimited_dims='time', mode='w')
     
@@ -358,8 +366,8 @@ class process(object):
         data_list_24 = ['snow', 'radsw', 'radlw', 'precip']
         data_list_03 = ['u10', 'v10', 't2', 'q2','msl']
     
-        regrid_dfs(data_list_24, year, 24)
-        regrid_dfs(data_list_03, year, 3)
+        self.regrid_dfs(data_list_24, year, 24)
+        self.regrid_dfs(data_list_03, year, 3)
     
     def process_dfs_chunks(self, year):
         '''
@@ -369,31 +377,47 @@ class process(object):
     
         data_list_03 = ['u10', 'v10', 't2', 'q2','msl']
     
-        for chunk in range(5,6):
+        for chunk in range(6):
             print ('chunk: ', chunk)
             self.regrid_dfs(data_list_03, year, 3, chunk=chunk)
     
-    def regrid_sea_surface_restoring(self, coord):
+    def regrid_sea_surface_restoring(self):
         ''' cut sea surface restoring to patch and regrid '''
         
         # source data
         path = '../SourceData/sss_1m.nc'
         data = xr.open_dataset(path)
     
-        coord = coord.drop('time')
+        coord_loc = self.coord.drop(['time','X','Y'])
     
         # regrid
-        data = data.sel(x=slice(3321,3568), y=slice(296,803)).load()
-        data = regrid(data, coord, 'vosaline', nav=True)
+        #data = data.sel(x=slice(3321,3568), y=slice(296,803)).load()
+        data = data.where((-2.5 < data.nav_lon) & 
+                          ( 2.5 > data.nav_lon) &
+                          (-55.5 < data.nav_lat) &
+                          (-52.5 > data.nav_lat), drop=True)
+        data = data.rename_dims({'time_counter':'time'})
         
-        data = data.drop_dims(['time_counter','x','y'])
-        data = data.assign({'nav_lon': coord.nav_lon, 'nav_lat': coord.nav_lat})
-        data = data.rename_dims({'time':'time_counter', 'X':'x', 'Y':'y'})
+        self.regrid('ini', data, coord_loc, 'vosaline', nav=True)
+         
+        data = self.ds
+        data = data.drop(['time'])
+        data = data.assign({'nav_lon': coord_loc.nav_lon, 
+                            'nav_lat': coord_loc.nav_lat})
+        data = data.swap_dims({'time':'time_counter'})
+        data = data.rename_dims({'X':'x', 'Y':'y'})
     
         # save
-        data.to_netcdf('ORCA48/sss_1m_conform.nc', unlimited_dims='time_counter')
+        data.to_netcdf(self.cfg + '/sss_1m_conform.nc',
+                       unlimited_dims='time_counter')
 
-#regrid_sea_surface_restoring(coord)
-p = process()
-p.process_dfs_chunks('2013')
+p = process(cfg='SATLAN_96')
+print ('sss')
+#p.regrid_sea_surface_restoring(coord)
+print ('2012')
+p.process_dfs('2012')
+print ('2013')
+p.process_dfs('2013')
+print ('2014')
+p.process_dfs('2014')
 #calc_ecmwf_bulk()

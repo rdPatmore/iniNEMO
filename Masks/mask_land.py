@@ -2,7 +2,7 @@ import xarray as xr
 import numpy as np
 
 def mask_bdy(scalar, year, month, day, res='12'):
-    indir = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SOCHIC_' + res
+    indir = '/work/n02/n02/ryapat30/nemo/nemo/tools/SIREN/SATLAN_' + res
     for bearing in ['north', 'east', 'south', 'west']:
         ds = xr.load_dataset(indir + '/bdy_'+ scalar +'_' + bearing + 
                              '_y' + year + 'm' + month + 'd' + day + '.nc')
@@ -34,13 +34,14 @@ def mask_bdy(scalar, year, month, day, res='12'):
             ds['sitemp'] = xr.where(ds.sitemp == 1e20, -3.15, ds.sitemp)
 
         print (ds)
-        ds.to_netcdf('../DataOut/ORCA' + res + '/bdy_'+ scalar +'_' + bearing + 
+        ds.to_netcdf('../DataOut/SATLAN/ORCA' + res + 
+                     '/Masked/bdy_'+ scalar +'_' + bearing + 
                      '_y' + year + '_masked.nc')
 
-mask_bdy('V', '2013', '01', '03', res='48')
-mask_bdy('T', '2013', '01', '03', res='48')
-mask_bdy('U', '2013', '01', '03', res='48')
-mask_bdy('I', '2013', '01', '03', res='48')
+for pos in ['I','T','U','V']:
+    for year in ['2012','2013','2014']:
+        mask_bdy(pos, year, '01', '03', res='96')
+#mask_bdy('I', '2014', '01', '03', res='12')
 #mask_bdy('V', '2014', '12')
 #mask_bdy('T', '2014', '12')
 #mask_bdy('U', '2014', '12')
